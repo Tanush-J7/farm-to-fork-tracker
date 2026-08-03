@@ -1,0 +1,15 @@
+{
+  "name": "farm-to-fork-tracker",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail -n frontend,api,ai,chain -c cyan,green,magenta,yellow \"npm --prefix frontend run dev -- --host 127.0.0.1\" \"npm --prefix backend run dev\" \"python -m uvicorn --app-dir ai-service main:app --reload --port 8000\" \"npm --prefix blockchain run node\"",
+    "dev:app": "concurrently --kill-others-on-fail -n frontend,api,ai -c cyan,green,magenta \"npm --prefix frontend run dev -- --host 127.0.0.1\" \"npm --prefix backend run dev\" \"python -m uvicorn --app-dir ai-service main:app --reload --port 8000\"",
+    "dev:frontend": "npm --prefix frontend run dev -- --host 127.0.0.1",
+    "setup": "npm install && npm --prefix frontend install && npm --prefix backend install && npm --prefix blockchain install && python -m pip install -r ai-service/requirements.txt",
+    "setup:frontend": "npm --prefix frontend install",
+    "deploy:local": "npm --prefix blockchain run deploy:local"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.4"
+  }
+}

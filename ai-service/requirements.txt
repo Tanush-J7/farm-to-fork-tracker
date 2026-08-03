@@ -1,0 +1,5 @@
+# The current AI endpoints are mock prediction services. Keep runtime
+# dependencies lightweight until a real ML model is integrated.
+fastapi
+uvicorn
+pydantic

@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 150 33% 98%;
+    --foreground: 153 45% 22%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 153 45% 22%;
+ 
+    --popover: 0 0% 100%;
+    --popover-foreground: 153 45% 22%;
+ 
+    /* Primary Green for FarmChain */
+    --primary: 156 54% 38%;
+    --primary-foreground: 0 0% 100%;
+ 
+    /* Earth Brown / Secondary */
+    --secondary: 151 45% 94%;
+    --secondary-foreground: 153 45% 28%;
+ 
+    --muted: 150 24% 95%;
+    --muted-foreground: 153 19% 43%;
+ 
+    --accent: 151 45% 94%;
+    --accent-foreground: 153 45% 28%;
+ 
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 151 27% 87%;
+    --input: 151 27% 87%;
+    --ring: 156 54% 38%;
+
+    --radius: 1rem;
+  }
+}
+ 
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+/* White + green application surfaces */
+.glass {
+  @apply bg-white border border-emerald-100 shadow-sm;
+}
+
+.glass-card {
+  @apply bg-white border border-emerald-100 shadow-[0_10px_30px_rgba(24,112,75,0.06)] rounded-2xl;
+}
+
+/* Keep legacy screens in the same light visual language. */
+[class*="bg-slate-900"],
+[class*="bg-slate-800"],
+[class*="bg-zinc-950"],
+[class*="bg-black/"],
+[class*="bg-white/5"] {
+  background-color: rgb(255 255 255) !important;
+}
+
+[class*="border-white/"] {
+  border-color: rgb(209 232 218) !important;
+}
+
+[class*="text-slate-"],
+[class*="text-gray-"] {
+  color: rgb(80 123 99) !important;
+}
+
+input, select, textarea {
+  color: rgb(31 93 65) !important;
+  background-color: rgb(255 255 255) !important;
+  border-color: rgb(209 232 218) !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: rgb(129 159 140) !important;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(143 198 165) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgb(143 198 165);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
