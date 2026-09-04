@@ -111,7 +111,7 @@ export const getProducts = async (req: Request, res: Response) => {
   try {
     const { data: products, error } = await supabase
       .from('products')
-      .select('*')
+      .select('*, farmer:farmer_id(name, email)')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -213,5 +213,73 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
     res.status(200).json({ success: true, data: product });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const updateProductStatus = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, current_owner_id, blockchain_hash } = req.body;
+
+    const { data: product, error } = await supabase
+      .from('products')
+      .update({
+        status,
+        current_owner_id: current_owner_id || undefined,
+        blockchain_hash: blockchain_hash || undefined,
+      })
+      .eq('id', id)
+      .select('*, farmer:farmer_id(name, email)')
+      .single();
+
+    if (error) {
+      res.status(500).json({ success: false, message: 'Server Error', error });
+      return;
+    }
+
+    res.status(200).json({ success: true, data: product });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const deleteProduct = async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id);
+
+    // 1. Try deleting directly by primary key 'id'
+    const { data: d1 } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', id)
+      .select();
+
+    if (d1 && d1.length > 0) {
+      res.status(200).json({ success: true, message: 'Product deleted permanently from database' });
+      return;
+    }
+
+    // 2. If id is numeric, try deleting by product_id or integer id
+    const numId = Number(id);
+    if (!isNaN(numId) && numId > 0) {
+      const { data: d2 } = await supabase
+        .from('products')
+        .delete()
+        .or(`product_id.eq.${numId},id.eq.${numId}`)
+        .select();
+
+      if (d2 && d2.length > 0) {
+        res.status(200).json({ success: true, message: 'Product deleted permanently from database' });
+        return;
+      }
+    }
+
+    // 3. Fallback: try by batch_number
+    await supabase.from('products').delete().eq('batch_number', id);
+
+    res.status(200).json({ success: true, message: 'Product deleted successfully' });
+  } catch (error) {
+    console.error('Delete product error:', error);
+    res.status(500).json({ success: false, message: 'Server Error', error });
   }
 };

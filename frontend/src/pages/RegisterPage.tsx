@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { Button } from "../components/ui/Button"
-import { Leaf, Mail, Lock, User, AlertCircle, Phone, MapPin, Camera, Locate, Loader2 } from "lucide-react"
+import { Leaf, Mail, Lock, User, AlertCircle, Phone, MapPin, Camera, Locate, Loader2, Eye, EyeOff } from "lucide-react"
 
 export function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -16,6 +16,7 @@ export function RegisterPage() {
   })
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [locating, setLocating] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const { register, loading } = useAuth()
   const navigate = useNavigate()
@@ -65,16 +66,15 @@ export function RegisterPage() {
       const stored = localStorage.getItem("farmchain_user")
       if (stored) {
         const u = JSON.parse(stored)
-        if (formData.role === "farmer") {
-          const nowISO = new Date().toISOString()
-          const farmerPhoto = formData.photo || photoPreview
+        if (formData.role === "farmer" || formData.role === "processor") {
+          const userPhoto = formData.photo || photoPreview
           const updatedUser = {
             ...u,
             phone: formData.phone,
             address: formData.address,
-            photo: farmerPhoto,
-            photoLastUpdated: farmerPhoto ? nowISO : undefined,
-            addressLastUpdated: formData.address ? nowISO : undefined,
+            photo: userPhoto,
+            photoLastUpdated: undefined,
+            addressLastUpdated: undefined,
           }
           localStorage.setItem("farmchain_user", JSON.stringify(updatedUser))
         }
@@ -128,7 +128,21 @@ export function RegisterPage() {
             <label className="text-sm font-medium text-slate-700">Password</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input type="password" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} placeholder="••••••••" required className="flex h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50" />
+              <input
+                type={showPassword ? "text" : "password"}
+                value={formData.password}
+                onChange={e => setFormData({ ...formData, password: e.target.value })}
+                placeholder="••••••••"
+                required
+                className="flex h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-10 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
           </div>
 
@@ -139,11 +153,11 @@ export function RegisterPage() {
             </select>
           </div>
 
-          {formData.role === "farmer" && (
+          {(formData.role === "farmer" || formData.role === "processor") && (
             <div className="space-y-4 pt-3 border-t border-emerald-100">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                  Farmer Details
+                  {formData.role === "farmer" ? "Farmer Details" : "Processor Details"}
                 </span>
               </div>
 
@@ -162,10 +176,12 @@ export function RegisterPage() {
                 </div>
               </div>
 
-              {/* Farm Address */}
+              {/* Address */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-slate-700">Farm Address</label>
+                  <label className="text-sm font-medium text-slate-700">
+                    {formData.role === "farmer" ? "Farm Address" : "Processor Address"}
+                  </label>
                   <button
                     type="button"
                     onClick={handleGetCurrentLocation}
@@ -191,21 +207,31 @@ export function RegisterPage() {
                     rows={2}
                     value={formData.address}
                     onChange={e => setFormData({ ...formData, address: e.target.value })}
-                    placeholder="123 Farm Road, Valley Region (or detect via GPS)"
+                    placeholder={
+                      formData.role === "farmer"
+                        ? "123 Farm Road, Valley Region (or detect via GPS)"
+                        : "123 Processing Unit, Industrial Area (or detect via GPS)"
+                    }
                     className="flex w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 resize-none"
                   />
                 </div>
-                <p className="text-[11px] text-slate-500">You can click "Use Current Location" to auto-fill or enter your farm address manually.</p>
+                <p className="text-[11px] text-slate-500">
+                  {formData.role === "farmer"
+                    ? 'You can click "Use Current Location" to auto-fill or enter your farm address manually.'
+                    : 'You can click "Use Current Location" to auto-fill or enter your processor address manually.'}
+                </p>
               </div>
 
-              {/* Farmer Photo */}
+              {/* Photo */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Farmer Photo</label>
+                <label className="text-sm font-medium text-slate-700">
+                  {formData.role === "farmer" ? "Farmer Photo" : "Processor Photo"}
+                </label>
                 <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
                   {photoPreview ? (
                     <img
                       src={photoPreview}
-                      alt="Farmer preview"
+                      alt={formData.role === "farmer" ? "Farmer preview" : "Processor preview"}
                       className="h-12 w-12 rounded-full object-cover border-2 border-emerald-500 shrink-0"
                     />
                   ) : (

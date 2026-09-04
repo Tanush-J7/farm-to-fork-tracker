@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "../components/ui/Button"
 import {
   Leaf, Plus, X, CheckCircle2, Clock, Truck, Factory,
-  ShoppingBag, AlertCircle, RefreshCw, Wheat, Star, ImagePlus, CalendarDays, Wand2, Trash2
+  ShoppingBag, AlertCircle, RefreshCw, Wheat, Star, ImagePlus, CalendarDays, Wand2, Trash2, QrCode, Printer, Download
 } from "lucide-react"
+import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
 import axios from "axios"
 import { useBlockchain } from "../hooks/useBlockchain"
 import { useAuth } from "../context/AuthContext"
@@ -88,6 +89,7 @@ export function FarmerDashboard() {
 
   // Products state
   const [products, setProducts] = useState<Product[]>([])
+  const [selectedQrProduct, setSelectedQrProduct] = useState<Product | null>(null)
   const [loadingProducts, setLoadingProducts] = useState(true)
   const [productError, setProductError] = useState("")
 
@@ -99,7 +101,22 @@ export function FarmerDashboard() {
     setProductError("")
     try {
       const res = await axios.get(`${API}/products/my`, { headers })
-      setProducts((res.data.data || []).map(normaliseProduct))
+      const rawProducts: Product[] = (res.data.data || []).map(normaliseProduct)
+      
+      // Filter out permanently deleted products
+      let deletedIds: string[] = []
+      try {
+        deletedIds = JSON.parse(localStorage.getItem("farmer_deleted_products") || "[]")
+      } catch {
+        deletedIds = []
+      }
+      const deletedSet = new Set(deletedIds.map(String))
+      
+      const activeProducts = rawProducts.filter(p => 
+        !deletedSet.has(String(p._id)) && 
+        !deletedSet.has(String(p.batchNumber))
+      )
+      setProducts(activeProducts)
     } catch {
       setProductError("Could not load products. Make sure the backend is running.")
     } finally {
@@ -152,6 +169,29 @@ export function FarmerDashboard() {
     setImagePreview("")
     if (photoInputRef.current) photoInputRef.current.value = ""
     setFormMsg(null)
+  }
+
+  const handleDeleteProduct = async (product: Product) => {
+    if (!window.confirm(`Are you sure you want to remove / log farm loss for "${product.name}"?`)) return
+    
+    // 1. Persist deletion immediately so it never reappears on page refresh
+    try {
+      const existing: string[] = JSON.parse(localStorage.getItem("farmer_deleted_products") || "[]")
+      const updated = Array.from(new Set([...existing, String(product._id), String(product.batchNumber)]))
+      localStorage.setItem("farmer_deleted_products", JSON.stringify(updated))
+    } catch (e) {
+      console.warn("Could not save deleted item to localStorage", e)
+    }
+
+    // 2. Remove immediately from current React state
+    setProducts(prev => prev.filter(p => p._id !== product._id && p.batchNumber !== product.batchNumber))
+
+    // 3. Send DELETE to backend database
+    try {
+      await axios.delete(`${API}/products/${product._id}`, { headers })
+    } catch (err) {
+      console.warn("Backend delete sync notice:", err)
+    }
   }
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -468,12 +508,124 @@ export function FarmerDashboard() {
                       Expires {new Date(`${p.expiryDate}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                     </div>
                   )}
+
+                  {/* Card Actions: QR Code & Farm Loss (Locked once processor expresses interest) */}
+                  <div className="pt-3 border-t border-white/10 flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs gap-1.5 rounded-xl border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500"
+                      onClick={() => setSelectedQrProduct(p)}
+                    >
+                      <QrCode className="h-3.5 w-3.5" />
+                      View QR
+                    </Button>
+                    {p.status === "Harvested" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs gap-1 rounded-xl border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500 hover:text-red-300"
+                        onClick={() => handleDeleteProduct(p)}
+                        title="Delete / Record Farm Loss"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Farm Loss
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )
             })}
           </div>
         )}
       </div>
+
+      {/* QR Code Certificate Modal */}
+      {selectedQrProduct && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-sm w-full space-y-5 text-center shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+              <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
+                <QrCode className="h-5 w-5 text-primary" />
+                Product QR Certificate
+              </h3>
+              <button
+                onClick={() => setSelectedQrProduct(null)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Offscreen Canvas used for high-res crisp PNG export */}
+            <div style={{ position: "fixed", left: "-9999px", top: "-9999px", pointerEvents: "none" }}>
+              <QRCodeCanvas
+                id="farmer-qr-canvas"
+                value={`${window.location.origin}/tracker?id=${selectedQrProduct._id}`}
+                size={400}
+                level="M"
+                bgColor="#ffffff"
+                fgColor="#000000"
+                includeMargin={true}
+                marginSize={4}
+              />
+            </div>
+
+            <div className="p-4 bg-white rounded-2xl flex flex-col items-center justify-center shadow-inner mx-auto w-fit">
+              <QRCodeSVG
+                value={`${window.location.origin}/tracker?id=${selectedQrProduct._id}`}
+                size={180}
+                level="H"
+                includeMargin={true}
+              />
+            </div>
+
+            <div className="space-y-1 text-xs">
+              <p className="font-bold text-base text-foreground">{selectedQrProduct.name}</p>
+              <p className="text-slate-400 font-mono">Batch: {selectedQrProduct.batchNumber}</p>
+              <p className="text-slate-400">Qty: {selectedQrProduct.quantity} kg • {selectedQrProduct.category}</p>
+              <p className="text-emerald-400 font-semibold pt-1">
+                Scan with camera or upload image to trace on blockchain
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2">
+              <Button
+                className="w-full rounded-xl text-xs gap-1.5 bg-primary hover:bg-primary/95 text-white font-semibold"
+                onClick={() => {
+                  const canvas = document.getElementById("farmer-qr-canvas") as HTMLCanvasElement
+                  if (!canvas) return
+                  const pngUrl = canvas.toDataURL("image/png")
+                  const downloadLink = document.createElement("a")
+                  downloadLink.href = pngUrl
+                  downloadLink.download = `${selectedQrProduct.name.replace(/\s+/g, '_')}_${selectedQrProduct.batchNumber}_QR.png`
+                  document.body.appendChild(downloadLink)
+                  downloadLink.click()
+                  document.body.removeChild(downloadLink)
+                }}
+              >
+                <Download className="h-3.5 w-3.5" /> Download QR Image (PNG)
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 rounded-xl text-xs gap-1.5"
+                  onClick={() => window.print()}
+                >
+                  <Printer className="h-3.5 w-3.5" /> Print
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="flex-1 rounded-xl text-xs text-slate-400 hover:text-white"
+                  onClick={() => setSelectedQrProduct(null)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

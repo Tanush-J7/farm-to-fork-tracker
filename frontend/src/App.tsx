@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom"
 import { AuthProvider } from "./context/AuthContext"
 import { DashboardLayout } from "./components/layout/DashboardLayout"
+import { PublicLayout } from "./components/layout/PublicLayout"
 import { LandingPage } from "./pages/LandingPage"
 import { LoginPage } from "./pages/LoginPage"
 import { RegisterPage } from "./pages/RegisterPage"
@@ -18,15 +19,16 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<LandingPage />} />
+          {/* Public routes wrapped in PublicLayout */}
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/track" element={<Tracker />} />
+            <Route path="/tracker" element={<Tracker />} />
+            <Route path="/verify" element={<Tracker />} />
+          </Route>
+
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-
-          {/* Track route with Sidebar layout */}
-          <Route element={<DashboardLayout />}>
-            <Route path="/track" element={<Tracker />} />
-          </Route>
 
           {/* Protected dashboard routes */}
           <Route path="/admin" element={<DashboardLayout />}>

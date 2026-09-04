@@ -2,11 +2,12 @@ import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { Button } from "../components/ui/Button"
-import { Leaf, Mail, Lock, AlertCircle } from "lucide-react"
+import { Leaf, Mail, Lock, AlertCircle, Eye, EyeOff } from "lucide-react"
 
 export function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const { login, loading } = useAuth()
   const navigate = useNavigate()
@@ -73,13 +74,20 @@ export function LoginPage() {
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="flex h-11 w-full rounded-xl border border-white/10 bg-white/5 pl-10 pr-3 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 backdrop-blur-sm"
+                className="flex h-11 w-full rounded-xl border border-white/10 bg-white/5 pl-10 pr-10 py-2 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 backdrop-blur-sm"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 focus:outline-none"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
           </div>
 
@@ -98,7 +106,7 @@ export function LoginPage() {
         {/* Demo accounts hint */}
         <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 text-xs text-slate-400 space-y-1">
           <p className="font-medium text-primary">Demo: Register an account to get started</p>
-          <p>Roles: admin, farmer, processor, distributor, retailer, consumer</p>
+          <p>Roles: Admin, Farmer, Processor, Distributor, Retailer, Consumer</p>
         </div>
       </div>
     </div>

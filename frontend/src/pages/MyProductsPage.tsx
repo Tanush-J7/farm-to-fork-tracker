@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Button } from "../components/ui/Button"
 import {
   Leaf, Truck, Factory, ShoppingBag, CheckCircle2,
-  Clock, AlertCircle, RefreshCw, Star, Filter, Search, QrCode, X
+  AlertCircle, RefreshCw, Star, Filter, Search, QrCode, X
 } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import axios from "axios"
