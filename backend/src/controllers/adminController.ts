@@ -298,7 +298,7 @@ export const getUserDetails = async (req: Request, res: Response) => {
     const { data: products, error: prodErr } = await supabase
       .from('products')
       .select('id, product_id, name, category, batch_number, quantity, status, created_at, blockchain_hash')
-      .or(armer_id.eq. + id + ,current_owner_id.eq. + id)
+      .or(`farmer_id.eq.${id},current_owner_id.eq.${id}`)
       .order('created_at', { ascending: false });
 
     const totalBatches = products?.length || 0;
