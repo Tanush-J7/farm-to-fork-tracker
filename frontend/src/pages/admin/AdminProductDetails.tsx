@@ -76,28 +76,51 @@ export function AdminProductDetails() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2"><Package className="h-5 w-5 text-primary" /> Product Specifications</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <p className="text-sm text-muted-foreground">Category</p>
-                <p className="font-medium text-foreground">{product.category}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Quantity</p>
-                <p className="font-medium text-foreground">{product.quantity} kg</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Registered</p>
-                <p className="font-medium text-foreground">{new Date(product.created_at).toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">AI Quality Score</p>
-                <div className="flex items-center gap-2">
-                  <span className={`font-semibold ${product.ai_quality_label === 'Poor' ? 'text-red-500' : 'text-green-500'}`}>
-                    {product.ai_quality_label || 'Unknown'} 
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    ({product.ai_quality_score ? (product.ai_quality_score * 100).toFixed(0) : 0}%)
-                  </span>
+            <CardContent className="flex flex-col sm:flex-row gap-6">
+              {product.product_image_url && (
+                <div className="w-full sm:w-1/3 shrink-0">
+                  <img src={product.product_image_url} alt={product.name} className="w-full aspect-square object-cover rounded-xl border shadow-sm bg-slate-50 dark:bg-slate-900" />
+                </div>
+              )}
+              <div className="grid gap-4 sm:grid-cols-2 flex-1">
+                <div>
+                  <p className="text-sm text-muted-foreground">Category</p>
+                  <p className="font-medium text-foreground">{product.category}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Quantity</p>
+                  <p className="font-medium text-foreground">{product.quantity} kg</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Organic Status</p>
+                  <p className="font-medium text-foreground capitalize">{product.organic_status || 'Conventional'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Expiry Date</p>
+                  <p className="font-medium text-foreground">
+                    {product.expiry_date ? new Date(product.expiry_date).toLocaleDateString() : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">AI Quality Score</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${product.ai_quality_label === 'Poor' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                      {product.ai_quality_label || 'Unknown'} 
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      ({product.ai_quality_score ? (product.ai_quality_score * 100).toFixed(0) : 0}%)
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">AI Predicted Shelf Life</p>
+                  <p className="font-medium text-foreground">
+                    {product.ai_shelf_life ? `${product.ai_shelf_life} days` : 'Pending'}
+                  </p>
+                </div>
+                <div className="col-span-1 sm:col-span-2 pt-2 border-t mt-2">
+                  <p className="text-sm text-muted-foreground">Registered At</p>
+                  <p className="font-medium text-foreground text-sm">{new Date(product.created_at).toLocaleString()}</p>
                 </div>
               </div>
             </CardContent>
