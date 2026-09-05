@@ -14,6 +14,7 @@ import { RetailerDashboard } from "./pages/RetailerDashboard"
 import { AnalyticsDashboard } from "./pages/AnalyticsDashboard"
 import { Tracker } from "./pages/Tracker"
 import { AdminUsers } from "./pages/admin/AdminUsers"
+import { AdminUserDetails } from "./pages/admin/AdminUserDetails"
 import { AdminProducts } from "./pages/admin/AdminProducts"
 
 function App() {
@@ -37,6 +38,7 @@ function App() {
             <Route index element={<Dashboard />} />
             <Route path="analytics" element={<AnalyticsDashboard />} />
             <Route path="users" element={<AdminUsers />} />
+            <Route path="users/:id" element={<AdminUserDetails />} />
             <Route path="products" element={<AdminProducts />} />
           </Route>
 

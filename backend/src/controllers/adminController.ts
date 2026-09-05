@@ -289,26 +289,62 @@ export const getUserDetails = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
-    const { data: user, error: userErr } = await supabase.from('users').select('id, name, email, role, wallet_address, created_at').eq('id', id).single();
+    // Attempt to fetch phone and address if they exist in schema, otherwise they will be undefined
+    const { data: user, error: userErr } = await supabase
+      .from('users')
+      .select('id, name, email, role, wallet_address, phone, address, created_at')
+      .eq('id', id)
+      .single();
+      
     if (userErr || !user) {
-      res.status(404).json({ success: false, message: 'User not found' });
-      return;
+      // If phone/address columns don't exist, fallback to basic fields
+      const { data: fallbackUser, error: fallbackErr } = await supabase
+        .from('users')
+        .select('id, name, email, role, wallet_address, created_at')
+        .eq('id', id)
+        .single();
+        
+      if (fallbackErr || !fallbackUser) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+      }
+      Object.assign(user || {}, fallbackUser);
     }
 
     const { data: products, error: prodErr } = await supabase
       .from('products')
-      .select('id, product_id, name, category, batch_number, quantity, status, created_at, blockchain_hash')
+      .select('id, product_id, name, category, batch_number, quantity, status, ai_quality_label, ai_quality_score, created_at, blockchain_hash')
       .or(`farmer_id.eq.${id},current_owner_id.eq.${id}`)
       .order('created_at', { ascending: false });
 
     const totalBatches = products?.length || 0;
     const totalQuantity = products?.reduce((sum, p) => sum + (Number(p.quantity) || 0), 0) || 0;
+    
+    // Advanced stats
+    let totalScore = 0;
+    let scoredCount = 0;
+    const statusDistribution: Record<string, number> = {};
+    
+    products?.forEach(p => {
+      statusDistribution[p.status] = (statusDistribution[p.status] || 0) + 1;
+      if (p.ai_quality_score > 0) {
+        totalScore += p.ai_quality_score;
+        scoredCount++;
+      }
+    });
+
+    const avgQuality = scoredCount > 0 ? (totalScore / scoredCount) * 100 : 0;
 
     res.status(200).json({
       success: true,
       data: {
         user,
-        stats: { totalBatches, totalQuantity },
+        stats: { 
+          totalBatches, 
+          totalQuantity,
+          avgQuality: avgQuality.toFixed(0),
+          statusDistribution 
+        },
         products: products || []
       }
     });
