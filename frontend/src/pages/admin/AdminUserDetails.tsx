@@ -41,7 +41,9 @@ export function AdminUserDetails() {
     return <div className="p-8 text-center text-red-500">Failed to load user profile.</div>
   }
 
-  const { user, stats, products } = details
+  const user = details?.user || {}
+  const stats = details?.stats || { totalBatches: 0, totalQuantity: 0, avgQuality: 0 }
+  const products = details?.products || []
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
@@ -64,11 +66,11 @@ export function AdminUserDetails() {
             <CardContent className="space-y-4">
               <div className="flex flex-col items-center py-4 border-b">
                 <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center text-primary text-3xl font-bold mb-3">
-                  {user.name.charAt(0).toUpperCase()}
+                  {user?.name ? user.name.charAt(0).toUpperCase() : '?'}
                 </div>
-                <h3 className="text-xl font-bold">{user.name}</h3>
+                <h3 className="text-xl font-bold">{user?.name || 'Unknown User'}</h3>
                 <span className="mt-1 px-3 py-1 rounded-full text-xs font-semibold uppercase bg-primary/20 text-primary">
-                  {user.role.replace('pending_', 'pending ')}
+                  {user?.role ? user.role.replace('pending_', 'pending ') : 'UNKNOWN'}
                 </span>
               </div>
               
@@ -77,10 +79,10 @@ export function AdminUserDetails() {
                   <Mail className="h-4 w-4 text-muted-foreground mt-0.5" />
                   <div>
                     <p className="font-medium text-foreground">Email</p>
-                    <p className="text-muted-foreground">{user.email}</p>
+                    <p className="text-muted-foreground">{user?.email || 'N/A'}</p>
                   </div>
                 </div>
-                {user.phone && (
+                {user?.phone && (
                   <div className="flex items-start gap-3">
                     <Phone className="h-4 w-4 text-muted-foreground mt-0.5" />
                     <div>
@@ -89,7 +91,7 @@ export function AdminUserDetails() {
                     </div>
                   </div>
                 )}
-                {user.address && (
+                {user?.address && (
                   <div className="flex items-start gap-3">
                     <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
                     <div>
@@ -102,7 +104,7 @@ export function AdminUserDetails() {
                   <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
                   <div>
                     <p className="font-medium text-foreground">Joined Date</p>
-                    <p className="text-muted-foreground">{new Date(user.created_at).toLocaleDateString()}</p>
+                    <p className="text-muted-foreground">{user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -110,7 +112,7 @@ export function AdminUserDetails() {
                   <div className="w-full min-w-0">
                     <p className="font-medium text-foreground">Wallet Address</p>
                     <p className="text-muted-foreground font-mono text-xs break-all bg-slate-50 dark:bg-slate-900 p-2 rounded border mt-1">
-                      {user.wallet_address || "Wallet-less Account"}
+                      {user?.wallet_address || "Wallet-less Account"}
                     </p>
                   </div>
                 </div>
@@ -128,7 +130,7 @@ export function AdminUserDetails() {
                   <div className="p-2 bg-blue-500/10 text-blue-500 rounded-lg"><Package className="h-5 w-5" /></div>
                   <p className="text-sm font-medium text-muted-foreground">Total Batches</p>
                 </div>
-                <p className="text-3xl font-bold">{stats.totalBatches}</p>
+                <p className="text-3xl font-bold">{stats?.totalBatches || 0}</p>
               </CardContent>
             </Card>
             <Card>
@@ -137,7 +139,7 @@ export function AdminUserDetails() {
                   <div className="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg"><BarChart3 className="h-5 w-5" /></div>
                   <p className="text-sm font-medium text-muted-foreground">Total Volume</p>
                 </div>
-                <p className="text-3xl font-bold">{stats.totalQuantity.toLocaleString()} <span className="text-lg text-muted-foreground">kg</span></p>
+                <p className="text-3xl font-bold">{stats?.totalQuantity ? stats.totalQuantity.toLocaleString() : 0} <span className="text-lg text-muted-foreground">kg</span></p>
               </CardContent>
             </Card>
             <Card className="col-span-2 sm:col-span-1">
@@ -146,7 +148,7 @@ export function AdminUserDetails() {
                   <div className="p-2 bg-purple-500/10 text-purple-500 rounded-lg"><Shield className="h-5 w-5" /></div>
                   <p className="text-sm font-medium text-muted-foreground">Avg AI Quality</p>
                 </div>
-                <p className="text-3xl font-bold">{stats.avgQuality}%</p>
+                <p className="text-3xl font-bold">{stats?.avgQuality || 0}%</p>
               </CardContent>
             </Card>
           </div>
@@ -158,7 +160,7 @@ export function AdminUserDetails() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {products.length === 0 ? (
+              {!products || products.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed">
                   No products found for this user.
                 </div>
