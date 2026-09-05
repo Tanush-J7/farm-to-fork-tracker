@@ -18,8 +18,8 @@ export function AdminUserDetails() {
   useEffect(() => {
     const fetchDetails = async () => {
       try {
-        const res = await axios.get(\/admin/users/\/details, {
-          headers: { Authorization: \Bearer \\ }
+        const res = await axios.get(`${API}/admin/users/${id}/details`, {
+          headers: { Authorization: `Bearer ${token}` }
         })
         if (res.data.success) {
           setDetails(res.data.data)
@@ -184,13 +184,20 @@ export function AdminUserDetails() {
                           </td>
                           <td className="px-4 py-3 text-muted-foreground">{p.category}</td>
                           <td className="px-4 py-3">
-                            <span className={px-2 py-1 rounded-full text-[10px] font-semibold uppercase }>
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-semibold uppercase ${
+                              p.status === 'Pending Approval' ? 'bg-slate-200 text-slate-600' : 
+                              p.status === 'Harvested' ? 'bg-green-100 text-green-700' :
+                              'bg-blue-100 text-blue-700'
+                            }`}>
                               {p.status}
                             </span>
                           </td>
                           <td className="px-4 py-3">
                             {p.ai_quality_label ? (
-                              <span className={ont-semibold }>
+                              <span className={`font-semibold ${
+                                p.ai_quality_label === 'Excellent' || p.ai_quality_label === 'Good' ? 'text-green-500' :
+                                p.ai_quality_label === 'Poor' ? 'text-red-500' : 'text-yellow-500'
+                              }`}>
                                 {p.ai_quality_label} ({(p.ai_quality_score * 100).toFixed(0)}%)
                               </span>
                             ) : (
