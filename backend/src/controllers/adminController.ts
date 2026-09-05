@@ -15,8 +15,30 @@ export const getDashboardStats = async (req: Request, res: Response) => {
 
     const { data: aiAlerts } = await supabase
       .from('products')
-      .select('id')
-      .eq('ai_quality_label', 'Poor');
+      .select('id, name, batch_number, status, ai_quality_label, ai_quality_score')
+      .eq('ai_quality_label', 'Poor')
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    const { data: pendingUsers } = await supabase
+      .from('users')
+      .select('id, name, email, role, created_at')
+      .like('role', 'pending_%')
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    const { data: pendingProducts } = await supabase
+      .from('products')
+      .select('id, name, batch_number, quantity, category, created_at')
+      .eq('status', 'Pending Approval')
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    const { data: recentActivity } = await supabase
+      .from('products')
+      .select('id, name, batch_number, status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(10);
 
     res.status(200).json({
       success: true,
@@ -25,6 +47,10 @@ export const getDashboardStats = async (req: Request, res: Response) => {
         activeShipments: activeShipments?.length || 0,
         totalUsers: userCount || 0,
         aiAlerts: aiAlerts?.length || 0,
+        alertsList: aiAlerts || [],
+        pendingUsers: pendingUsers || [],
+        pendingProducts: pendingProducts || [],
+        recentActivity: recentActivity || []
       }
     });
   } catch (error) {
