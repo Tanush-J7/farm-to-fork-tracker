@@ -6,7 +6,6 @@ import {
 } from "lucide-react"
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
 import axios from "axios"
-import { useBlockchain } from "../hooks/useBlockchain"
 import { useAuth } from "../context/AuthContext"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
@@ -77,8 +76,6 @@ const normaliseProduct = (product: any): Product => ({
 
 export function FarmerDashboard() {
   const { token } = useAuth()
-  const { registerProductOnChain, isConnected } = useBlockchain()
-
   // Form state
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(createProductForm)
