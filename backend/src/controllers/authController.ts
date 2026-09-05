@@ -18,6 +18,12 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Prevent direct registration of admin accounts
+    let assignedRole = role || 'consumer';
+    if (assignedRole === 'admin') {
+      assignedRole = 'consumer'; // Fallback to consumer if they try to hack the API
+    }
+
     const { data: existing } = await supabase
       .from('users')
       .select('id')
@@ -37,7 +43,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         name,
         email,
         password: hashedPassword,
-        role,
+        role: assignedRole,
         wallet_address: walletAddress,
       })
       .select('id, name, email, role')

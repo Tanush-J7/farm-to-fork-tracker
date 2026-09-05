@@ -21,7 +21,7 @@ export function RegisterPage() {
   const { register, loading } = useAuth()
   const navigate = useNavigate()
 
-  const roles = ["farmer", "processor", "distributor", "retailer", "consumer", "admin"]
+  const roles = ["farmer", "processor", "distributor", "retailer", "consumer"]
 
   const handleGetCurrentLocation = () => {
     if (!navigator.geolocation) {
