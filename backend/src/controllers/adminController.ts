@@ -404,3 +404,35 @@ export const getUserDetails = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: 'Server Error', error });
   }
 };
+
+export const getProductDetails = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Attempt with join
+    let { data: product, error: prodErr } = await supabase
+      .from('products')
+      .select('*, farmer:users!farmer_id(name, email), owner:users!current_owner_id(name, email)')
+      .eq('id', id)
+      .single();
+
+    if (prodErr || !product) {
+      // Fallback
+      const { data: fallbackProduct, error: fallbackErr } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .single();
+        
+      if (fallbackErr || !fallbackProduct) {
+        res.status(404).json({ success: false, message: 'Product not found' });
+        return;
+      }
+      product = fallbackProduct;
+    }
+
+    res.status(200).json({ success: true, data: product });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error', error });
+  }
+};
