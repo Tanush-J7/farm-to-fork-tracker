@@ -27,6 +27,27 @@ export function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState("all")
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
 
+  const [userDetails, setUserDetails] = useState<any>(null)
+  const [loadingDetails, setLoadingDetails] = useState(false)
+
+  const handleViewUser = async (user: AdminUser) => {
+    setSelectedUser(user)
+    setUserDetails(null)
+    setLoadingDetails(true)
+    try {
+      const res = await axios.get(`${API}/admin/users/${user.id}/details`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.data.success) {
+        setUserDetails(res.data.data)
+      }
+    } catch (error) {
+      console.error("Failed to fetch user details", error)
+    } finally {
+      setLoadingDetails(false)
+    }
+  }
+
   const fetchUsers = async () => {
     try {
       const res = await axios.get(`${API}/admin/users`, {
@@ -181,7 +202,7 @@ export function AdminUsers() {
                         </select>
                       ) : (
                         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.role === 'admin' ? 'bg-primary/20 text-primary' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'} uppercase`}>
-                          {u.role}
+                          {u.role.replace('pending_', 'pending ')}
                         </span>
                       )}
                     </td>
@@ -208,7 +229,7 @@ export function AdminUsers() {
                               Approve
                             </Button>
                           )}
-                          <Button size="sm" variant="ghost" onClick={() => setSelectedUser(u)}>
+                          <Button size="sm" variant="ghost" onClick={() => handleViewUser(u)}>
                             <Eye className="h-4 w-4 text-muted-foreground" />
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => { setEditingId(u.id); setEditRole(u.role); }}>
@@ -233,26 +254,97 @@ export function AdminUsers() {
         </CardContent>
       </Card>
 
-      {/* User Details Modal */}
+      {/* Advanced User Details Modal */}
       {selectedUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setSelectedUser(null)}>
-          <div className="bg-background rounded-xl p-6 max-w-md w-full shadow-lg border" onClick={e => e.stopPropagation()}>
-            <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><User className="text-primary"/> User Details</h3>
-            <div className="space-y-3 text-sm">
-              <div><span className="font-semibold text-muted-foreground">ID:</span> <span className="font-mono text-xs">{selectedUser.id}</span></div>
-              <div><span className="font-semibold text-muted-foreground">Name:</span> {selectedUser.name}</div>
-              <div><span className="font-semibold text-muted-foreground">Email:</span> {selectedUser.email}</div>
-              <div><span className="font-semibold text-muted-foreground">Role:</span> <span className="uppercase">{selectedUser.role}</span></div>
-              <div><span className="font-semibold text-muted-foreground">Joined:</span> {new Date(selectedUser.created_at).toLocaleString()}</div>
-              <div>
-                <span className="font-semibold text-muted-foreground">Wallet:</span> 
-                <div className="font-mono text-xs mt-1 p-2 bg-muted rounded break-all">
-                  {selectedUser.wallet_address || "No wallet connected"}
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto" onClick={() => setSelectedUser(null)}>
+          <div className="bg-background rounded-2xl p-6 max-w-3xl w-full shadow-2xl border border-white/10 my-8 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold flex items-center gap-2"><User className="text-primary h-6 w-6"/> User Profile</h3>
+              <button onClick={() => setSelectedUser(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            {loadingDetails ? (
+               <div className="flex justify-center items-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
+            ) : userDetails ? (
+              <div className="space-y-6 overflow-y-auto pr-2">
+                {/* Profile Card */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border">
+                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Account Information</p>
+                    <div><span className="font-semibold">Name:</span> {userDetails.user.name}</div>
+                    <div><span className="font-semibold">Email:</span> {userDetails.user.email}</div>
+                    <div><span className="font-semibold">Role:</span> <span className="uppercase px-2 py-0.5 rounded text-[10px] bg-primary/20 text-primary">{userDetails.user.role.replace('pending_', 'pending ')}</span></div>
+                    <div><span className="font-semibold">Joined:</span> {new Date(userDetails.user.created_at).toLocaleDateString()}</div>
+                  </div>
+                  
+                  <div className="space-y-2 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border flex flex-col justify-center">
+                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-2">Activity Stats</p>
+                    <div className="flex justify-between items-center bg-background px-4 py-2 rounded-lg border">
+                      <span className="text-sm">Total Batches Handled</span>
+                      <span className="font-bold text-lg">{userDetails.stats.totalBatches}</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-background px-4 py-2 rounded-lg border">
+                      <span className="text-sm">Total Volume (kg)</span>
+                      <span className="font-bold text-lg">{userDetails.stats.totalQuantity.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <span className="font-semibold text-sm">Wallet Address:</span> 
+                  <div className="font-mono text-xs p-3 bg-muted rounded-lg break-all border">
+                    {userDetails.user.wallet_address || "No wallet connected (Using secure wallet-less backend)"}
+                  </div>
+                </div>
+
+                {/* Product History */}
+                <div>
+                  <h4 className="text-lg font-bold mb-3 flex items-center gap-2 mt-4">Transaction & Product History</h4>
+                  {userDetails.products.length === 0 ? (
+                    <div className="text-center p-8 bg-slate-50 dark:bg-slate-900/50 rounded-xl border text-muted-foreground">
+                      No products or transactions found for this user.
+                    </div>
+                  ) : (
+                    <div className="border rounded-xl overflow-hidden">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 dark:bg-slate-900 border-b">
+                          <tr>
+                            <th className="px-4 py-3">Product Name</th>
+                            <th className="px-4 py-3">Batch</th>
+                            <th className="px-4 py-3">Status</th>
+                            <th className="px-4 py-3">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {userDetails.products.map((p: any) => (
+                            <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                              <td className="px-4 py-3 font-medium">
+                                {p.name}
+                                <div className="text-[10px] text-muted-foreground">ID: #{p.product_id}</div>
+                              </td>
+                              <td className="px-4 py-3 font-mono text-xs">{p.batch_number}</td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2 py-1 rounded-full text-[10px] font-semibold uppercase ${p.status === 'Pending Approval' ? 'bg-slate-200 text-slate-600' : 'bg-emerald-100 text-emerald-800'}`}>
+                                  {p.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground">{new Date(p.created_at).toLocaleDateString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-            <div className="mt-6 flex justify-end">
-              <Button onClick={() => setSelectedUser(null)}>Close</Button>
+            ) : (
+              <div className="p-8 text-center text-red-500">Failed to load user details.</div>
+            )}
+            
+            <div className="mt-6 pt-4 border-t flex justify-end shrink-0">
+              <Button onClick={() => setSelectedUser(null)}>Close Profile</Button>
             </div>
           </div>
         </div>

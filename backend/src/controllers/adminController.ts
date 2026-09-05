@@ -284,3 +284,35 @@ export const approveProduct = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: 'Server Error', error });
   }
 };
+
+export const getUserDetails = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const { data: user, error: userErr } = await supabase.from('users').select('id, name, email, role, wallet_address, created_at').eq('id', id).single();
+    if (userErr || !user) {
+      res.status(404).json({ success: false, message: 'User not found' });
+      return;
+    }
+
+    const { data: products, error: prodErr } = await supabase
+      .from('products')
+      .select('id, product_id, name, category, batch_number, quantity, status, created_at, blockchain_hash')
+      .or(armer_id.eq. + id + ,current_owner_id.eq. + id)
+      .order('created_at', { ascending: false });
+
+    const totalBatches = products?.length || 0;
+    const totalQuantity = products?.reduce((sum, p) => sum + (Number(p.quantity) || 0), 0) || 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user,
+        stats: { totalBatches, totalQuantity },
+        products: products || []
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error', error });
+  }
+};
