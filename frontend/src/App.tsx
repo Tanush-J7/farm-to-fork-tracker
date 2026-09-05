@@ -13,6 +13,8 @@ import { DistributorDashboard } from "./pages/DistributorDashboard"
 import { RetailerDashboard } from "./pages/RetailerDashboard"
 import { AnalyticsDashboard } from "./pages/AnalyticsDashboard"
 import { Tracker } from "./pages/Tracker"
+import { AdminUsers } from "./pages/admin/AdminUsers"
+import { AdminProducts } from "./pages/admin/AdminProducts"
 
 function App() {
   return (
@@ -34,6 +36,8 @@ function App() {
           <Route path="/admin" element={<DashboardLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="analytics" element={<AnalyticsDashboard />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="products" element={<AdminProducts />} />
           </Route>
 
           <Route path="/farmer" element={<DashboardLayout />}>

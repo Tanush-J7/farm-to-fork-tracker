@@ -1,27 +1,72 @@
+import { useState, useEffect } from "react"
+import axios from "axios"
+import { useAuth } from "../context/AuthContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/Card"
-import { Activity, Leaf, TrendingUp, ShieldAlert } from "lucide-react"
+import { Activity, Leaf, ShieldAlert, Users, Server, Database } from "lucide-react"
+
+const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
 export function Dashboard() {
-  const stats = [
-    { title: "Total Products", value: "1,248", description: "+12% from last month", icon: Leaf },
-    { title: "Active Shipments", value: "43", description: "In transit right now", icon: Activity },
-    { title: "Revenue", value: "$45,231", description: "+8% from last month", icon: TrendingUp },
-    { title: "AI Alerts", value: "3", description: "Requires attention", icon: ShieldAlert, alert: true },
+  const { token } = useAuth()
+  const [stats, setStats] = useState({
+    totalProducts: 0,
+    activeShipments: 0,
+    totalUsers: 0,
+    aiAlerts: 0,
+  })
+  const [bcHealth, setBcHealth] = useState<any>(null)
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await axios.get(`${API}/admin/stats`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (res.data.success) {
+          setStats(res.data.data)
+        }
+      } catch (err) {
+        console.error("Failed to fetch stats", err)
+      }
+    }
+
+    const fetchHealth = async () => {
+      try {
+        const res = await axios.get(`${API}/admin/blockchain-health`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (res.data.success) {
+          setBcHealth(res.data.data)
+        }
+      } catch (err) {
+        console.error("Failed to fetch BC health", err)
+      }
+    }
+
+    fetchStats()
+    fetchHealth()
+  }, [token])
+
+  const statCards = [
+    { title: "Total Products", value: stats.totalProducts, description: "Registered in system", icon: Leaf },
+    { title: "Active Shipments", value: stats.activeShipments, description: "In transit or processing", icon: Activity },
+    { title: "Total Users", value: stats.totalUsers, description: "Farmers, Processors, etc.", icon: Users },
+    { title: "AI Quality Alerts", value: stats.aiAlerts, description: "Products flagged as 'Poor'", icon: ShieldAlert, alert: true },
   ]
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Overview</h1>
-        <p className="text-muted-foreground">Monitor your farm-to-fork supply chain activity.</p>
+        <p className="text-muted-foreground">Monitor farm-to-fork supply chain activity and system health.</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat, i) => (
-          <Card key={i} className={stat.alert ? "border-destructive/50 bg-destructive/5" : ""}>
+        {statCards.map((stat, i) => (
+          <Card key={i} className={stat.alert && stat.value > 0 ? "border-destructive/50 bg-destructive/5" : ""}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.alert ? 'text-destructive' : 'text-muted-foreground'}`} />
+              <stat.icon className={`h-4 w-4 ${stat.alert && stat.value > 0 ? 'text-destructive' : 'text-primary'}`} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
@@ -31,38 +76,51 @@ export function Dashboard() {
         ))}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Supply chain movements on the blockchain.</CardDescription>
+            <CardTitle className="flex items-center gap-2"><Server className="h-5 w-5"/> Blockchain Health</CardTitle>
+            <CardDescription>Status of the underlying RPC and Smart Contract.</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Placeholder for chart/table */}
-            <div className="h-[300px] w-full rounded-md border border-dashed flex items-center justify-center text-muted-foreground bg-white/10">
-              Blockchain Activity Chart
-            </div>
+            {bcHealth ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <span className="text-sm text-muted-foreground">Status</span>
+                  <span className={`text-sm font-bold ${bcHealth.status === 'healthy' ? 'text-green-500' : 'text-amber-500'}`}>
+                    {bcHealth.status.toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-2">
+                  <span className="text-sm text-muted-foreground">Network</span>
+                  <span className="text-sm">{bcHealth.network}</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-2">
+                  <span className="text-sm text-muted-foreground">Admin Wallet Balance</span>
+                  <span className="text-sm font-mono">{bcHealth.walletBalance} ETH</span>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-sm text-muted-foreground">Admin Wallet</span>
+                  <span className="text-xs font-mono">{bcHealth.walletAddress || 'Not Configured'}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">Loading health status...</div>
+            )}
           </CardContent>
         </Card>
-        <Card className="col-span-3">
+
+        <Card>
           <CardHeader>
-            <CardTitle>AI Quality Reports</CardTitle>
-            <CardDescription>Latest crop analysis results.</CardDescription>
+            <CardTitle className="flex items-center gap-2"><Database className="h-5 w-5"/> Database Health</CardTitle>
+            <CardDescription>Status of Supabase connection.</CardDescription>
           </CardHeader>
           <CardContent>
-             <div className="space-y-4">
-               {[1, 2, 3].map((_, i) => (
-                 <div key={i} className="flex items-center gap-4 p-3 rounded-lg bg-white/40 dark:bg-black/40 border">
-                    <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
-                      <Leaf className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Batch #{1042 + i} - Organic Apples</p>
-                      <p className="text-xs text-muted-foreground">Quality: Excellent (98%)</p>
-                    </div>
-                 </div>
-               ))}
-             </div>
+             <div className="flex items-center justify-between border-b pb-2">
+                <span className="text-sm text-muted-foreground">Status</span>
+                <span className="text-sm font-bold text-green-500">HEALTHY</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-4">Database is actively serving requests for {stats.totalUsers} users and {stats.totalProducts} products.</p>
           </CardContent>
         </Card>
       </div>

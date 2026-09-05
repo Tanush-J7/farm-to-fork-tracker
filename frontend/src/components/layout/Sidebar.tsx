@@ -10,6 +10,8 @@ import { useState } from "react"
 const roleNavMap: Record<string, { name: string; path: string; icon: React.ElementType }[]> = {
   admin: [
     { name: "Overview", path: "/admin", icon: LayoutDashboard },
+    { name: "User Directory", path: "/admin/users", icon: Edit3 },
+    { name: "Supply Chain", path: "/admin/products", icon: Factory },
     { name: "Analytics", path: "/admin/analytics", icon: BarChart3 },
     { name: "Track Product", path: "/track", icon: PackageSearch },
   ],
