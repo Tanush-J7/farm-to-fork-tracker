@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import axios from "axios"
 import { useAuth } from "../../context/AuthContext"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/Card"
+import { Card, CardContent, CardHeader, CardTitle,  } from "../../components/ui/Card"
 import { Button } from "../../components/ui/Button"
 import { Package, Hash, User, ArrowLeft, CheckCircle } from "lucide-react"
 

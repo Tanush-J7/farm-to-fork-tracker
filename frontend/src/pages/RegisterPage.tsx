@@ -18,40 +18,47 @@ export function RegisterPage() {
   const [locating, setLocating] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
+  const [successMsg, setSuccessMsg] = useState("")
   const { register, loading } = useAuth()
   const navigate = useNavigate()
 
   const roles = ["farmer", "processor", "distributor", "retailer", "consumer"]
 
-  const handleGetCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.")
-      return
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        setError("Photo must be less than 2MB")
+        return
+      }
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result as string)
+        setFormData(prev => ({ ...prev, photo: reader.result as string }))
+      }
+      reader.readAsDataURL(file)
     }
+  }
 
+  const handleGetCurrentLocation = () => {
     setLocating(true)
     navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords
+      async (pos) => {
         try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
-          )
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`)
           const data = await res.json()
-          if (data && data.display_name) {
-            setFormData((prev) => ({ ...prev, address: data.display_name }))
-          } else {
-            setFormData((prev) => ({ ...prev, address: `Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}` }))
+          if (data.display_name) {
+            setFormData(prev => ({ ...prev, address: data.display_name }))
           }
         } catch {
-          setFormData((prev) => ({ ...prev, address: `Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}` }))
+          setError("Failed to resolve address. Please type it manually.")
         } finally {
           setLocating(false)
         }
       },
       (err) => {
-        console.error("Location detection error:", err)
-        alert("Unable to fetch current location. Please check browser permissions or type address manually.")
+        console.error(err)
+        setError("Location access denied or failed.")
         setLocating(false)
       },
       { enableHighAccuracy: true, timeout: 10000 }
@@ -61,6 +68,7 @@ export function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setSuccessMsg("")
     try {
       await register(formData.name, formData.email, formData.password, formData.role)
       const stored = localStorage.getItem("farmchain_user")
@@ -83,9 +91,32 @@ export function RegisterPage() {
       } else {
         navigate("/admin")
       }
-    } catch {
-      setError("Registration failed. Please check your details and try again.")
+    } catch (err: any) {
+      if (err.message && err.message.includes("wait for an admin")) {
+        setSuccessMsg(err.message)
+      } else {
+        setError(err.message || "Registration failed. Please check your details and try again.")
+      }
     }
+  }
+
+  if (successMsg) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,_#e5f6eb_0%,_#fbfefc_48%,_#ffffff_100%)] p-4">
+        <div className="relative w-full max-w-md p-8 space-y-6 rounded-3xl border border-emerald-100 bg-white shadow-[0_20px_50px_rgba(24,112,75,0.10)] text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mb-4">
+            <Leaf className="h-8 w-8 text-green-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">Registration Successful!</h1>
+          <p className="text-slate-500 text-sm">{successMsg}</p>
+          <div className="pt-4">
+            <Link to="/login">
+              <Button className="w-full">Return to Login</Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -243,18 +274,7 @@ export function RegisterPage() {
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file) {
-                          const reader = new FileReader()
-                          reader.onloadend = () => {
-                            const result = reader.result as string
-                            setPhotoPreview(result)
-                            setFormData(prev => ({ ...prev, photo: result }))
-                          }
-                          reader.readAsDataURL(file)
-                        }
-                      }}
+                      onChange={handlePhotoUpload}
                       className="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-700 cursor-pointer"
                     />
                   </div>

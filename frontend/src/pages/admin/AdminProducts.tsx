@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import axios from "axios"
 import { useAuth } from "../../context/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/Card"
-import { ShieldAlert, Package, Leaf, Search, Download, Trash2, Eye } from "lucide-react"
+import { Search, Download, Trash2, Eye } from "lucide-react"
 import { Button } from "../../components/ui/Button"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
@@ -49,7 +49,7 @@ export function AdminProducts() {
     fetchProducts()
   }, [token])
 
-  const handleDeleteProduct = async (id: string) => {
+  const handleDeleteProduct = async (_id: string) => {
     if (!confirm("Are you sure you want to delete this product? This action cannot be undone.")) return
     try {
       // Assuming a delete endpoint exists, if not we ignore or implement
