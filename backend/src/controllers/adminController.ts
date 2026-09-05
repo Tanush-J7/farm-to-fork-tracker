@@ -296,6 +296,8 @@ export const getUserDetails = async (req: Request, res: Response) => {
       .eq('id', id)
       .single();
       
+    let finalUser = user;
+
     if (userErr || !user) {
       // If phone/address columns don't exist, fallback to basic fields
       const { data: fallbackUser, error: fallbackErr } = await supabase
@@ -308,7 +310,7 @@ export const getUserDetails = async (req: Request, res: Response) => {
         res.status(404).json({ success: false, message: 'User not found' });
         return;
       }
-      Object.assign(user || {}, fallbackUser);
+      finalUser = fallbackUser;
     }
 
     const { data: products, error: prodErr } = await supabase
@@ -338,7 +340,7 @@ export const getUserDetails = async (req: Request, res: Response) => {
     res.status(200).json({
       success: true,
       data: {
-        user,
+        user: finalUser,
         stats: { 
           totalBatches, 
           totalQuantity,
