@@ -1,11 +1,17 @@
 import { Request, Response } from 'express';
 import axios from 'axios';
 import { supabase } from '../config/supabase';
+import { ethers } from 'ethers';
 
 // Render Blueprints provide service host/port values separately from a full URL.
 // Prefer an explicitly configured URL for local development and other hosts.
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL
     || (process.env.AI_SERVICE_HOSTPORT ? `http://${process.env.AI_SERVICE_HOSTPORT}` : 'http://localhost:8000');
+
+const CONTRACT_ABI = [
+  "function registerProduct(string memory _name, string memory _category, string memory _batchNumber, uint256 _quantity, string memory _initialStatus) public",
+  "event ProductRegistered(uint256 indexed productId, string name, address indexed farmer)"
+];
 
 export const registerProduct = async (req: Request, res: Response) => {
   try {
@@ -66,9 +72,36 @@ export const registerProduct = async (req: Request, res: Response) => {
     }
 
     // Ensure product_id is a unique 6-digit number (100000 - 999999)
-    const finalProductId = (product_id && Number(product_id) >= 100000 && Number(product_id) <= 999999)
+    let finalProductId = (product_id && Number(product_id) >= 100000 && Number(product_id) <= 999999)
       ? Number(product_id)
       : Math.floor(100000 + Math.random() * 900000);
+      
+    let finalBlockchainHash = req.body.blockchainHash || null;
+
+    // Wallet-less blockchain registration
+    if (!finalBlockchainHash && process.env.BLOCKCHAIN_PRIVATE_KEY && process.env.CONTRACT_ADDRESS && process.env.BLOCKCHAIN_RPC_URL) {
+      try {
+        const provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
+        const wallet = new ethers.Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY, provider);
+        const contract = new ethers.Contract(process.env.CONTRACT_ADDRESS, CONTRACT_ABI, wallet);
+        
+        const tx = await contract.registerProduct(name, category, batchNumber, quantity, 'Harvested');
+        const receipt = await tx.wait();
+        finalBlockchainHash = receipt.hash;
+        
+        for (const log of receipt.logs) {
+          try {
+            const parsed = contract.interface.parseLog(log);
+            if (parsed && parsed.name === 'ProductRegistered') {
+              finalProductId = Number(parsed.args.productId);
+              break;
+            }
+          } catch (e) {}
+        }
+      } catch (err) {
+        console.error("Wallet-less blockchain registration failed:", err);
+      }
+    }
 
     const { data: product, error } = await supabase
       .from('products')
@@ -84,7 +117,7 @@ export const registerProduct = async (req: Request, res: Response) => {
         farmer_id: farmerId,
         current_owner_id: farmerId,
         status: 'Harvested',
-        blockchain_hash: req.body.blockchainHash || null,
+        blockchain_hash: finalBlockchainHash,
         ai_quality_score: aiQualityScore,
         ai_quality_label: aiQualityLabel,
         ai_shelf_life: aiShelfLife,
