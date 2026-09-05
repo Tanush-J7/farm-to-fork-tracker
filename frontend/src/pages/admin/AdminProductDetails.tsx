@@ -77,11 +77,16 @@ export function AdminProductDetails() {
               <CardTitle className="text-lg flex items-center gap-2"><Package className="h-5 w-5 text-primary" /> Product Specifications</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row gap-6">
-              {product.product_image_url && (
-                <div className="w-full sm:w-1/3 shrink-0">
-                  <img src={product.product_image_url} alt={product.name} className="w-full aspect-square object-cover rounded-xl border shadow-sm bg-slate-50 dark:bg-slate-900" />
-                </div>
-              )}
+              <div className="w-full sm:w-1/3 shrink-0 flex flex-col justify-center bg-slate-50 dark:bg-slate-900 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 aspect-square overflow-hidden">
+                {product.product_image_url ? (
+                  <img src={product.product_image_url} alt={product.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-muted-foreground p-6 text-center">
+                    <Package className="h-12 w-12 mb-2 opacity-20" />
+                    <span className="text-sm font-medium">No Photo Provided</span>
+                  </div>
+                )}
+              </div>
               <div className="grid gap-4 sm:grid-cols-2 flex-1">
                 <div>
                   <p className="text-sm text-muted-foreground">Category</p>
@@ -93,7 +98,9 @@ export function AdminProductDetails() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Organic Status</p>
-                  <p className="font-medium text-foreground capitalize">{product.organic_status || 'Conventional'}</p>
+                  <p className="font-medium text-foreground capitalize">
+                    {product.organic_status === true || product.organic_status === 'true' || product.organic_status === 'Organic' ? 'Organic' : 'Conventional'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Expiry Date</p>
