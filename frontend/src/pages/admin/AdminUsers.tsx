@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import axios from "axios"
 import { useAuth } from "../../context/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/Card"
@@ -18,6 +19,7 @@ interface AdminUser {
 
 export function AdminUsers() {
   const { token } = useAuth()
+  const navigate = useNavigate()
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -207,7 +209,7 @@ export function AdminUsers() {
                               Approve
                             </Button>
                           )}
-                          <Button size="sm" variant="ghost" onClick={() => window.location.href = `/admin/users/${u.id}`}>
+                          <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/users/${u.id}`)}>
                             <Eye className="h-4 w-4 text-muted-foreground" />
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => { setEditingId(u.id); setEditRole(u.role); }}>
