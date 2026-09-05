@@ -50,6 +50,20 @@ export function AdminProducts() {
     fetchProducts()
   }, [])
 
+  const handleApproveProduct = async (id: string) => {
+    try {
+      setLoading(true);
+      await axios.put(`${API}/admin/products/${id}/approve`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      alert("Product approved and registered on blockchain!");
+      fetchProducts()
+    } catch (error) {
+      alert("Failed to approve product")
+      setLoading(false);
+    }
+  }
+
   const handleDeleteProduct = async (id: string) => {
     if (!window.confirm("Are you sure you want to permanently delete this product?")) return;
     try {
@@ -186,6 +200,11 @@ export function AdminProducts() {
                     </td>
                     <td className="px-4 py-3 text-right">
                        <div className="flex justify-end gap-1">
+                          {p.status === 'Pending Approval' && (
+                            <Button size="sm" variant="outline" className="text-emerald-600 border-emerald-600 mr-2" onClick={() => handleApproveProduct(p.id)}>
+                              Approve
+                            </Button>
+                          )}
                           <Button size="sm" variant="ghost" onClick={() => setSelectedProduct(p)}>
                             <Eye className="h-4 w-4 text-muted-foreground" />
                           </Button>

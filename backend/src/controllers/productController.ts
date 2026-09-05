@@ -76,32 +76,9 @@ export const registerProduct = async (req: Request, res: Response) => {
       ? Number(product_id)
       : Math.floor(100000 + Math.random() * 900000);
       
-    let finalBlockchainHash = req.body.blockchainHash || null;
-
-    // Wallet-less blockchain registration
-    if (!finalBlockchainHash && process.env.BLOCKCHAIN_PRIVATE_KEY && process.env.CONTRACT_ADDRESS && process.env.BLOCKCHAIN_RPC_URL) {
-      try {
-        const provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
-        const wallet = new ethers.Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY, provider);
-        const contract = new ethers.Contract(process.env.CONTRACT_ADDRESS, CONTRACT_ABI, wallet);
-        
-        const tx = await contract.registerProduct(name, category, batchNumber, quantity, 'Harvested');
-        const receipt = await tx.wait();
-        finalBlockchainHash = receipt.hash;
-        
-        for (const log of receipt.logs) {
-          try {
-            const parsed = contract.interface.parseLog(log);
-            if (parsed && parsed.name === 'ProductRegistered') {
-              finalProductId = Number(parsed.args.productId);
-              break;
-            }
-          } catch (e) {}
-        }
-      } catch (err) {
-        console.error("Wallet-less blockchain registration failed:", err);
-      }
-    }
+    // Product needs admin approval before hitting the blockchain
+    const initialStatus = 'Pending Approval';
+    const finalBlockchainHash = null;
 
     const { data: product, error } = await supabase
       .from('products')
@@ -116,7 +93,7 @@ export const registerProduct = async (req: Request, res: Response) => {
         product_image_url: productImageUrl,
         farmer_id: farmerId,
         current_owner_id: farmerId,
-        status: 'Harvested',
+        status: initialStatus,
         blockchain_hash: finalBlockchainHash,
         ai_quality_score: aiQualityScore,
         ai_quality_label: aiQualityLabel,

@@ -95,7 +95,12 @@ export function AdminUsers() {
 
   const filteredUsers = users.filter(u => {
     const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesRole = roleFilter === "all" || u.role === roleFilter
+    
+    let matchesRole = false;
+    if (roleFilter === "all") matchesRole = true;
+    else if (roleFilter === "pending") matchesRole = u.role.startsWith("pending_");
+    else matchesRole = u.role === roleFilter;
+
     return matchesSearch && matchesRole
   })
 
@@ -139,6 +144,7 @@ export function AdminUsers() {
               <option value="distributor">Distributor</option>
               <option value="retailer">Retailer</option>
               <option value="consumer">Consumer</option>
+              <option value="pending">Pending Approval</option>
             </select>
           </div>
         </CardHeader>
@@ -190,6 +196,18 @@ export function AdminUsers() {
                         </div>
                       ) : (
                         <div className="flex justify-end gap-1">
+                          {u.role.startsWith('pending_') && (
+                            <Button size="sm" variant="outline" className="text-emerald-600 border-emerald-600 mr-2" onClick={async () => {
+                               try {
+                                 await axios.put(`${API}/admin/users/${u.id}/role`, { role: u.role.replace('pending_', '') }, {
+                                   headers: { Authorization: `Bearer ${token}` }
+                                 });
+                                 fetchUsers();
+                               } catch { alert('Failed to approve user'); }
+                            }}>
+                              Approve
+                            </Button>
+                          )}
                           <Button size="sm" variant="ghost" onClick={() => setSelectedUser(u)}>
                             <Eye className="h-4 w-4 text-muted-foreground" />
                           </Button>

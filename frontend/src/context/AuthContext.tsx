@@ -68,6 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true)
     try {
       const res = await axios.post(`${API_URL}/auth/register`, { name, email, password, role })
+      if (!res.data.token) {
+        throw new Error(res.data.message || "Account pending admin approval.")
+      }
       const { token: newToken, user: newUser } = res.data
       localStorage.setItem("farmchain_token", newToken)
       localStorage.setItem("farmchain_user", JSON.stringify(newUser))

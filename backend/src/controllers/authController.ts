@@ -23,6 +23,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     if (assignedRole === 'admin') {
       assignedRole = 'consumer'; // Fallback to consumer if they try to hack the API
     }
+    
+    if (assignedRole !== 'consumer') {
+      assignedRole = `pending_${assignedRole}`;
+    }
 
     const { data: existing } = await supabase
       .from('users')
@@ -54,6 +58,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Don't auto-login if pending
+    if (user.role.startsWith('pending_')) {
+      res.status(201).json({
+        success: true,
+        message: 'Registration successful! Please wait for an admin to approve your account before logging in.',
+      });
+      return;
+    }
+
     const token = signToken(user.id, user.role);
 
     res.status(201).json({
@@ -75,10 +88,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Password is included here because the backend uses the Supabase
-    // service-role key, which bypasses RLS/column restrictions — unlike
-    // Mongoose's `select: false`, Supabase has no per-column select guard,
-    // so we simply avoid returning `password` in any response payload.
     const { data: user, error } = await supabase
       .from('users')
       .select('id, name, email, password, role')
@@ -93,6 +102,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
+      return;
+    }
+
+    if (user.role.startsWith('pending_')) {
+      res.status(403).json({ success: false, message: 'Your account is pending admin approval.' });
       return;
     }
 

@@ -1,5 +1,5 @@
 import express from 'express';
-import { getDashboardStats, getAllUsers, updateUserRole, getBlockchainHealth, getAnalytics, deleteUser } from '../controllers/adminController';
+import { getDashboardStats, getAllUsers, updateUserRole, getBlockchainHealth, getAnalytics, deleteUser, approveProduct } from '../controllers/adminController';
 import { protect, authorize } from '../middleware/auth';
 
 const router = express.Router();
@@ -12,6 +12,7 @@ router.get('/analytics', getAnalytics);
 router.get('/users', getAllUsers);
 router.put('/users/:id/role', updateUserRole);
 router.delete('/users/:id', deleteUser);
+router.put('/products/:id/approve', approveProduct);
 router.get('/blockchain-health', getBlockchainHealth);
 
 export default router;
