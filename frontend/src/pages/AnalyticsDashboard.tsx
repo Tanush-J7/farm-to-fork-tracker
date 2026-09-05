@@ -1,3 +1,6 @@
+import { useState, useEffect } from "react"
+import axios from "axios"
+import { useAuth } from "../context/AuthContext"
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -5,41 +8,37 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
 import { TrendingUp, Users, Package, ShieldCheck } from "lucide-react"
 
-const monthlyData = [
-  { month: "Jan", products: 42, revenue: 12000 },
-  { month: "Feb", products: 58, revenue: 15500 },
-  { month: "Mar", products: 73, revenue: 19200 },
-  { month: "Apr", products: 61, revenue: 16800 },
-  { month: "May", products: 95, revenue: 24300 },
-  { month: "Jun", products: 112, revenue: 28900 },
-  { month: "Jul", products: 138, revenue: 35600 },
-]
-
-const qualityData = [
-  { name: "Excellent", value: 45, color: "#22c55e" },
-  { name: "Good", value: 30, color: "#84cc16" },
-  { name: "Average", value: 18, color: "#eab308" },
-  { name: "Poor", value: 7, color: "#ef4444" },
-]
-
-const userGrowthData = [
-  { month: "Jan", farmers: 12, processors: 4, distributors: 6 },
-  { month: "Feb", farmers: 18, processors: 6, distributors: 9 },
-  { month: "Mar", farmers: 24, processors: 9, distributors: 14 },
-  { month: "Apr", farmers: 31, processors: 12, distributors: 18 },
-  { month: "May", farmers: 42, processors: 15, distributors: 24 },
-  { month: "Jun", farmers: 55, processors: 19, distributors: 31 },
-]
-
-const recentTx = [
-  { id: "0x8f2a...391c", product: "Organic Avocados", type: "Register", time: "2 mins ago", status: "Confirmed" },
-  { id: "0x4b1e...882a", product: "Wheat Batch B-12", type: "Stage Update", time: "14 mins ago", status: "Confirmed" },
-  { id: "0x9c3d...110f", product: "Tomatoes - Farm 3", type: "Transfer", time: "1 hour ago", status: "Confirmed" },
-  { id: "0x2e7f...449d", product: "Mango Export Lot", type: "Register", time: "3 hours ago", status: "Pending" },
-  { id: "0x1a4b...cc23", product: "Rice Premium", type: "Stage Update", time: "5 hours ago", status: "Confirmed" },
-]
+const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
 export function AnalyticsDashboard() {
+  const { token } = useAuth()
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        const res = await axios.get(`${API}/admin/analytics`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (res.data.success) {
+          setData(res.data.data)
+        }
+      } catch (err) {
+        console.error("Failed to fetch analytics", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAnalytics()
+  }, [token])
+
+  if (loading) return <div className="p-8">Loading analytics...</div>
+  if (!data) return <div className="p-8">Failed to load analytics data.</div>
+
+  const { totalRevenue, activeUsers, productsTracked, blockchainTxs, monthlyData, qualityData, userGrowthData, recentTx } = data
+
   return (
     <div className="space-y-6">
       <div>
@@ -50,10 +49,10 @@ export function AnalyticsDashboard() {
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[
-          { title: "Total Revenue", value: "$152,400", change: "+18.2%", icon: TrendingUp, color: "text-green-500" },
-          { title: "Active Users", value: "2,847", change: "+12.5%", icon: Users, color: "text-blue-500" },
-          { title: "Products Tracked", value: "14,382", change: "+9.1%", icon: Package, color: "text-amber-500" },
-          { title: "Blockchain TXs", value: "48,291", change: "+24.3%", icon: ShieldCheck, color: "text-purple-500" },
+          { title: "Total Revenue", value: `$${totalRevenue.toLocaleString()}`, change: "estimated total", icon: TrendingUp, color: "text-green-500" },
+          { title: "Active Users", value: activeUsers.toLocaleString(), change: "registered", icon: Users, color: "text-blue-500" },
+          { title: "Products Tracked", value: productsTracked.toLocaleString(), change: "total batches", icon: Package, color: "text-amber-500" },
+          { title: "Blockchain TXs", value: blockchainTxs.toLocaleString(), change: "on-chain events", icon: ShieldCheck, color: "text-purple-500" },
         ].map((kpi) => (
           <Card key={kpi.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -62,7 +61,7 @@ export function AnalyticsDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{kpi.value}</div>
-              <p className="text-xs text-green-500 mt-1">{kpi.change} this month</p>
+              <p className="text-xs text-muted-foreground mt-1">{kpi.change}</p>
             </CardContent>
           </Card>
         ))}
@@ -73,7 +72,7 @@ export function AnalyticsDashboard() {
         <Card className="col-span-2">
           <CardHeader>
             <CardTitle>Monthly Products & Revenue</CardTitle>
-            <CardDescription>Products registered and revenue generated per month.</CardDescription>
+            <CardDescription>Products registered and revenue generated per month (Last 6 Months).</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={280}>
@@ -106,17 +105,21 @@ export function AnalyticsDashboard() {
             <CardDescription>AI-assessed quality breakdown.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={qualityData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={4} dataKey="value">
-                  {qualityData.map((entry, index) => (
-                    <Cell key={index} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ background: "rgba(0,0,0,0.8)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px" }} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            {qualityData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie data={qualityData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={4} dataKey="value">
+                    {qualityData.map((entry: any, index: number) => (
+                      <Cell key={index} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: "rgba(0,0,0,0.8)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px" }} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-[280px] items-center justify-center text-muted-foreground text-sm">No quality data available</div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -126,7 +129,7 @@ export function AnalyticsDashboard() {
         <Card>
           <CardHeader>
             <CardTitle>User Growth by Role</CardTitle>
-            <CardDescription>New user registrations across supply chain roles.</CardDescription>
+            <CardDescription>New user registrations (Last 6 Months).</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={240}>
@@ -150,7 +153,7 @@ export function AnalyticsDashboard() {
             <CardDescription>Latest on-chain product events.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {recentTx.map((tx) => (
+            {recentTx.length > 0 ? recentTx.map((tx: any) => (
               <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border text-sm">
                 <div>
                   <p className="font-medium truncate max-w-[160px]">{tx.product}</p>
@@ -163,7 +166,9 @@ export function AnalyticsDashboard() {
                   <p className="text-xs font-mono text-muted-foreground mt-1">{tx.id}</p>
                 </div>
               </div>
-            ))}
+            )) : (
+               <div className="text-sm text-muted-foreground">No recent transactions found.</div>
+            )}
           </CardContent>
         </Card>
       </div>
