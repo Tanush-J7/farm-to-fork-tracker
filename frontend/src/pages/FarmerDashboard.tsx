@@ -29,11 +29,12 @@ const createProductForm = () => ({
 
 // Status config
 const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: React.ElementType; label: string }> = {
-  Harvested:   { color: "text-green-400",  bg: "bg-green-400/10 border-green-400/30",   icon: Leaf,        label: "Harvested"   },
-  Processing:  { color: "text-blue-400",   bg: "bg-blue-400/10 border-blue-400/30",     icon: Factory,     label: "Processing"  },
-  "In Transit":{ color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/30", icon: Truck,       label: "In Transit"  },
-  Delivered:   { color: "text-purple-400", bg: "bg-purple-400/10 border-purple-400/30", icon: ShoppingBag, label: "Delivered"   },
-  Sold:        { color: "text-pink-400",   bg: "bg-pink-400/10 border-pink-400/30",     icon: CheckCircle2, label: "Sold"       },
+  Harvested:          { color: "text-green-400",  bg: "bg-green-400/10 border-green-400/30",   icon: Leaf,        label: "Harvested"   },
+  Processing:         { color: "text-blue-400",   bg: "bg-blue-400/10 border-blue-400/30",     icon: Factory,     label: "Processing"  },
+  "In Transit":       { color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/30", icon: Truck,       label: "In Transit"  },
+  Delivered:          { color: "text-purple-400", bg: "bg-purple-400/10 border-purple-400/30", icon: ShoppingBag, label: "Delivered"   },
+  Sold:               { color: "text-pink-400",   bg: "bg-pink-400/10 border-pink-400/30",     icon: CheckCircle2, label: "Sold"       },
+  "Pending Approval": { color: "text-slate-400",  bg: "bg-slate-400/10 border-slate-400/30",   icon: Clock,       label: "Pending Approval" },
 }
 
 const QUALITY_COLOR: Record<string, string> = {
@@ -203,38 +204,16 @@ export function FarmerDashboard() {
 
     setSubmitting(true)
     try {
-      // Attempt on-chain registration if wallet is connected
-      let blockchainHash: string | null = null
-      let product_id = 0
-
       // Generate unique 6-digit numeric Product ID
-      const unique6DigitId = Math.floor(100000 + Math.random() * 900000)
-
-      if (isConnected) {
-        try {
-          const chainResult = await registerProductOnChain(
-            form.name, form.category, form.batchNumber, Number(form.quantity), "Harvested"
-          )
-          if (chainResult) {
-            blockchainHash = chainResult.hash
-            product_id = chainResult.productId || unique6DigitId
-          }
-        } catch {
-          // blockchain optional – continue without it
-        }
-      }
-
-      if (!product_id || product_id <= 0) {
-        product_id = unique6DigitId
-      }
+      const product_id = Math.floor(100000 + Math.random() * 900000)
 
       await axios.post(
         `${API}/products`,
-        { ...form, quantity: Number(form.quantity), imageData, blockchainHash, product_id },
+        { ...form, quantity: Number(form.quantity), imageData, blockchainHash: null, product_id },
         { headers }
       )
 
-      setFormMsg({ type: "success", text: "✅ Product registered! AI analysis complete." })
+      setFormMsg({ type: "success", text: "✅ Product submitted! Awaiting admin approval." })
       setForm(createProductForm())
       setImageData("")
       setImagePreview("")
@@ -511,15 +490,17 @@ export function FarmerDashboard() {
 
                   {/* Card Actions: QR Code & Farm Loss (Locked once processor expresses interest) */}
                   <div className="pt-3 border-t border-white/10 flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 text-xs gap-1.5 rounded-xl border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500"
-                      onClick={() => setSelectedQrProduct(p)}
-                    >
-                      <QrCode className="h-3.5 w-3.5" />
-                      View QR
-                    </Button>
+                    {p.status !== "Pending Approval" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-xs gap-1.5 rounded-xl border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500"
+                        onClick={() => setSelectedQrProduct(p)}
+                      >
+                        <QrCode className="h-3.5 w-3.5" />
+                        View QR
+                      </Button>
+                    )}
                     {p.status === "Harvested" && (
                       <Button
                         variant="outline"

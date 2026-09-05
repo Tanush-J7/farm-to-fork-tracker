@@ -16,6 +16,7 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: React.Ele
   "In Transit": { color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/30", icon: Truck },
   Delivered: { color: "text-purple-400", bg: "bg-purple-400/10 border-purple-400/30", icon: ShoppingBag },
   Sold: { color: "text-pink-400", bg: "bg-pink-400/10 border-pink-400/30", icon: CheckCircle2 },
+  "Pending Approval": { color: "text-slate-400", bg: "bg-slate-400/10 border-slate-400/30", icon: AlertCircle },
 }
 
 const QUALITY_COLOR: Record<string, string> = {
@@ -194,13 +195,15 @@ export function MyProductsPage() {
 
                   {/* Column 7: Product verify (ONLY QR code button) */}
                   <div className="col-span-1 text-center flex justify-center">
-                    <button
-                      onClick={() => setSelectedProductQR(p)}
-                      className="p-2 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors border border-emerald-200 shrink-0 cursor-pointer"
-                      title="Verify Product QR Code"
-                    >
-                      <QrCode className="h-4 w-4" />
-                    </button>
+                    {p.status !== "Pending Approval" && (
+                      <button
+                        onClick={() => setSelectedProductQR(p)}
+                        className="p-2 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors border border-emerald-200 shrink-0 cursor-pointer"
+                        title="Verify Product QR Code"
+                      >
+                        <QrCode className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               )
