@@ -92,10 +92,11 @@ export function RegisterPage() {
         navigate("/admin")
       }
     } catch (err: any) {
-      if (err.message && err.message.includes("wait for an admin")) {
-        setSuccessMsg(err.message)
+      const actualError = err.response?.data?.message || err.message
+      if (actualError && actualError.includes("wait for an admin")) {
+        setSuccessMsg(actualError)
       } else {
-        setError(err.message || "Registration failed. Please check your details and try again.")
+        setError(actualError || "Registration failed. Please check your details and try again.")
       }
     }
   }

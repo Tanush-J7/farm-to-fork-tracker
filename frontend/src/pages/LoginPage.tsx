@@ -27,8 +27,12 @@ export function LoginPage() {
       } else {
         navigate("/admin")
       }
-    } catch {
-      setError("Invalid email or password. Please try again.")
+    } catch (err: any) {
+      if (err.response?.data?.message) {
+        setError(err.response.data.message)
+      } else {
+        setError("Invalid email or password. Please try again.")
+      }
     }
   }
 
