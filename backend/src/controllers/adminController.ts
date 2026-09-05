@@ -70,6 +70,18 @@ export const updateUserRole = async (req: Request, res: Response) => {
   }
 };
 
+export const deleteUser = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabase.from('users').delete().eq('id', id).select();
+
+    if (error) throw error;
+    res.status(200).json({ success: true, message: 'User deleted successfully', data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error', error });
+  }
+};
+
 export const getBlockchainHealth = async (req: Request, res: Response) => {
   try {
     const rpcUrl = process.env.BLOCKCHAIN_RPC_URL;

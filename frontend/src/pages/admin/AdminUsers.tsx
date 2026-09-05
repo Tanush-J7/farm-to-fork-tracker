@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import axios from "axios"
 import { useAuth } from "../../context/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/Card"
-import { Shield, ShieldAlert, User, Check, Edit, Save, X } from "lucide-react"
+import { User, Edit, Save, X, Trash2, Download, Search, Eye } from "lucide-react"
 import { Button } from "../../components/ui/Button"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
@@ -22,6 +22,10 @@ export function AdminUsers() {
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editRole, setEditRole] = useState("")
+
+  const [searchTerm, setSearchTerm] = useState("")
+  const [roleFilter, setRoleFilter] = useState("all")
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
 
   const fetchUsers = async () => {
     try {
@@ -54,18 +58,89 @@ export function AdminUsers() {
     }
   }
 
+  const handleDeleteUser = async (id: string) => {
+    if (!window.confirm("Are you sure you want to permanently delete this user?")) return;
+    try {
+      await axios.delete(`${API}/admin/users/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      fetchUsers()
+    } catch (error) {
+      alert("Failed to delete user")
+    }
+  }
+
+  const handleExportCSV = () => {
+    const headers = ["ID", "Name", "Email", "Role", "Joined Date", "Wallet Address"]
+    const csvContent = [
+      headers.join(","),
+      ...users.map(u => [
+        u.id,
+        `"${u.name}"`,
+        `"${u.email}"`,
+        u.role,
+        new Date(u.created_at).toISOString(),
+        u.wallet_address || "None"
+      ].join(","))
+    ].join("\n")
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.setAttribute("download", `farmchain_users_${new Date().toISOString().split('T')[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const filteredUsers = users.filter(u => {
+    const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesRole = roleFilter === "all" || u.role === roleFilter
+    return matchesSearch && matchesRole
+  })
+
   if (loading) return <div className="p-8">Loading users...</div>
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">User Directory</h1>
-        <p className="text-muted-foreground">Manage all users in the FarmChain ecosystem.</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">User Directory</h1>
+          <p className="text-muted-foreground">Manage all users in the FarmChain ecosystem.</p>
+        </div>
+        <Button onClick={handleExportCSV} variant="outline" className="flex items-center gap-2">
+          <Download className="h-4 w-4" /> Export CSV
+        </Button>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Registered Users ({users.length})</CardTitle>
+        <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2">
+          <CardTitle>Registered Users ({filteredUsers.length})</CardTitle>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search name or email..."
+                className="w-full pl-8 pr-4 py-2 text-sm border rounded-md bg-background"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <select
+              className="border rounded-md px-3 py-2 text-sm bg-background"
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+            >
+              <option value="all">All Roles</option>
+              <option value="admin">Admin</option>
+              <option value="farmer">Farmer</option>
+              <option value="processor">Processor</option>
+              <option value="distributor">Distributor</option>
+              <option value="retailer">Retailer</option>
+              <option value="consumer">Consumer</option>
+            </select>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -80,7 +155,7 @@ export function AdminUsers() {
                 </tr>
               </thead>
               <tbody>
-                {users.map(u => (
+                {filteredUsers.map(u => (
                   <tr key={u.id} className="border-b hover:bg-slate-50 dark:hover:bg-slate-900/50">
                     <td className="px-4 py-3 font-medium flex items-center gap-2">
                       <User className="h-4 w-4 text-primary" />
@@ -114,18 +189,56 @@ export function AdminUsers() {
                           <Button size="sm" onClick={() => handleUpdateRole(u.id)}><Save className="h-4 w-4"/></Button>
                         </div>
                       ) : (
-                        <Button size="sm" variant="ghost" onClick={() => { setEditingId(u.id); setEditRole(u.role); }}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => setSelectedUser(u)}>
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => { setEditingId(u.id); setEditRole(u.role); }}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleDeleteUser(u.id)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       )}
                     </td>
                   </tr>
                 ))}
+                {filteredUsers.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">No users found matching your filters.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
+
+      {/* User Details Modal */}
+      {selectedUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setSelectedUser(null)}>
+          <div className="bg-background rounded-xl p-6 max-w-md w-full shadow-lg border" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><User className="text-primary"/> User Details</h3>
+            <div className="space-y-3 text-sm">
+              <div><span className="font-semibold text-muted-foreground">ID:</span> <span className="font-mono text-xs">{selectedUser.id}</span></div>
+              <div><span className="font-semibold text-muted-foreground">Name:</span> {selectedUser.name}</div>
+              <div><span className="font-semibold text-muted-foreground">Email:</span> {selectedUser.email}</div>
+              <div><span className="font-semibold text-muted-foreground">Role:</span> <span className="uppercase">{selectedUser.role}</span></div>
+              <div><span className="font-semibold text-muted-foreground">Joined:</span> {new Date(selectedUser.created_at).toLocaleString()}</div>
+              <div>
+                <span className="font-semibold text-muted-foreground">Wallet:</span> 
+                <div className="font-mono text-xs mt-1 p-2 bg-muted rounded break-all">
+                  {selectedUser.wallet_address || "No wallet connected"}
+                </div>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <Button onClick={() => setSelectedUser(null)}>Close</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
