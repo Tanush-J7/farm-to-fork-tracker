@@ -125,15 +125,15 @@ export const getBlockchainHealth = async (req: Request, res: Response) => {
 export const getAnalytics = async (req: Request, res: Response) => {
   try {
     const { data: users, error: userError } = await supabase.from('users').select('id, role, created_at');
-    const { data: products, error: productError } = await supabase.from('products').select('id, name, quantity, ai_quality_label, created_at, blockchain_hash');
+    const { data: products, error: productError } = await supabase.from('products').select('id, name, quantity, status, ai_quality_label, created_at, blockchain_hash');
 
     if (userError || productError) throw new Error('Database fetch failed');
 
     const activeUsers = users.length;
     const productsTracked = products.length;
     
-    // Revenue mock: assume $10 per kg of quantity
-    const totalRevenue = products.reduce((sum, p) => sum + ((p.quantity || 0) * 10), 0);
+    // Total Volume tracked
+    const totalVolume = products.reduce((sum, p) => sum + (Number(p.quantity) || 0), 0);
     const blockchainTxs = products.filter(p => p.blockchain_hash).length;
 
     // Quality distribution
@@ -150,6 +150,30 @@ export const getAnalytics = async (req: Request, res: Response) => {
       { name: "Average", value: qualityMap['Average'], color: "#eab308" },
       { name: "Poor", value: qualityMap['Poor'], color: "#ef4444" },
     ].filter(q => q.value > 0);
+
+    // Status / Stage distribution
+    const statusMap: Record<string, number> = {};
+    products.forEach(p => {
+      const status = p.status || 'Harvested';
+      statusMap[status] = (statusMap[status] || 0) + 1;
+    });
+    
+    // A nice color palette for statuses
+    const statusColors: Record<string, string> = {
+      'Harvested': '#3b82f6',
+      'In Transit': '#f59e0b',
+      'Processed': '#8b5cf6',
+      'Quality Checked': '#10b981',
+      'At Retailer': '#ec4899',
+      'Sold': '#6b7280',
+      'Pending Approval': '#94a3b8'
+    };
+    
+    const stageData = Object.entries(statusMap).map(([status, count]) => ({
+      name: status,
+      value: count,
+      color: statusColors[status] || '#cbd5e1'
+    }));
 
     // Recent Transactions
     const recentTx = products
@@ -181,7 +205,7 @@ export const getAnalytics = async (req: Request, res: Response) => {
       return {
         month: m.month,
         products: prodsInMonth.length,
-        revenue: prodsInMonth.reduce((sum, p) => sum + ((p.quantity || 0) * 10), 0)
+        volume: prodsInMonth.reduce((sum, p) => sum + (Number(p.quantity) || 0), 0)
       };
     });
 
@@ -201,14 +225,14 @@ export const getAnalytics = async (req: Request, res: Response) => {
     res.status(200).json({
       success: true,
       data: {
-        totalRevenue,
         activeUsers,
         productsTracked,
+        totalVolume,
         blockchainTxs,
-        monthlyData,
         qualityData,
-        userGrowthData,
-        recentTx
+        stageData,
+        recentTx,
+        monthlyData,
       }
     });
 
