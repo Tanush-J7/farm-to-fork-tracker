@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { Button } from "../components/ui/Button"
-import { Leaf, Mail, Lock, User, AlertCircle, Phone, MapPin, Camera, Locate, Loader2, Eye, EyeOff } from "lucide-react"
+import { Leaf, Mail, Lock, User, AlertCircle, Phone, MapPin, Camera, Locate, Loader2, Eye, EyeOff, ShieldCheck, Clock, ArrowRight } from "lucide-react"
 
 export function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -103,16 +103,54 @@ export function RegisterPage() {
   if (successMsg) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,_#e5f6eb_0%,_#fbfefc_48%,_#ffffff_100%)] p-4">
-        <div className="relative w-full max-w-md p-8 space-y-6 rounded-3xl border border-emerald-100 bg-white shadow-[0_20px_50px_rgba(24,112,75,0.10)] text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mb-4">
-            <Leaf className="h-8 w-8 text-green-600" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">Registration Successful!</h1>
-          <p className="text-slate-500 text-sm">{successMsg}</p>
-          <div className="pt-4">
-            <Link to="/login">
-              <Button className="w-full">Return to Login</Button>
-            </Link>
+        <div className="relative w-full max-w-md p-8 overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-[0_20px_50px_rgba(24,112,75,0.10)] text-center">
+          
+          {/* Background decorative elements */}
+          <div className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-emerald-500/5 blur-3xl"></div>
+          <div className="absolute -bottom-24 -left-24 h-48 w-48 rounded-full bg-green-500/5 blur-3xl"></div>
+
+          <div className="relative z-10 space-y-6">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-green-100 to-emerald-50 shadow-inner border border-emerald-100/50 mb-2 relative">
+              <div className="absolute inset-0 bg-green-500/20 rounded-2xl animate-ping opacity-20"></div>
+              <ShieldCheck className="h-10 w-10 text-emerald-600" />
+            </div>
+            
+            <div>
+              <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Account Created!</h1>
+              <p className="text-slate-500 text-sm mt-2 leading-relaxed">
+                Your profile is safely stored on the network, but requires admin verification to unlock full access.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 text-left space-y-4 shadow-sm">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">What happens next?</h3>
+              <div className="flex gap-3 items-start">
+                <div className="mt-0.5 bg-amber-100 p-1.5 rounded-full text-amber-600">
+                  <Clock className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Admin Review</p>
+                  <p className="text-xs text-slate-500 mt-0.5">A network administrator is reviewing your details.</p>
+                </div>
+              </div>
+              <div className="flex gap-3 items-start">
+                <div className="mt-0.5 bg-emerald-100 p-1.5 rounded-full text-emerald-600">
+                  <Leaf className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Access Granted</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Once approved, you can log in and trace products.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <Link to="/login" className="block">
+                <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl h-12 shadow-md hover:shadow-lg transition-all group">
+                  Return to Login <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
