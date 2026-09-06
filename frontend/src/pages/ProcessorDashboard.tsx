@@ -79,7 +79,6 @@ interface ProcessingBatch {
   createdDate: string
   createdTime: string
   distributor?: string
-  vehicleNumber?: string
   destinationHub?: string
   packagingFormat?: string
   storageTemp?: string
@@ -294,7 +293,6 @@ export function ProcessorDashboard() {
   const [packagingTypeInput, setPackagingTypeInput] = useState("1 kg Eco-Friendly Retail Pouches")
   const [storageTempInput, setStorageTempInput] = useState("2°C - 4°C (Refrigerated Cold Chain)")
   const [packagingDistributor, setPackagingDistributor] = useState("FastCold Logistics")
-  const [vehicleNoInput, setVehicleNoInput] = useState("KA-01-EA-4921")
   const [destinationHubInput, setDestinationHubInput] = useState("Central Supermarket Distribution Center - Retail Hub")
 
   const openPackagingModal = (b: ProcessingBatch) => {
@@ -312,7 +310,6 @@ export function ProcessorDashboard() {
       setStorageTempInput("2°C - 4°C (Refrigerated Cold-Chain)")
       setDestinationHubInput("Central Supermarket Distribution Center - Retail Hub")
     }
-    setVehicleNoInput("KA-01-EA-4921")
     setPackagingDistributor(distributors[0] || "FastCold Logistics")
   }
 
@@ -805,7 +802,6 @@ export function ProcessorDashboard() {
     packagingType: string, 
     storageTemp: string, 
     distributorName: string,
-    vehicleNo: string = "KA-01-EA-4921",
     destinationHub: string = "Central Supermarket Distribution Center - Retail Hub",
     logisticsMode: string = "cold_chain"
   ) => {
@@ -819,7 +815,7 @@ export function ProcessorDashboard() {
     const updatedLogs = [
       ...batch.stageLogs,
       { stage: "Processing Completed", date: formattedDate, time: formattedTime, remarks: `Packaged as: ${packagingType}. Storage: ${storageTemp}.` },
-      { stage: "Transferred", date: formattedDate, time: formattedTime, remarks: `Transferred to ${distributorName} (Vehicle: ${vehicleNo}, Hub: ${destinationHub}).` }
+      { stage: "Transferred", date: formattedDate, time: formattedTime, remarks: `Transferred to ${distributorName} (Hub: ${destinationHub}).` }
     ]
 
     const updatedBatch: ProcessingBatch = {
@@ -827,7 +823,6 @@ export function ProcessorDashboard() {
       stage: "Transferred",
       stageLogs: updatedLogs,
       distributor: distributorName,
-      vehicleNumber: vehicleNo,
       destinationHub: destinationHub,
       packagingFormat: packagingType,
       storageTemp: storageTemp,
@@ -840,7 +835,7 @@ export function ProcessorDashboard() {
     setBatches(updatedBatches)
     localStorage.setItem("processor_batches", JSON.stringify(updatedBatches))
 
-    addLog(`Packaged & Transferred Batch ${batchId} to ${distributorName} (${vehicleNo} → ${destinationHub})`, "Transferred to Distributor", batch.productId, batchId)
+    addLog(`Packaged & Transferred Batch ${batchId} to ${distributorName} (→ ${destinationHub})`, "Transferred to Distributor", batch.productId, batchId)
     await updateDbStatus(batch.productId, "In Transit")
     setPipelineStep("completed")
   }
@@ -1488,7 +1483,7 @@ export function ProcessorDashboard() {
                                 🏢 Carrier Logistics Partner
                               </span>
                               <p className="font-bold text-sm text-foreground">{b.distributor || "XYZ Logistics"}</p>
-                              <p className="text-[11px] text-muted-foreground font-mono">Vehicle: {b.vehicleNumber || "KA-01-EA-4921"}</p>
+                              <p className="text-[11px] text-emerald-400 font-medium">Verified Carrier Partner</p>
                             </div>
 
                             {/* Destination Hub */}
@@ -2494,32 +2489,20 @@ export function ProcessorDashboard() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-zinc-400 uppercase font-bold">4. Vehicle / Fleet Number</label>
-                        <input
-                          type="text"
-                          value={vehicleNoInput}
-                          onChange={(e) => setVehicleNoInput(e.target.value)}
-                          placeholder="e.g. KA-01-EA-4921"
-                          className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-xs mt-1 text-white font-mono focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-zinc-400 uppercase font-bold">5. Target Destination Hub</label>
-                        <input
-                          type="text"
-                          value={destinationHubInput}
-                          onChange={(e) => setDestinationHubInput(e.target.value)}
-                          placeholder="e.g. Central Retail Hub"
-                          className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-xs mt-1 text-white focus:outline-none"
-                        />
-                      </div>
+                    <div>
+                      <label className="text-xs text-zinc-400 uppercase font-bold">4. Target Destination Delivery Hub</label>
+                      <input
+                        type="text"
+                        value={destinationHubInput}
+                        onChange={(e) => setDestinationHubInput(e.target.value)}
+                        placeholder="e.g. Central Retail Hub"
+                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-xs mt-1 text-white focus:outline-none"
+                      />
                     </div>
 
                     <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/25 rounded-2xl text-xs text-emerald-300 flex items-center gap-2">
                       <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-400" />
-                      <span>Sealing this batch will generate an immutable on-chain handover record for <strong>{packagingDistributor}</strong> (Vehicle: <strong>{vehicleNoInput}</strong> → <strong>{destinationHubInput}</strong>).</span>
+                      <span>Sealing this batch will generate an immutable on-chain handover record for <strong>{packagingDistributor}</strong> (Destination: <strong>{destinationHubInput}</strong>).</span>
                     </div>
 
                     <div className="flex gap-2 pt-2">
@@ -2538,7 +2521,6 @@ export function ProcessorDashboard() {
                             packagingTypeInput, 
                             storageTempInput, 
                             packagingDistributor,
-                            vehicleNoInput,
                             destinationHubInput,
                             logisticsModeInput
                           )
