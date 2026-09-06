@@ -2,13 +2,29 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "../components/ui/Button"
 import {
   Leaf, Plus, X, CheckCircle2, Clock, Truck, Factory,
-  ShoppingBag, AlertCircle, RefreshCw, Wheat, Star, ImagePlus, CalendarDays, Wand2, Trash2, QrCode, Printer, Download
+  ShoppingBag, AlertCircle, RefreshCw, Wheat, Star, ImagePlus, CalendarDays, Wand2, Trash2, QrCode, Printer, Download,
+  Bell, PackageCheck, Check
 } from "lucide-react"
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
 import axios from "axios"
 import { useAuth } from "../context/AuthContext"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
+
+export interface FarmerNotification {
+  id: string
+  type: "processor_interest" | "processor_accepted" | "processor_rejected"
+  productId: string
+  batchNumber: string
+  productName: string
+  quantity: number
+  processorName: string
+  date: string
+  time: string
+  timestamp: number
+  read: boolean
+  message: string
+}
 
 const generateBatchNumber = () => {
   const date = new Date()
@@ -91,7 +107,123 @@ export function FarmerDashboard() {
   const [loadingProducts, setLoadingProducts] = useState(true)
   const [productError, setProductError] = useState("")
 
+  // Notification state
+  const [notifications, setNotifications] = useState<FarmerNotification[]>([])
+  const [showNotifications, setShowNotifications] = useState(false)
+
+  // Deal Status State: { [productId: string]: "requested" | "accepted" | "dispatched" | "declined" }
+  const [deals, setDeals] = useState<Record<string, "requested" | "accepted" | "dispatched" | "declined">>({})
+
   const headers = { Authorization: `Bearer ${token}` }
+
+  // Load Farmer Notifications from storage
+  const loadNotifications = useCallback(() => {
+    try {
+      const stored: FarmerNotification[] = JSON.parse(localStorage.getItem("farmer_notifications") || "[]")
+      setNotifications(stored)
+    } catch {
+      setNotifications([])
+    }
+  }, [])
+
+  // Load Deal Statuses
+  const loadDeals = useCallback(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("farmer_deals") || "{}")
+      setDeals(stored)
+    } catch {
+      setDeals({})
+    }
+  }, [])
+
+  useEffect(() => {
+    loadNotifications()
+    loadDeals()
+    const handleUpdate = () => {
+      loadNotifications()
+      loadDeals()
+      fetchProducts()
+    }
+    window.addEventListener("farmer_notifications_updated", handleUpdate)
+    window.addEventListener("farmer_deals_updated", handleUpdate)
+    window.addEventListener("storage", handleUpdate)
+    return () => {
+      window.removeEventListener("farmer_notifications_updated", handleUpdate)
+      window.removeEventListener("farmer_deals_updated", handleUpdate)
+      window.removeEventListener("storage", handleUpdate)
+    }
+  }, [loadNotifications, loadDeals])
+
+  // Handlers for Farmer Deal Lifecycle
+  const handleAcceptDeal = (productId: string, batchNumber: string) => {
+    const updated = { ...deals, [productId]: "accepted", [batchNumber]: "accepted" }
+    setDeals(updated as any)
+    localStorage.setItem("farmer_deals", JSON.stringify(updated))
+    window.dispatchEvent(new Event("farmer_deals_updated"))
+    window.dispatchEvent(new Event("farmer_notifications_updated"))
+  }
+
+  const handleMarkReadyForDispatch = async (productId: string, batchNumber: string) => {
+    const updated = { ...deals, [productId]: "dispatched", [batchNumber]: "dispatched" }
+    setDeals(updated as any)
+    localStorage.setItem("farmer_deals", JSON.stringify(updated))
+    
+    try {
+      await axios.put(`${API}/products/${productId}/status`, { status: "In Transit" }, { headers })
+      setProducts(prev => prev.map(p => (p._id === productId || p.batchNumber === batchNumber) ? { ...p, status: "In Transit" } : p))
+    } catch (e) {
+      console.warn("Could not sync in-transit status", e)
+    }
+
+    window.dispatchEvent(new Event("farmer_deals_updated"))
+    window.dispatchEvent(new Event("farmer_notifications_updated"))
+  }
+
+  const handleDeclineDeal = async (productId: string, batchNumber: string) => {
+    if (!window.confirm("Decline this processor request? The produce will be returned to open market for other processors.")) return
+
+    const updated = { ...deals, [productId]: "declined", [batchNumber]: "declined" }
+    setDeals(updated as any)
+    localStorage.setItem("farmer_deals", JSON.stringify(updated))
+
+    try {
+      const storedInterests: string[] = JSON.parse(localStorage.getItem("processor_interests") || "[]")
+      const updatedInterests = storedInterests.filter(id => id !== productId && id !== batchNumber)
+      localStorage.setItem("processor_interests", JSON.stringify(updatedInterests))
+    } catch (e) {
+      console.warn("Could not update processor interests", e)
+    }
+
+    try {
+      await axios.put(`${API}/products/${productId}/status`, { status: "Harvested" }, { headers })
+      setProducts(prev => prev.map(p => (p._id === productId || p.batchNumber === batchNumber) ? { ...p, status: "Harvested" } : p))
+    } catch (e) {
+      console.warn("Could not reset status to Harvested", e)
+    }
+
+    window.dispatchEvent(new Event("farmer_deals_updated"))
+    window.dispatchEvent(new Event("farmer_notifications_updated"))
+  }
+
+  // Notification Helpers
+  const markAsRead = (id: string) => {
+    const updated = notifications.map(n => (n.id === id ? { ...n, read: true } : n))
+    setNotifications(updated)
+    localStorage.setItem("farmer_notifications", JSON.stringify(updated))
+  }
+
+  const markAllAsRead = () => {
+    const updated = notifications.map(n => ({ ...n, read: true }))
+    setNotifications(updated)
+    localStorage.setItem("farmer_notifications", JSON.stringify(updated))
+  }
+
+  const clearAllNotifications = () => {
+    setNotifications([])
+    localStorage.setItem("farmer_notifications", JSON.stringify([]))
+  }
+
+  const unreadCount = notifications.filter(n => !n.read).length
 
   // Fetch farmer's own products
   const fetchProducts = useCallback(async () => {
@@ -110,9 +242,20 @@ export function FarmerDashboard() {
       }
       const deletedSet = new Set(deletedIds.map(String))
       
+      // Automatic Expiry Filter:
+      // If a product has no processor interest (status is Harvested / Pending Approval)
+      // and its expiry date is in the past, it automatically disappears from active listings.
+      const isUnclaimedAndExpired = (p: Product) => {
+        if (!p.expiryDate) return false
+        if (p.status !== "Harvested" && p.status !== "Pending Approval") return false
+        const expiryTime = new Date(`${p.expiryDate}T23:59:59`).getTime()
+        return !isNaN(expiryTime) && expiryTime < Date.now()
+      }
+
       const activeProducts = rawProducts.filter(p => 
         !deletedSet.has(String(p._id)) && 
-        !deletedSet.has(String(p.batchNumber))
+        !deletedSet.has(String(p.batchNumber)) &&
+        !isUnclaimedAndExpired(p)
       )
       setProducts(activeProducts)
     } catch {
@@ -169,29 +312,6 @@ export function FarmerDashboard() {
     setFormMsg(null)
   }
 
-  const handleDeleteProduct = async (product: Product) => {
-    if (!window.confirm(`Are you sure you want to remove / log farm loss for "${product.name}"?`)) return
-    
-    // 1. Persist deletion immediately so it never reappears on page refresh
-    try {
-      const existing: string[] = JSON.parse(localStorage.getItem("farmer_deleted_products") || "[]")
-      const updated = Array.from(new Set([...existing, String(product._id), String(product.batchNumber)]))
-      localStorage.setItem("farmer_deleted_products", JSON.stringify(updated))
-    } catch (e) {
-      console.warn("Could not save deleted item to localStorage", e)
-    }
-
-    // 2. Remove immediately from current React state
-    setProducts(prev => prev.filter(p => p._id !== product._id && p.batchNumber !== product.batchNumber))
-
-    // 3. Send DELETE to backend database
-    try {
-      await axios.delete(`${API}/products/${product._id}`, { headers })
-    } catch (err) {
-      console.warn("Backend delete sync notice:", err)
-    }
-  }
-
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name || !form.category || !form.quantity || !form.expiryDate) {
@@ -243,15 +363,128 @@ export function FarmerDashboard() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Farmer Portal</h1>
-          <p className="text-slate-400 mt-1">Manage your harvest and track products through the supply chain.</p>
+          <p className="text-slate-400 mt-1">Manage your harvest, track processor interests, and monitor your produce through the supply chain.</p>
         </div>
-        <Button onClick={openRegistrationForm} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Register New Harvest
-        </Button>
+
+        <div className="flex items-center gap-3 relative">
+          {/* Notification Bell Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowNotifications(prev => !prev)}
+              className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-foreground transition-all hover:border-green-500/40 focus:outline-none"
+              title="Notifications"
+              aria-label="Toggle notifications"
+            >
+              <Bell className="h-5 w-5 text-slate-300" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold text-white shadow-lg animate-pulse ring-2 ring-slate-900">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Notification Dropdown Panel */}
+            {showNotifications && (
+              <div className="absolute right-0 mt-3 w-80 sm:w-96 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl p-4 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3">
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-emerald-400" />
+                    <h3 className="font-semibold text-sm text-foreground">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium">
+                        {unreadCount} new
+                      </span>
+                    )}
+                  </div>
+                  {notifications.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={markAllAsRead}
+                        className="text-[11px] text-slate-400 hover:text-emerald-400 transition-colors"
+                      >
+                        Mark all read
+                      </button>
+                      <span className="text-slate-600">·</span>
+                      <button
+                        onClick={clearAllNotifications}
+                        className="text-[11px] text-slate-400 hover:text-red-400 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="max-h-80 overflow-y-auto space-y-2.5 pr-1">
+                  {notifications.length === 0 ? (
+                    <div className="py-8 text-center text-slate-400 text-xs">
+                      <Wheat className="h-8 w-8 mx-auto mb-2 text-slate-500/40" />
+                      No notifications yet.<br />You will be notified when a processor marks interest.
+                    </div>
+                  ) : (
+                    notifications.map(n => (
+                      <div
+                        key={n.id}
+                        onClick={() => markAsRead(n.id)}
+                        className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                          n.read
+                            ? "bg-white/[0.02] border-white/5 opacity-75"
+                            : "bg-emerald-500/10 border-emerald-500/30 shadow-sm"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`p-2 rounded-lg shrink-0 mt-0.5 ${
+                            n.type === "processor_accepted" 
+                              ? "bg-green-500/20 text-green-400" 
+                              : n.type === "processor_rejected" 
+                              ? "bg-red-500/20 text-red-400" 
+                              : "bg-blue-500/20 text-blue-400"
+                          }`}>
+                            {n.type === "processor_accepted" ? (
+                              <CheckCircle2 className="h-4 w-4" />
+                            ) : n.type === "processor_rejected" ? (
+                              <AlertCircle className="h-4 w-4" />
+                            ) : (
+                              <Factory className="h-4 w-4" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="text-xs font-semibold text-foreground truncate">
+                                {n.type === "processor_interest"
+                                  ? "🏢 Processor Expressed Interest"
+                                  : n.type === "processor_accepted"
+                                  ? "✅ Batch Verified & Accepted"
+                                  : "❌ Produce Rejected at Intake"}
+                              </p>
+                              {!n.read && (
+                                <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-300 mt-1 line-clamp-2 leading-relaxed">
+                              {n.message}
+                            </p>
+                            <p className="text-[10px] text-slate-500 mt-1.5 flex items-center gap-1">
+                              <Clock className="h-3 w-3" /> {n.date} at {n.time}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Button onClick={openRegistrationForm} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Register New Harvest
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -454,6 +687,84 @@ export function FarmerDashboard() {
                     {sc.label}
                   </div>
 
+                  {/* Interactive Processor Deal Handshake */}
+                  {(() => {
+                    const isInterested = p.status === "Processing" || p.status === "In Transit" || notifications.some(n => (n.productId === p._id || n.batchNumber === p.batchNumber) && n.type === "processor_interest")
+                    const notif = notifications.find(n => (n.productId === p._id || n.batchNumber === p.batchNumber) && n.type === "processor_interest")
+                    const processorName = notif?.processorName || "Processing Facility"
+                    const currentDealState = deals[p._id] || deals[p.batchNumber] || (isInterested ? "requested" : null)
+
+                    if (!isInterested || currentDealState === "declined" || !currentDealState) return null
+
+                    return (
+                      <div className="space-y-2 pt-1">
+                        {/* Stage 1: Requested -> Needs Farmer Acceptance */}
+                        {currentDealState === "requested" && (
+                          <div className="space-y-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 shadow-sm">
+                            <div className="flex items-start gap-2">
+                              <Factory className="h-4 w-4 text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-amber-100">{processorName} expressed interest</p>
+                                <p className="text-[11px] text-amber-300/80 mt-0.5">Wants to procure this harvest batch ({p.quantity} kg). Confirm to accept deal.</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 pt-1">
+                              <Button
+                                size="sm"
+                                className="flex-1 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-sm h-8 font-medium"
+                                onClick={() => handleAcceptDeal(p._id, p.batchNumber)}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                Accept Processor Request
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs gap-1 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500 rounded-xl h-8 font-medium"
+                                onClick={() => handleDeclineDeal(p._id, p.batchNumber)}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                                Decline
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Stage 2: Accepted -> Ready for Dispatch */}
+                        {currentDealState === "accepted" && (
+                          <div className="space-y-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-200 shadow-sm">
+                            <div className="flex items-start gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-blue-100">Deal Accepted with {processorName}</p>
+                                <p className="text-[11px] text-blue-300/80 mt-0.5">Pack and crate harvest, then click below to confirm dispatch readiness.</p>
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              className="w-full text-xs gap-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-sm h-8 font-medium"
+                              onClick={() => handleMarkReadyForDispatch(p._id, p.batchNumber)}
+                            >
+                              <PackageCheck className="h-4 w-4" />
+                              📦 Ready for Dispatch
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Stage 3: Dispatched & In Transit */}
+                        {currentDealState === "dispatched" && (
+                          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-200 flex items-center gap-2.5 shadow-sm">
+                            <Truck className="h-4 w-4 text-emerald-400 shrink-0 animate-bounce" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-emerald-100">🚚 Dispatched to {processorName}</p>
+                              <p className="text-[11px] text-emerald-300/80 truncate">In transit to processing facility. Gate scale intake authorized.</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+
                   {/* AI Quality */}
                   <div className="flex items-center justify-between pt-1 border-t border-white/5">
                     <div>
@@ -485,29 +796,17 @@ export function FarmerDashboard() {
                     </div>
                   )}
 
-                  {/* Card Actions: QR Code & Farm Loss (Locked once processor expresses interest) */}
-                  <div className="pt-3 border-t border-white/10 flex items-center gap-2">
+                  {/* Card Actions: QR Code Certificate */}
+                  <div className="pt-3 border-t border-white/10 flex items-center">
                     {p.status !== "Pending Approval" && (
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1 text-xs gap-1.5 rounded-xl border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500"
+                        className="w-full text-xs gap-1.5 rounded-xl border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500"
                         onClick={() => setSelectedQrProduct(p)}
                       >
                         <QrCode className="h-3.5 w-3.5" />
-                        View QR
-                      </Button>
-                    )}
-                    {p.status === "Harvested" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs gap-1 rounded-xl border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500 hover:text-red-300"
-                        onClick={() => handleDeleteProduct(p)}
-                        title="Delete / Record Farm Loss"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Farm Loss
+                        View QR Certificate
                       </Button>
                     )}
                   </div>

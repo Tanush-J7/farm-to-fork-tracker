@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../co
 import {
   Factory, AlertCircle, Search, ShieldCheck, Camera, Brain, Clock, User, MapPin,
   Star, Package, Truck, Loader2, QrCode, Upload, Printer, Video, VideoOff, Download, X,
-  Trash2, RefreshCw, Zap, Scale
+  Trash2, RefreshCw, Zap, Scale, Lock
 } from "lucide-react"
 import { Html5Qrcode } from "html5-qrcode"
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
@@ -129,6 +129,7 @@ export function ProcessorDashboard() {
 
   // Local storage states
   const [interests, setInterests] = useState<string[]>([])
+  const [deals, setDeals] = useState<Record<string, "requested" | "accepted" | "dispatched" | "declined">>({})
   const [receipts, setReceipts] = useState<Record<string, ReceiptDetails>>({})
   const [verifications, setVerifications] = useState<Record<string, VerificationDetails>>({})
   const [inspections, setInspections] = useState<Record<string, InspectionDetails>>({})
@@ -333,7 +334,34 @@ export function ProcessorDashboard() {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : {}
       const res = await axios.get(`${API}/products`, { headers })
-      setProducts(res.data?.data || [])
+      const raw: Product[] = res.data?.data || []
+
+      // Filter out permanently deleted products
+      let deletedIds: string[] = []
+      try {
+        deletedIds = JSON.parse(localStorage.getItem("farmer_deleted_products") || "[]")
+      } catch {
+        deletedIds = []
+      }
+      const deletedSet = new Set(deletedIds.map(String))
+
+      // Automatic Expiry Filter:
+      // If a product has no processor interest and its expiry date has passed,
+      // it should automatically disappear from the available browse catalog.
+      const isUnclaimedAndExpired = (p: Product) => {
+        const exp = p.expiry_date || (p as any).expiryDate
+        if (!exp) return false
+        if (p.status !== "Harvested" && p.status !== "Pending Approval") return false
+        const expiryTime = new Date(`${exp}T23:59:59`).getTime()
+        return !isNaN(expiryTime) && expiryTime < Date.now()
+      }
+
+      const active = raw.filter(p =>
+        !deletedSet.has(String(p.id)) &&
+        !deletedSet.has(String(p.batch_number)) &&
+        !isUnclaimedAndExpired(p)
+      )
+      setProducts(active)
     } catch (err) {
       console.error("Failed to load products", err)
     } finally {
@@ -372,6 +400,23 @@ export function ProcessorDashboard() {
     // Logs
     const storedLogs = localStorage.getItem("processor_logs")
     if (storedLogs) setAuditLogs(JSON.parse(storedLogs))
+
+    // Deals
+    const loadDeals = () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem("farmer_deals") || "{}")
+        setDeals(stored)
+      } catch {
+        setDeals({})
+      }
+    }
+    loadDeals()
+    window.addEventListener("farmer_deals_updated", loadDeals)
+    window.addEventListener("storage", loadDeals)
+    return () => {
+      window.removeEventListener("farmer_deals_updated", loadDeals)
+      window.removeEventListener("storage", loadDeals)
+    }
   }, [])
 
   // Helper: Add log
@@ -425,6 +470,42 @@ export function ProcessorDashboard() {
     setInterests(updated)
     localStorage.setItem("processor_interests", JSON.stringify(updated))
     addLog(`Marked interest in ${product.name}`, "Interested", prodId)
+
+    // Generate & save Farmer Notification and Deal State
+    try {
+      const now = new Date()
+      const newNotif = {
+        id: "notif-" + Math.random().toString(36).substring(2, 9),
+        type: "processor_interest",
+        productId: prodId,
+        batchNumber: product.batch_number || (product as any).batchNumber || "",
+        productName: product.name,
+        quantity: product.quantity,
+        processorName: processorName || "Processing Facility",
+        date: now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+        time: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+        timestamp: Date.now(),
+        read: false,
+        message: `${processorName || "Processing Facility"} has expressed interest in your harvest batch "${product.name}" (${product.batch_number || (product as any).batchNumber || ""}).`
+      }
+      const existingNotifs = JSON.parse(localStorage.getItem("farmer_notifications") || "[]")
+      const filteredNotifs = existingNotifs.filter((n: any) => n.productId !== prodId && n.batchNumber !== (product.batch_number || (product as any).batchNumber))
+      const updatedNotifs = [newNotif, ...filteredNotifs]
+      localStorage.setItem("farmer_notifications", JSON.stringify(updatedNotifs))
+      window.dispatchEvent(new Event("farmer_notifications_updated"))
+
+      // Record requested status in farmer_deals
+      const storedDeals = JSON.parse(localStorage.getItem("farmer_deals") || "{}")
+      storedDeals[prodId] = "requested"
+      if (product.batch_number) storedDeals[product.batch_number] = "requested"
+      if ((product as any).batchNumber) storedDeals[(product as any).batchNumber] = "requested"
+      localStorage.setItem("farmer_deals", JSON.stringify(storedDeals))
+      setDeals(storedDeals)
+      window.dispatchEvent(new Event("farmer_deals_updated"))
+    } catch (e) {
+      console.warn("Could not save farmer notification/deal", e)
+    }
+
     await updateDbStatus(product.id, "Processing")
     if (prodId !== product.id) {
       await updateDbStatus(prodId, "Processing")
@@ -777,10 +858,58 @@ export function ProcessorDashboard() {
       localStorage.setItem("processor_batches", JSON.stringify(updatedBatches))
 
       addLog(`Accepted product ${selectedProduct.name} (Batch: ${randomBatchId}) - Scale Weight: ${verifiedQty} kg, Quality: ${computedScore}% (Grade ${autoGrade})`, "Accepted - Ready for Processing", selectedProduct.id, randomBatchId)
+
+      // Notify Farmer of Acceptance
+      try {
+        const acceptNotif = {
+          id: "notif-" + Math.random().toString(36).substring(2, 9),
+          type: "processor_accepted",
+          productId: String(selectedProduct.id),
+          batchNumber: selectedProduct.batch_number || (selectedProduct as any).batchNumber || "",
+          productName: selectedProduct.name,
+          quantity: verifiedQty,
+          processorName: processorName || "Processing Facility",
+          date: formattedDate,
+          time: formattedTime,
+          timestamp: Date.now(),
+          read: false,
+          message: `${processorName || "Processing Facility"} has verified and accepted batch "${selectedProduct.name}" (${verifiedQty} kg, Grade ${autoGrade}) on blockchain.`
+        }
+        const existingNotifs = JSON.parse(localStorage.getItem("farmer_notifications") || "[]")
+        localStorage.setItem("farmer_notifications", JSON.stringify([acceptNotif, ...existingNotifs]))
+        window.dispatchEvent(new Event("farmer_notifications_updated"))
+      } catch (e) {
+        console.warn("Could not save farmer notification", e)
+      }
+
       await updateDbStatus(selectedProduct.id, "Processing")
       setPipelineStep("processing")
     } else {
       addLog(`Rejected product ${selectedProduct.name}: ${rejectionReasonInput}`, "Rejected by Processor", selectedProduct.id)
+
+      // Notify Farmer of Rejection
+      try {
+        const rejectNotif = {
+          id: "notif-" + Math.random().toString(36).substring(2, 9),
+          type: "processor_rejected",
+          productId: String(selectedProduct.id),
+          batchNumber: selectedProduct.batch_number || (selectedProduct as any).batchNumber || "",
+          productName: selectedProduct.name,
+          quantity: selectedProduct.quantity,
+          processorName: processorName || "Processing Facility",
+          date: formattedDate,
+          time: formattedTime,
+          timestamp: Date.now(),
+          read: false,
+          message: `${processorName || "Processing Facility"} rejected batch "${selectedProduct.name}" (${selectedProduct.quantity} kg) — Reason: ${rejectionReasonInput || "Intake verification discrepancy"}.`
+        }
+        const existingNotifs = JSON.parse(localStorage.getItem("farmer_notifications") || "[]")
+        localStorage.setItem("farmer_notifications", JSON.stringify([rejectNotif, ...existingNotifs]))
+        window.dispatchEvent(new Event("farmer_notifications_updated"))
+      } catch (e) {
+        console.warn("Could not save farmer notification", e)
+      }
+
       await updateDbStatus(selectedProduct.id, "Rejected by Processor")
       setPipelineStep("interested")
     }
@@ -1161,39 +1290,74 @@ export function ProcessorDashboard() {
                   </div>
                 ) : (
                   <div className="grid gap-4">
-                    {products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).map(p => (
-                      <div key={p.id} className="p-5 rounded-2xl border bg-muted/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div>
-                          <h4 className="font-bold text-lg text-foreground flex items-center gap-1.5">
-                            {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : "🌱"}
-                            {p.name}
-                          </h4>
-                          <p className="text-xs text-muted-foreground">Farmer: {p.farmer?.name || "Ravi"} • Quantity: {p.quantity} kg</p>
+                    {products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).map(p => {
+                      const dealStatus = deals[String(p.id)] || deals[p.batch_number || ""] || deals[p.id] || "requested"
+                      const isDispatched = dealStatus === "dispatched"
+
+                      return (
+                        <div key={p.id} className="p-5 rounded-2xl border bg-muted/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="font-bold text-lg text-foreground flex items-center gap-1.5">
+                                {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : "🌱"}
+                                {p.name}
+                              </h4>
+                              {/* Dynamic Deal Progress Tag */}
+                              {dealStatus === "requested" && (
+                                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30 flex items-center gap-1">
+                                  ⏳ Awaiting Farmer Acceptance
+                                </span>
+                              )}
+                              {dealStatus === "accepted" && (
+                                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                                  📦 Farmer Preparing Batch
+                                </span>
+                              )}
+                              {dealStatus === "dispatched" && (
+                                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                                  🚚 In Transit / Gate Intake Ready
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">Farmer: {p.farmer?.name || "Ravi"} • Quantity: {p.quantity} kg • Batch: {p.batch_number || p.id}</p>
+                          </div>
+                          <div className="flex gap-2 w-full md:w-auto items-center">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSelectedProduct(p)}
+                              className="rounded-xl flex-1 md:flex-initial"
+                            >
+                              Details
+                            </Button>
+                            {isDispatched ? (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedProduct(p)
+                                  setReceivedQtyInput(String(p.quantity))
+                                  setIsVerifyModalOpen(true)
+                                }}
+                                className="rounded-xl text-white bg-primary hover:bg-primary/95 flex-1 md:flex-initial gap-1.5 font-semibold shadow-md"
+                              >
+                                <QrCode className="h-4 w-4" />
+                                Scan QR & Verify
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                disabled
+                                title={dealStatus === "requested" ? "Waiting for farmer to accept your interest request." : "Waiting for farmer to mark batch ready for dispatch."}
+                                className="rounded-xl text-slate-400 bg-slate-800/60 border border-slate-700/50 flex-1 md:flex-initial gap-1.5 font-medium cursor-not-allowed opacity-80"
+                              >
+                                <Lock className="h-3.5 w-3.5" />
+                                {dealStatus === "requested" ? "Awaiting Acceptance" : "Awaiting Dispatch"}
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex gap-2 w-full md:w-auto">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedProduct(p)}
-                            className="rounded-xl flex-1 md:flex-initial"
-                          >
-                            Details
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              setSelectedProduct(p)
-                              setReceivedQtyInput(String(p.quantity))
-                              setIsVerifyModalOpen(true)
-                            }}
-                            className="rounded-xl text-white bg-primary hover:bg-primary/95 flex-1 md:flex-initial gap-1.5 font-semibold"
-                          >
-                            <QrCode className="h-4 w-4" />
-                            Scan QR & Verify
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
