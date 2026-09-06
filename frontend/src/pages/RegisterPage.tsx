@@ -71,11 +71,28 @@ export function RegisterPage() {
     setSuccessMsg("")
     try {
       await register(formData.name, formData.email, formData.password, formData.role)
+      
+      const userPhoto = formData.photo || photoPreview
+      if (formData.role === "farmer" || formData.role === "processor" || formData.role === "distributor" || formData.role === "retailer") {
+        const profileData = {
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+          phone: formData.phone,
+          address: formData.address,
+          photo: userPhoto,
+        }
+        try {
+          localStorage.setItem(`farmchain_profile_${formData.email.toLowerCase()}`, JSON.stringify(profileData))
+        } catch (e) {
+          console.warn("Could not cache profile locally", e)
+        }
+      }
+
       const stored = localStorage.getItem("farmchain_user")
       if (stored) {
         const u = JSON.parse(stored)
-        if (formData.role === "farmer" || formData.role === "processor") {
-          const userPhoto = formData.photo || photoPreview
+        if (formData.role === "farmer" || formData.role === "processor" || formData.role === "distributor" || formData.role === "retailer") {
           const updatedUser = {
             ...u,
             phone: formData.phone,
@@ -92,6 +109,22 @@ export function RegisterPage() {
         navigate("/admin")
       }
     } catch (err: any) {
+      const userPhoto = formData.photo || photoPreview
+      if (formData.role === "farmer" || formData.role === "processor" || formData.role === "distributor" || formData.role === "retailer") {
+        const profileData = {
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+          phone: formData.phone,
+          address: formData.address,
+          photo: userPhoto,
+        }
+        try {
+          localStorage.setItem(`farmchain_profile_${formData.email.toLowerCase()}`, JSON.stringify(profileData))
+        } catch (e) {
+          console.warn("Could not cache profile locally", e)
+        }
+      }
       const actualError = err.response?.data?.message || err.message
       if (actualError && actualError.includes("wait for an admin")) {
         setSuccessMsg(actualError)
@@ -223,15 +256,70 @@ export function RegisterPage() {
             </select>
           </div>
 
-          {(formData.role === "farmer" || formData.role === "processor") && (
+          {(formData.role === "farmer" || formData.role === "processor" || formData.role === "distributor" || formData.role === "retailer") && (
             <div className="space-y-4 pt-3 border-t border-emerald-100">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                  {formData.role === "farmer" ? "Farmer Details" : "Processor Details"}
+                  {formData.role === "farmer"
+                    ? "Farmer Details"
+                    : formData.role === "processor"
+                    ? "Processor Details"
+                    : formData.role === "distributor"
+                    ? "Distributor Details"
+                    : "Retailer Details"}
                 </span>
               </div>
 
-              {/* Phone Number */}
+              {/* 1. Photo Section */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  {formData.role === "farmer"
+                    ? "Farmer Photo"
+                    : formData.role === "processor"
+                    ? "Processor Photo"
+                    : formData.role === "distributor"
+                    ? "Distributor Photo"
+                    : "Retailer Photo / Store Logo"}
+                </label>
+                <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
+                  {photoPreview ? (
+                    <img
+                      src={photoPreview}
+                      alt={
+                        formData.role === "farmer"
+                          ? "Farmer preview"
+                          : formData.role === "processor"
+                          ? "Processor preview"
+                          : formData.role === "distributor"
+                          ? "Distributor preview"
+                          : "Retailer preview"
+                      }
+                      className="h-12 w-12 rounded-full object-cover border-2 border-emerald-500 shrink-0"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded-full bg-emerald-100/60 border border-emerald-200 flex items-center justify-center shrink-0">
+                      <Camera className="h-5 w-5 text-emerald-600" />
+                    </div>
+                  )}
+                  <div className="flex-1 space-y-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-700 cursor-pointer"
+                    />
+                    <p className="text-[11px] text-slate-400">
+                      {formData.role === "distributor"
+                        ? "Upload distributor profile photo or fleet logo (max 2MB)."
+                        : formData.role === "retailer"
+                        ? "Upload retailer profile photo or store logo (max 2MB)."
+                        : "Upload profile photo (max 2MB)."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Phone Number Section */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">Phone Number</label>
                 <div className="relative">
@@ -246,11 +334,17 @@ export function RegisterPage() {
                 </div>
               </div>
 
-              {/* Address */}
+              {/* 3. Address Section */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium text-slate-700">
-                    {formData.role === "farmer" ? "Farm Address" : "Processor Address"}
+                    {formData.role === "farmer"
+                      ? "Farm Address"
+                      : formData.role === "processor"
+                      ? "Processor Address"
+                      : formData.role === "distributor"
+                      ? "Distributor Address"
+                      : "Retailer / Store Address"}
                   </label>
                   <button
                     type="button"
@@ -280,7 +374,11 @@ export function RegisterPage() {
                     placeholder={
                       formData.role === "farmer"
                         ? "123 Farm Road, Valley Region (or detect via GPS)"
-                        : "123 Processing Unit, Industrial Area (or detect via GPS)"
+                        : formData.role === "processor"
+                        ? "123 Processing Unit, Industrial Area (or detect via GPS)"
+                        : formData.role === "distributor"
+                        ? "123 Logistics Hub, Cargo Terminal, City (or detect via GPS)"
+                        : "123 Main Street, Retail Store / Supermarket (or detect via GPS)"
                     }
                     className="flex w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 resize-none"
                   />
@@ -288,36 +386,12 @@ export function RegisterPage() {
                 <p className="text-[11px] text-slate-500">
                   {formData.role === "farmer"
                     ? 'You can click "Use Current Location" to auto-fill or enter your farm address manually.'
-                    : 'You can click "Use Current Location" to auto-fill or enter your processor address manually.'}
+                    : formData.role === "processor"
+                    ? 'You can click "Use Current Location" to auto-fill or enter your processor address manually.'
+                    : formData.role === "distributor"
+                    ? 'You can click "Use Current Location" to auto-fill or enter your distributor hub address manually.'
+                    : 'You can click "Use Current Location" to auto-fill or enter your store address manually.'}
                 </p>
-              </div>
-
-              {/* Photo */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
-                  {formData.role === "farmer" ? "Farmer Photo" : "Processor Photo"}
-                </label>
-                <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
-                  {photoPreview ? (
-                    <img
-                      src={photoPreview}
-                      alt={formData.role === "farmer" ? "Farmer preview" : "Processor preview"}
-                      className="h-12 w-12 rounded-full object-cover border-2 border-emerald-500 shrink-0"
-                    />
-                  ) : (
-                    <div className="h-12 w-12 rounded-full bg-emerald-100/60 border border-emerald-200 flex items-center justify-center shrink-0">
-                      <Camera className="h-5 w-5 text-emerald-600" />
-                    </div>
-                  )}
-                  <div className="flex-1 space-y-1">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handlePhotoUpload}
-                      className="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-700 cursor-pointer"
-                    />
-                  </div>
-                </div>
               </div>
             </div>
           )}
