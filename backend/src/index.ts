@@ -5,7 +5,7 @@ import { supabase } from './config/supabase';
 import productRoutes from './routes/productRoutes';
 import authRoutes from './routes/authRoutes';
 import adminRoutes from './routes/adminRoutes';
-
+import shipmentRoutes from './routes/shipmentRoutes';
 dotenv.config();
 
 const app = express();
@@ -38,6 +38,7 @@ app.get('/health', (req, res) => {
 app.use('/api/products', productRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/shipments', shipmentRoutes);
 
 app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);

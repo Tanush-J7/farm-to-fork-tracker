@@ -85,4 +85,61 @@ alter table public.users enable row level security;
 alter table public.products enable row level security;
 
 -- No policies are defined for the anon/authenticated roles, so direct
--- client access (anon key) is denied by default until you add policies.
+-- =========================
+-- SHIPMENTS (Logistics)
+-- =========================
+create table if not exists public.shipments (
+  id uuid primary key default gen_random_uuid(),
+  shipment_id text not null unique, -- Custom ID like SHP-2026-001
+  product_id uuid not null references public.products(id) on delete cascade,
+  distributor_id uuid not null references public.users(id),
+  processor_name text,
+  retailer_name text,
+  vehicle_no text not null,
+  vehicle_type text,
+  driver_name text,
+  driver_phone text,
+  driver_license text,
+  status text not null default 'Packed' check (status in ('Packed', 'In Transit', 'Delivered')),
+  location text,
+  expected_delivery timestamptz,
+  delivery_date timestamptz,
+  temp_safe_min numeric,
+  temp_safe_max numeric,
+  cold_chain_violation boolean default false,
+  violation_message text,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_shipments_product_id on public.shipments (product_id);
+create index if not exists idx_shipments_distributor_id on public.shipments (distributor_id);
+
+drop trigger if exists trg_shipments_updated_at on public.shipments;
+create trigger trg_shipments_updated_at
+  before update on public.shipments
+  for each row execute function public.set_updated_at();
+
+alter table public.shipments enable row level security;
+
+
+-- =========================
+-- TELEMETRY LOGS (Cold-Chain)
+-- =========================
+create table if not exists public.telemetry_logs (
+  id uuid primary key default gen_random_uuid(),
+  log_id text not null unique, -- Custom ID like LOG-101
+  shipment_id uuid not null references public.shipments(id) on delete cascade,
+  temperature numeric not null,
+  humidity numeric not null,
+  location text,
+  status text not null default 'Normal' check (status in ('Normal', 'Warning', 'Critical Violation')),
+  logged_by text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_telemetry_logs_shipment_id on public.telemetry_logs (shipment_id);
+create index if not exists idx_telemetry_logs_created_at on public.telemetry_logs (created_at desc);
+
+alter table public.telemetry_logs enable row level security;

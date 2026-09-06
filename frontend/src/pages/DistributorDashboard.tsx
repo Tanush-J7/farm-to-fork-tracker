@@ -7,7 +7,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { useAuth } from "../context/AuthContext"
+import axios from "axios"
 
+const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 export interface Shipment {
   id: string
   batchId: string
@@ -55,144 +57,8 @@ export interface TelemetryLog {
   loggedBy: string
 }
 
-const DEFAULT_SHIPMENTS: Shipment[] = [
-  {
-    id: "SHP-2026-001",
-    batchId: "BTC-AVO-991",
-    product: "Organic Avocados",
-    category: "Fruits",
-    quantity: "450 kg",
-    processor: "Valley Organic Foods",
-    retailer: "FreshMart Supermarket",
-    vehicleNo: "TN-01-AX-3421",
-    vehicleType: "Reefer Truck (2°C - 8°C)",
-    driverName: "Raj Kumar",
-    driverPhone: "+91 98765 43210",
-    driverLicense: "DL-TN01-2019-8812",
-    status: "In Transit",
-    location: "Pune Cold Storage Hub, MH",
-    dispatchDate: "2026-09-05 08:30",
-    expectedDelivery: "2026-09-07 14:00",
-    lastTemp: 5.2,
-    lastHumidity: 75,
-    tempSafeMin: 4,
-    tempSafeMax: 8,
-    coldChainViolation: false,
-    expiryDate: "2026-09-18",
-    shelfLifeDays: 12,
-    aiQualityScore: 94,
-    damageFlag: false,
-    notes: "Temperature stable. Vehicle refrigerated unit active.",
-    history: [
-      { time: "2026-09-05 08:30", location: "Valley Organic Processing Plant", status: "Packed", temp: 4.8, notes: "Loaded into Reefer Truck" },
-      { time: "2026-09-05 16:45", location: "Pune Cold Storage Hub, MH", status: "In Transit", temp: 5.2, notes: "Midway checkpoint cleared" }
-    ]
-  },
-  {
-    id: "SHP-2026-002",
-    batchId: "BTC-MILK-402",
-    product: "Premium Whole Milk",
-    category: "Dairy",
-    quantity: "600 L",
-    processor: "GreenDairy Processing",
-    retailer: "Metro Hypermarket",
-    vehicleNo: "KA-04-BC-8812",
-    vehicleType: "Refrigerated Milk Tanker (2°C - 4°C)",
-    driverName: "Suresh Babu",
-    driverPhone: "+91 98123 45678",
-    driverLicense: "DL-KA04-2020-5511",
-    status: "In Transit",
-    location: "Highway NH-48 Checkpoint",
-    dispatchDate: "2026-09-06 05:00",
-    expectedDelivery: "2026-09-06 18:00",
-    lastTemp: 9.8,
-    lastHumidity: 82,
-    tempSafeMin: 2,
-    tempSafeMax: 4,
-    coldChainViolation: true,
-    violationMessage: "Temperature spiked to 9.8°C (Safe limit: 2°C - 4°C)",
-    expiryDate: "2026-09-09",
-    shelfLifeDays: 3,
-    aiQualityScore: 82,
-    damageFlag: false,
-    notes: "Alert: Refrigeration compressor power fluctuation detected on NH-48.",
-    history: [
-      { time: "2026-09-06 05:00", location: "GreenDairy Facility", status: "Packed", temp: 3.1, notes: "Dispatched under chill protocol" },
-      { time: "2026-09-06 07:30", location: "Highway NH-48 Checkpoint", status: "In Transit", temp: 9.8, notes: "🚨 Temperature spike recorded!" }
-    ]
-  },
-  {
-    id: "SHP-2026-003",
-    batchId: "BTC-TOM-108",
-    product: "Fresh Vine Tomatoes",
-    category: "Vegetables",
-    quantity: "320 kg",
-    processor: "AgroPack Terminal",
-    retailer: "City Organic Store",
-    vehicleNo: "MH-12-GH-5530",
-    vehicleType: "Insulated Van (8°C - 12°C)",
-    driverName: "Anil Sharma",
-    driverPhone: "+91 97654 32109",
-    driverLicense: "DL-MH12-2018-9943",
-    status: "Packed",
-    location: "Nashik Dispatch Yard",
-    dispatchDate: "2026-09-06 09:00",
-    expectedDelivery: "2026-09-07 12:00",
-    lastTemp: 10.1,
-    lastHumidity: 68,
-    tempSafeMin: 8,
-    tempSafeMax: 12,
-    coldChainViolation: false,
-    expiryDate: "2026-09-22",
-    shelfLifeDays: 16,
-    aiQualityScore: 91,
-    damageFlag: false,
-    notes: "Packed and ready for driver pickup.",
-    history: [
-      { time: "2026-09-06 09:00", location: "Nashik Dispatch Yard", status: "Packed", temp: 10.1, notes: "Awaiting departure" }
-    ]
-  },
-  {
-    id: "SHP-2026-004",
-    batchId: "BTC-MNG-505",
-    product: "Alphonso Mangoes",
-    category: "Fruits",
-    quantity: "500 kg",
-    processor: "Konkan Processing Co.",
-    retailer: "Global Harvest Market",
-    vehicleNo: "MH-04-DE-9912",
-    vehicleType: "Reefer Truck (4°C - 8°C)",
-    driverName: "Ramesh Patel",
-    driverPhone: "+91 99222 11000",
-    driverLicense: "DL-MH04-2017-3312",
-    status: "Delivered",
-    location: "Mumbai Terminal Store",
-    dispatchDate: "2026-09-04 10:00",
-    deliveryDate: "2026-09-05 16:30",
-    expectedDelivery: "2026-09-05 18:00",
-    lastTemp: 5.5,
-    lastHumidity: 70,
-    tempSafeMin: 4,
-    tempSafeMax: 8,
-    coldChainViolation: false,
-    expiryDate: "2026-09-14",
-    shelfLifeDays: 8,
-    aiQualityScore: 96,
-    damageFlag: false,
-    notes: "Delivered successfully. Store manager signed digital receipt.",
-    history: [
-      { time: "2026-09-04 10:00", location: "Konkan Processing Co.", status: "Packed", temp: 5.0, notes: "Dispatched" },
-      { time: "2026-09-05 16:30", location: "Mumbai Terminal Store", status: "Delivered", temp: 5.5, notes: "Handed over to retailer" }
-    ]
-  }
-]
-
-const DEFAULT_TELEMETRY: TelemetryLog[] = [
-  { id: "LOG-101", shipmentId: "SHP-2026-001", batchId: "BTC-AVO-991", product: "Organic Avocados", timestamp: "2026-09-06 08:00", temperature: 5.2, humidity: 75, location: "Pune Hub", safeMin: 4, safeMax: 8, status: "Normal", loggedBy: "Raj Kumar (Driver)" },
-  { id: "LOG-102", shipmentId: "SHP-2026-002", batchId: "BTC-MILK-402", product: "Premium Whole Milk", timestamp: "2026-09-06 07:30", temperature: 9.8, humidity: 82, location: "NH-48 Checkpoint", safeMin: 2, safeMax: 4, status: "Critical Violation", loggedBy: "IoT Sensor #44" },
-  { id: "LOG-103", shipmentId: "SHP-2026-003", batchId: "BTC-TOM-108", product: "Fresh Vine Tomatoes", timestamp: "2026-09-06 09:15", temperature: 10.1, humidity: 68, location: "Nashik Yard", safeMin: 8, safeMax: 12, status: "Normal", loggedBy: "Anil Sharma (Driver)" },
-  { id: "LOG-104", shipmentId: "SHP-2026-004", batchId: "BTC-MNG-505", product: "Alphonso Mangoes", timestamp: "2026-09-05 16:30", temperature: 5.5, humidity: 70, location: "Mumbai Terminal", safeMin: 4, safeMax: 8, status: "Normal", loggedBy: "Store Inspector" },
-]
+const DEFAULT_SHIPMENTS: Shipment[] = [];
+const DEFAULT_TELEMETRY: TelemetryLog[] = [];
 
 const PERFORMANCE_DATA = [
   { day: "Mon", deliveries: 8, onTime: 7, coldChainBreaches: 0 },
@@ -204,43 +70,124 @@ const PERFORMANCE_DATA = [
 ]
 
 export function DistributorDashboard() {
-  const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState<"shipments" | "coldchain" | "traceability" | "risk">("shipments")
+  const { user, token } = useAuth()
+  const [activeTab, setActiveTab] = useState<"handoff" | "shipments" | "coldchain" | "traceability" | "risk">("handoff")
 
-  // Persistent storage state
-  const [shipments, setShipments] = useState<Shipment[]>(() => {
-    try {
-      const saved = localStorage.getItem("farmchain_distributor_shipments")
-      return saved ? JSON.parse(saved) : DEFAULT_SHIPMENTS
-    } catch {
-      return DEFAULT_SHIPMENTS
-    }
-  })
+  const [shipments, setShipments] = useState<any[]>([])
+  const [telemetryLogs, setTelemetryLogs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const [telemetryLogs, setTelemetryLogs] = useState<TelemetryLog[]>(() => {
+  const headers = { Authorization: `Bearer ${token}` }
+
+  const fetchShipments = async () => {
     try {
-      const saved = localStorage.getItem("farmchain_distributor_telemetry")
-      return saved ? JSON.parse(saved) : DEFAULT_TELEMETRY
-    } catch {
-      return DEFAULT_TELEMETRY
+      setLoading(true)
+      const res = await axios.get(`${API}/shipments`, { headers })
+      const data = res.data.data || []
+      
+      const formattedShipments = data.map((s: any) => ({
+        id: s.shipment_id,
+        dbId: s.id, // Supabase UUID
+        batchId: s.product?.batch_number || "N/A",
+        product: s.product?.name || "Unknown",
+        category: s.product?.category || "Unknown",
+        quantity: s.product?.quantity || "0",
+        processor: s.processor_name,
+        retailer: s.retailer_name,
+        vehicleNo: s.vehicle_no,
+        vehicleType: s.vehicle_type,
+        driverName: s.driver_name,
+        driverPhone: s.driver_phone,
+        driverLicense: s.driver_license,
+        status: s.status,
+        location: s.location,
+        dispatchDate: new Date(s.created_at).toISOString().substring(0, 16).replace("T", " "),
+        deliveryDate: s.delivery_date ? new Date(s.delivery_date).toISOString().substring(0, 16).replace("T", " ") : undefined,
+        expectedDelivery: s.expected_delivery ? new Date(s.expected_delivery).toISOString().substring(0, 16).replace("T", " ") : "Pending",
+        lastTemp: s.telemetry_logs?.[0]?.temperature || (s.temp_safe_min + s.temp_safe_max) / 2,
+        lastHumidity: s.telemetry_logs?.[0]?.humidity || 70,
+        tempSafeMin: s.temp_safe_min,
+        tempSafeMax: s.temp_safe_max,
+        coldChainViolation: s.cold_chain_violation,
+        violationMessage: s.violation_message,
+        expiryDate: s.product?.expiry_date || "N/A",
+        shelfLifeDays: s.product?.expiry_date ? Math.ceil((new Date(s.product.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0,
+        aiQualityScore: s.product?.ai_quality_score || 0,
+        damageFlag: false,
+        notes: s.notes || "",
+        history: s.telemetry_logs?.map((l: any) => ({
+          time: new Date(l.created_at).toISOString().substring(0, 16).replace("T", " "),
+          location: l.location,
+          status: l.status,
+          temp: l.temperature,
+          notes: `Logged by ${l.logged_by}`
+        })) || []
+      }))
+      
+      setShipments(formattedShipments)
+      if (formattedShipments.length > 0 && !selectedShipment) setSelectedShipment(formattedShipments[0])
+      
+      // Extract telemetry logs
+      const logs = data.flatMap((s: any) => 
+        s.telemetry_logs?.map((l: any) => ({
+          id: l.log_id,
+          shipmentId: s.shipment_id,
+          batchId: s.product?.batch_number,
+          product: s.product?.name,
+          timestamp: new Date(l.created_at).toISOString().substring(0, 16).replace("T", " "),
+          temperature: l.temperature,
+          humidity: l.humidity,
+          location: l.location,
+          safeMin: s.temp_safe_min,
+          safeMax: s.temp_safe_max,
+          status: l.status,
+          loggedBy: l.logged_by
+        })) || []
+      ).sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      
+      setTelemetryLogs(logs)
+    } catch (e) {
+      console.error("Error fetching shipments", e)
+    } finally {
+      setLoading(false)
     }
-  })
+  }
+
+  const [availableBatches, setAvailableBatches] = useState<any[]>([])
+  const [aiRoute, setAiRoute] = useState<any>(null)
+  const [loadingRoute, setLoadingRoute] = useState(false)
+
+  const fetchAvailableBatches = async () => {
+    try {
+      const res = await axios.get(`${API}/shipments/available-batches`, { headers })
+      setAvailableBatches(res.data.data || [])
+    } catch (e) {
+      console.error("Error fetching available batches", e)
+    }
+  }
+
+  const fetchAIRoute = async (origin: string, destination: string, category: string) => {
+    try {
+      setLoadingRoute(true)
+      const res = await axios.post(`${API}/shipments/route`, { origin, destination, category }, { headers })
+      setAiRoute(res.data.data)
+    } catch (e) {
+      console.error("Error fetching AI route", e)
+    } finally {
+      setLoadingRoute(false)
+    }
+  }
 
   useEffect(() => {
-    try {
-      localStorage.setItem("farmchain_distributor_shipments", JSON.stringify(shipments))
-    } catch (e) {
-      console.warn("Error saving shipments", e)
+    if (selectedShipment) {
+      fetchAIRoute(selectedShipment.processor || "Origin", selectedShipment.retailer || "Destination", selectedShipment.category)
     }
-  }, [shipments])
+  }, [selectedShipment])
 
   useEffect(() => {
-    try {
-      localStorage.setItem("farmchain_distributor_telemetry", JSON.stringify(telemetryLogs))
-    } catch (e) {
-      console.warn("Error saving telemetry logs", e)
-    }
-  }, [telemetryLogs])
+    fetchShipments()
+    fetchAvailableBatches()
+  }, [])
 
   // Filters & Selected States
   const [statusFilter, setStatusFilter] = useState<string>("All")
@@ -255,6 +202,7 @@ export function DistributorDashboard() {
 
   // Form states for Create Shipment
   const [newShipment, setNewShipment] = useState({
+    product_id: "",
     batchId: `BTC-${Math.floor(100 + Math.random() * 900)}`,
     product: "Fresh Produce Batch",
     category: "Vegetables" as const,
@@ -304,162 +252,74 @@ export function DistributorDashboard() {
   })
 
   // Handle Create Shipment Submit
-  const handleCreateShipment = (e: React.FormEvent) => {
+  const handleCreateShipment = async (e: React.FormEvent) => {
     e.preventDefault()
-    const now = new Date().toISOString().replace("T", " ").substring(0, 16)
-    const newId = `SHP-2026-${String(shipments.length + 1).padStart(3, "0")}`
+    
+    try {
+      const newId = `SHP-2026-${String(shipments.length + 1).padStart(3, "0")}`
+      await axios.post(`${API}/shipments`, {
+        shipment_id: newId,
+        product_id: newShipment.product_id,
+        processor_name: newShipment.processor,
+        retailer_name: newShipment.retailer,
+        vehicle_no: newShipment.vehicleNo,
+        vehicle_type: newShipment.vehicleType,
+        driver_name: newShipment.driverName,
+        driver_phone: newShipment.driverPhone,
+        driver_license: newShipment.driverLicense,
+        expected_delivery: new Date(newShipment.expectedDelivery).toISOString(),
+        temp_safe_min: newShipment.tempSafeMin,
+        temp_safe_max: newShipment.tempSafeMax,
+        notes: "Shipment initialized and assigned to logistics fleet."
+      }, { headers })
 
-    const created: Shipment = {
-      id: newId,
-      batchId: newShipment.batchId,
-      product: newShipment.product,
-      category: newShipment.category,
-      quantity: newShipment.quantity,
-      processor: newShipment.processor,
-      retailer: newShipment.retailer,
-      vehicleNo: newShipment.vehicleNo,
-      vehicleType: newShipment.vehicleType,
-      driverName: newShipment.driverName,
-      driverPhone: newShipment.driverPhone,
-      driverLicense: newShipment.driverLicense,
-      status: "Packed",
-      location: `${newShipment.processor} Facility`,
-      dispatchDate: now,
-      expectedDelivery: newShipment.expectedDelivery,
-      lastTemp: (newShipment.tempSafeMin + newShipment.tempSafeMax) / 2,
-      lastHumidity: 70,
-      tempSafeMin: newShipment.tempSafeMin,
-      tempSafeMax: newShipment.tempSafeMax,
-      coldChainViolation: false,
-      expiryDate: newShipment.expiryDate,
-      shelfLifeDays: newShipment.shelfLifeDays,
-      aiQualityScore: newShipment.aiQualityScore,
-      damageFlag: false,
-      notes: "Shipment initialized and assigned to logistics fleet.",
-      history: [
-        { time: now, location: `${newShipment.processor} Facility`, status: "Packed", notes: "Shipment created & loaded" }
-      ]
+      await fetchShipments()
+      setShowCreateModal(false)
+    } catch (e) {
+      console.error("Failed to create shipment", e)
     }
-
-    setShipments(prev => [created, ...prev])
-    setSelectedShipment(created)
-    setShowCreateModal(false)
   }
 
   // Handle Update Status Submit
-  const handleUpdateStatusSubmit = (e: React.FormEvent) => {
+  const handleUpdateStatusSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedShipment) return
 
-    const now = new Date().toISOString().replace("T", " ").substring(0, 16)
-    const updatedHistory = [
-      ...selectedShipment.history,
-      {
-        time: now,
-        location: updateLocation || selectedShipment.location,
+    try {
+      await axios.put(`${API}/shipments/${selectedShipment.dbId}/status`, {
         status: updateStatus,
-        temp: selectedShipment.lastTemp,
-        notes: updateNotes || `Status updated to ${updateStatus}`
-      }
-    ]
-
-    const updatedShipments = shipments.map(s => {
-      if (s.id === selectedShipment.id) {
-        return {
-          ...s,
-          status: updateStatus,
-          location: updateLocation || s.location,
-          deliveryDate: updateStatus === "Delivered" ? now : s.deliveryDate,
-          history: updatedHistory
-        }
-      }
-      return s
-    })
-
-    setShipments(updatedShipments)
-    setSelectedShipment({
-      ...selectedShipment,
-      status: updateStatus,
-      location: updateLocation || selectedShipment.location,
-      deliveryDate: updateStatus === "Delivered" ? now : selectedShipment.deliveryDate,
-      history: updatedHistory
-    })
-    setShowUpdateModal(false)
-    setUpdateNotes("")
+        location: updateLocation,
+        notes: updateNotes
+      }, { headers })
+      
+      await fetchShipments()
+      setShowUpdateModal(false)
+      setUpdateNotes("")
+    } catch (e) {
+      console.error("Failed to update status", e)
+    }
   }
 
   // Handle Log Telemetry Submit
-  const handleLogTelemetrySubmit = (e: React.FormEvent) => {
+  const handleLogTelemetrySubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedShipment) return
 
-    const now = new Date().toISOString().replace("T", " ").substring(0, 16)
-    const isViolation = telemetryTemp < selectedShipment.tempSafeMin || telemetryTemp > selectedShipment.tempSafeMax
-    const violationMsg = isViolation
-      ? `Temperature ${telemetryTemp}°C out of safe range (${selectedShipment.tempSafeMin}°C - ${selectedShipment.tempSafeMax}°C)`
-      : undefined
+    try {
+      const log_id = `LOG-${Math.floor(100 + Math.random() * 900)}`
+      await axios.post(`${API}/shipments/${selectedShipment.dbId}/telemetry`, {
+        log_id,
+        temperature: telemetryTemp,
+        humidity: telemetryHumidity,
+        location: telemetryLocation,
+        logged_by: `${user?.name || "Distributor Agent"} (${user?.role || "distributor"})`
+      }, { headers })
 
-    const newLog: TelemetryLog = {
-      id: `LOG-${Math.floor(100 + Math.random() * 900)}`,
-      shipmentId: selectedShipment.id,
-      batchId: selectedShipment.batchId,
-      product: selectedShipment.product,
-      timestamp: now,
-      temperature: telemetryTemp,
-      humidity: telemetryHumidity,
-      location: telemetryLocation || selectedShipment.location,
-      safeMin: selectedShipment.tempSafeMin,
-      safeMax: selectedShipment.tempSafeMax,
-      status: isViolation ? "Critical Violation" : "Normal",
-      loggedBy: `${user?.name || "Distributor Agent"} (${user?.role || "distributor"})`
+      await fetchShipments()
+      setShowTelemetryModal(false)
+    } catch (e) {
+      console.error("Failed to log telemetry", e)
     }
-
-    setTelemetryLogs(prev => [newLog, ...prev])
-
-    const updatedShipments = shipments.map(s => {
-      if (s.id === selectedShipment.id) {
-        return {
-          ...s,
-          lastTemp: telemetryTemp,
-          lastHumidity: telemetryHumidity,
-          coldChainViolation: isViolation || s.coldChainViolation,
-          violationMessage: violationMsg || s.violationMessage,
-          location: telemetryLocation || s.location,
-          history: [
-            ...s.history,
-            {
-              time: now,
-              location: telemetryLocation || s.location,
-              status: s.status,
-              temp: telemetryTemp,
-              notes: isViolation ? `🚨 Cold-Chain Violation: ${telemetryTemp}°C` : `Telemetry logged: ${telemetryTemp}°C, ${telemetryHumidity}% humidity`
-            }
-          ]
-        }
-      }
-      return s
-    })
-
-    setShipments(updatedShipments)
-    setSelectedShipment({
-      ...selectedShipment,
-      lastTemp: telemetryTemp,
-      lastHumidity: telemetryHumidity,
-      coldChainViolation: isViolation || selectedShipment.coldChainViolation,
-      violationMessage: violationMsg || selectedShipment.violationMessage,
-      location: telemetryLocation || selectedShipment.location,
-      history: [
-        ...selectedShipment.history,
-        {
-          time: now,
-          location: telemetryLocation || selectedShipment.location,
-          status: selectedShipment.status,
-          temp: telemetryTemp,
-          notes: isViolation ? `🚨 Cold-Chain Violation: ${telemetryTemp}°C` : `Telemetry logged: ${telemetryTemp}°C, ${telemetryHumidity}% humidity`
-        }
-      ]
-    })
-    setShowTelemetryModal(false)
   }
 
   return (
@@ -573,7 +433,66 @@ export function DistributorDashboard() {
         ))}
       </div>
 
-      {/* ==================== TAB 1: SHIPMENTS & DELIVERY TRACKING ==================== */}
+      {/* ==================== TAB 0: PROCESSOR HANDOFF QUEUE ==================== */}
+      {activeTab === "handoff" && (
+        <div className="space-y-6">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-blue-600" />
+                <span>Available Batches from Processors</span>
+              </CardTitle>
+              <CardDescription>Select a processed batch that is ready for logistics and assign it to a truck.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {availableBatches.length === 0 ? (
+                <div className="text-center py-12 text-slate-500">
+                  <Package className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                  <p>No batches are currently waiting for logistics.</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {availableBatches.map(b => (
+                    <div key={b.id} className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                      <div className="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl">
+                        {b.status}
+                      </div>
+                      <div className="space-y-2 mt-2">
+                        <div className="font-bold text-lg text-slate-900 dark:text-white">{b.name}</div>
+                        <div className="text-xs text-muted-foreground font-mono">{b.batch_number}</div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">{b.category}</span>
+                          <span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">{b.quantity}</span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Processor: {b.farmer?.name || 'Unknown'}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setNewShipment(prev => ({
+                            ...prev,
+                            product_id: b.id,
+                            product: b.name,
+                            category: b.category,
+                            batchId: b.batch_number,
+                            quantity: b.quantity.toString(),
+                            processor: b.farmer?.name || 'Origin'
+                          }));
+                          setShowCreateModal(true);
+                        }}
+                        className="w-full mt-4 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded-xl transition-colors shadow-sm cursor-pointer"
+                      >
+                        Assign Truck & Pick Up
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ==================== TAB 1: ACTIVE LOGISTICS & SHIPMENTS ==================== */}
       {activeTab === "shipments" && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -783,6 +702,50 @@ export function DistributorDashboard() {
                           <p className="text-[10px] text-muted-foreground">{selectedShipment.driverPhone} · License: {selectedShipment.driverLicense}</p>
                         </div>
                       </div>
+                    </div>
+
+                    {/* AI Routing & Map Schematic */}
+                    <div className="space-y-3 p-3 rounded-2xl border border-purple-200 dark:border-purple-800 bg-purple-50/30 dark:bg-purple-900/10">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> AI Route Optimization
+                      </span>
+                      {loadingRoute ? (
+                        <p className="text-[10px] text-muted-foreground animate-pulse">Calculating optimal route...</p>
+                      ) : aiRoute ? (
+                        <div className="space-y-3 text-[11px]">
+                          <p><strong className="text-purple-700 dark:text-purple-300">Route:</strong> {aiRoute.description}</p>
+                          <div className="flex justify-between text-muted-foreground">
+                            <span><strong className="text-slate-700 dark:text-slate-300">Est. Time:</strong> {aiRoute.estimatedTime}</span>
+                            <span><strong className="text-slate-700 dark:text-slate-300">Risk:</strong> {aiRoute.coldChainRisk}</span>
+                          </div>
+                          
+                          {/* Schematic SVG Route Map */}
+                          <div className="relative h-16 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden flex items-center justify-between px-4">
+                            <div className="absolute top-1/2 left-6 right-6 h-0.5 bg-slate-300 dark:bg-slate-600 -translate-y-1/2"></div>
+                            
+                            {/* Origin */}
+                            <div className="relative z-10 flex flex-col items-center gap-1">
+                              <div className="h-3 w-3 rounded-full bg-blue-500 border-2 border-white dark:border-slate-800 shadow-sm"></div>
+                              <span className="text-[8px] font-bold absolute top-4 whitespace-nowrap text-slate-500">Origin</span>
+                            </div>
+
+                            {/* Waypoint (Truck Position) */}
+                            <div className="relative z-10 flex flex-col items-center gap-1 animate-pulse">
+                              <Truck className="h-4 w-4 text-purple-600 bg-white dark:bg-slate-800 rounded-sm" />
+                              <span className="text-[8px] font-bold absolute top-4 whitespace-nowrap text-purple-600">{selectedShipment.location.substring(0, 10)}</span>
+                            </div>
+
+                            {/* Destination */}
+                            <div className="relative z-10 flex flex-col items-center gap-1">
+                              <div className="h-3 w-3 rounded-full bg-slate-300 dark:bg-slate-600 border-2 border-white dark:border-slate-800 shadow-sm"></div>
+                              <span className="text-[8px] font-bold absolute top-4 whitespace-nowrap text-slate-500">Retailer</span>
+                            </div>
+                          </div>
+                          <p className="text-[10px] italic text-emerald-600 dark:text-emerald-400 mt-1">Weather: {aiRoute.weatherWarning}</p>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground">No route data available.</p>
+                      )}
                     </div>
 
                     {/* Timeline History */}
