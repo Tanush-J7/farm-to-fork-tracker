@@ -12,6 +12,7 @@ import axios from "axios"
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 export interface Shipment {
   id: string
+  dbId: string
   batchId: string
   product: string
   category: "Fruits" | "Vegetables" | "Dairy" | "Meat" | "Grains"
@@ -57,9 +58,6 @@ export interface TelemetryLog {
   loggedBy: string
 }
 
-const DEFAULT_SHIPMENTS: Shipment[] = [];
-const DEFAULT_TELEMETRY: TelemetryLog[] = [];
-
 const PERFORMANCE_DATA = [
   { day: "Mon", deliveries: 8, onTime: 7, coldChainBreaches: 0 },
   { day: "Tue", deliveries: 12, onTime: 11, coldChainBreaches: 0 },
@@ -75,13 +73,11 @@ export function DistributorDashboard() {
 
   const [shipments, setShipments] = useState<any[]>([])
   const [telemetryLogs, setTelemetryLogs] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
 
   const headers = { Authorization: `Bearer ${token}` }
 
   const fetchShipments = async () => {
     try {
-      setLoading(true)
       const res = await axios.get(`${API}/shipments`, { headers })
       const data = res.data.data || []
       
@@ -148,8 +144,6 @@ export function DistributorDashboard() {
       setTelemetryLogs(logs)
     } catch (e) {
       console.error("Error fetching shipments", e)
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -178,6 +172,10 @@ export function DistributorDashboard() {
     }
   }
 
+  const [statusFilter, setStatusFilter] = useState<string>("All")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(shipments[0] || null)
+
   useEffect(() => {
     if (selectedShipment) {
       fetchAIRoute(selectedShipment.processor || "Origin", selectedShipment.retailer || "Destination", selectedShipment.category)
@@ -188,11 +186,6 @@ export function DistributorDashboard() {
     fetchShipments()
     fetchAvailableBatches()
   }, [])
-
-  // Filters & Selected States
-  const [statusFilter, setStatusFilter] = useState<string>("All")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(shipments[0] || null)
 
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -732,7 +725,7 @@ export function DistributorDashboard() {
                             {/* Waypoint (Truck Position) */}
                             <div className="relative z-10 flex flex-col items-center gap-1 animate-pulse">
                               <Truck className="h-4 w-4 text-purple-600 bg-white dark:bg-slate-800 rounded-sm" />
-                              <span className="text-[8px] font-bold absolute top-4 whitespace-nowrap text-purple-600">{selectedShipment.location.substring(0, 10)}</span>
+                              <span className="text-[8px] font-bold absolute top-4 whitespace-nowrap text-purple-600">{selectedShipment.location?.substring(0, 10) || "Transit"}</span>
                             </div>
 
                             {/* Destination */}
