@@ -1962,157 +1962,164 @@ export function ProcessorDashboard() {
                     </div>
 
                     {/* Weight Shortage / Discrepancy Live Alert */}
-                    {Number(receivedQtyInput) > 0 && Number(receivedQtyInput) < selectedProduct.quantity && (
-                      <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2.5 text-xs">
-                        <div className="flex items-start gap-2 text-amber-400 font-semibold">
-                          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                          <span>Weight Shortage Detected: {selectedProduct.quantity - Number(receivedQtyInput)} kg Shortage ({(((selectedProduct.quantity - Number(receivedQtyInput)) / selectedProduct.quantity) * 100).toFixed(0)}% vs Farm Origin)</span>
-                        </div>
-                        <div>
-                          <label className="text-zinc-400 uppercase text-[10px] font-bold">Observed Transit Loss Reason</label>
-                          <select
-                            value={transitLossReasonInput}
-                            onChange={(e) => setTransitLossReasonInput(e.target.value)}
-                            className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 mt-1 text-xs text-white focus:outline-none"
-                          >
-                            <option value="Transit Spoilage / Physical Damage on Route">Transit Spoilage / Physical Damage on Route</option>
-                            <option value="Partial / Split Truck Delivery">Partial / Split Truck Delivery</option>
-                            <option value="Natural Moisture Evaporation / Shrinkage">Natural Moisture Evaporation / Shrinkage</option>
-                            <option value="Short Shipment / Missing Crates">Short Shipment / Missing Crates</option>
-                            <option value="Weighbridge Scale Recalibration">Weighbridge Scale Recalibration</option>
-                          </select>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                {/* PHYSICAL INSPECTION FORM */}
-                <div className="space-y-4 border-t border-zinc-800 pt-4">
-                  <h4 className="font-bold text-sm text-zinc-300">3. Physical Quality Inspection</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs text-zinc-400">Appearance</label>
-                      <select value={appearanceInput} onChange={(e) => handlePhysicalParamChange("appearance", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none">
-                        <option>Good</option>
-                        <option>Excellent</option>
-                        <option>Average</option>
-                        <option>Poor</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-zinc-400">Freshness</label>
-                      <select value={freshnessInput} onChange={(e) => handlePhysicalParamChange("freshness", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none">
-                        <option>Excellent</option>
-                        <option>Good</option>
-                        <option>Average</option>
-                        <option>Stale</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-zinc-400">Damage</label>
-                      <select value={damageInput} onChange={(e) => handlePhysicalParamChange("damage", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none">
-                        <option>Low</option>
-                        <option>Medium</option>
-                        <option>High</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-zinc-400">Cleanliness</label>
-                      <select value={cleanlinessInput} onChange={(e) => handlePhysicalParamChange("cleanliness", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none">
-                        <option>Good</option>
-                        <option>Excellent</option>
-                        <option>Average</option>
-                        <option>Poor</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Live in-hand calculated score */}
-                  <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-zinc-400 font-medium">In-Hand Verified Quality Score</p>
-                      <p className="text-[11px] text-zinc-500">Calculated from physical appearance, freshness, damage & cleanliness</p>
-                    </div>
                     {(() => {
-                      const score = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
-                      const grade = score >= 85 ? "A" : score >= 60 ? "B" : "C"
+                      const scaleWeight = Number(receivedQtyInput)
+                      const originWeight = selectedProduct.quantity
+                      const hasWeightDiff = scaleWeight > 0 && scaleWeight !== originWeight
+                      if (!hasWeightDiff) return null
+
+                      const diffAmount = Math.abs(originWeight - scaleWeight)
+                      const diffPercent = originWeight > 0 ? ((diffAmount / originWeight) * 100).toFixed(0) : "0"
+                      const isShortage = scaleWeight < originWeight
+
                       return (
-                        <span className="text-base font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-xl">
-                          {score}% (Grade {grade})
-                        </span>
+                        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-2 text-xs">
+                          <div className="flex items-start gap-2.5 text-red-400 font-semibold">
+                            <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-red-400" />
+                            <div>
+                              <p className="font-bold text-sm text-red-300">
+                                Weight Mismatch Detected: {diffAmount} kg {isShortage ? "Shortage" : "Excess"} ({diffPercent}% vs Origin {originWeight} kg)
+                              </p>
+                              <p className="text-zinc-300 font-normal mt-0.5 text-[11px]">
+                                Actual scale weight ({scaleWeight} kg) does not match farm registered quantity ({originWeight} kg). Physical quality inspection is locked and produce delivery must be rejected.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       )
                     })()}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs text-zinc-400">Certified Quality Grade</label>
-                      <div className="flex gap-2 mt-1">
-                        {(["A", "B", "C"] as const).map(g => {
-                          const computedScore = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
-                          const autoGrade = computedScore >= 85 ? "A" : computedScore >= 60 ? "B" : "C"
-                          const isCurrentGrade = autoGrade === g
-                          return (
-                            <button
-                              key={g}
-                              type="button"
-                              disabled={!isCurrentGrade}
-                              className={`flex-1 py-2 rounded-xl font-bold border transition-all ${
-                                isCurrentGrade
-                                  ? "bg-emerald-500 border-emerald-500 text-white shadow-md cursor-default ring-2 ring-emerald-400/50"
-                                  : "border-zinc-800/50 text-zinc-600 opacity-40 cursor-not-allowed bg-zinc-900"
-                              }`}
-                            >
-                              Grade {g}
-                            </button>
-                          )
-                        })}
+                {/* 3. PHYSICAL QUALITY INSPECTION FORM - Hidden if there is a weight mismatch */}
+                {!(Number(receivedQtyInput) > 0 && Number(receivedQtyInput) !== selectedProduct.quantity) && (
+                  <div className="space-y-4 border-t border-zinc-800 pt-4">
+                    <h4 className="font-bold text-sm text-zinc-300">3. Physical Quality Inspection</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs text-zinc-400">Appearance</label>
+                        <select value={appearanceInput} onChange={(e) => handlePhysicalParamChange("appearance", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none">
+                          <option>Good</option>
+                          <option>Excellent</option>
+                          <option>Average</option>
+                          <option>Poor</option>
+                        </select>
                       </div>
-                      <p className="text-[10px] text-zinc-400 mt-1">
-                        Auto-locked: Grade A (85-100%), Grade B (60-84%), Grade C (&lt;60%)
-                      </p>
+                      <div>
+                        <label className="text-xs text-zinc-400">Freshness</label>
+                        <select value={freshnessInput} onChange={(e) => handlePhysicalParamChange("freshness", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none">
+                          <option>Excellent</option>
+                          <option>Good</option>
+                          <option>Average</option>
+                          <option>Stale</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-zinc-400">Damage</label>
+                        <select value={damageInput} onChange={(e) => handlePhysicalParamChange("damage", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none">
+                          <option>Low</option>
+                          <option>Medium</option>
+                          <option>High</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-zinc-400">Cleanliness</label>
+                        <select value={cleanlinessInput} onChange={(e) => handlePhysicalParamChange("cleanliness", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none">
+                          <option>Good</option>
+                          <option>Excellent</option>
+                          <option>Average</option>
+                          <option>Poor</option>
+                        </select>
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-xs text-zinc-400">Inspection remarks</label>
-                      <input
-                        type="text"
-                        value={inspectionRemarks}
-                        onChange={(e) => setInspectionRemarks(e.target.value)}
-                        placeholder="Remarks about firmness or freshness"
-                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none"
-                      />
-                    </div>
-                  </div>
 
-                  {/* Compulsory Physical Inspection Confirmation */}
-                  <label className={`flex items-center gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                    isInspectionConfirmed
-                      ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
-                      : "bg-zinc-950 border-zinc-800 hover:border-zinc-700 text-zinc-400"
-                  }`}>
-                    <input
-                      type="checkbox"
-                      checked={isInspectionConfirmed}
-                      onChange={(e) => setIsInspectionConfirmed(e.target.checked)}
-                      className="h-4 w-4 rounded accent-primary cursor-pointer"
-                    />
-                    <span className="text-xs font-semibold">
-                      I have physically inspected this produce and certify the verified Quality Score & Grade.
-                    </span>
-                  </label>
-                </div>
+                    {/* Live in-hand calculated score */}
+                    <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-zinc-400 font-medium">In-Hand Verified Quality Score</p>
+                        <p className="text-[11px] text-zinc-500">Calculated from physical appearance, freshness, damage & cleanliness</p>
+                      </div>
+                      {(() => {
+                        const score = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
+                        const grade = score >= 85 ? "A" : score >= 60 ? "B" : "C"
+                        return (
+                          <span className="text-base font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-xl">
+                            {score}% (Grade {grade})
+                          </span>
+                        )
+                      })()}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs text-zinc-400">Certified Quality Grade</label>
+                        <div className="flex gap-2 mt-1">
+                          {(["A", "B", "C"] as const).map(g => {
+                            const computedScore = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
+                            const autoGrade = computedScore >= 85 ? "A" : computedScore >= 60 ? "B" : "C"
+                            const isCurrentGrade = autoGrade === g
+                            return (
+                              <button
+                                key={g}
+                                type="button"
+                                disabled={!isCurrentGrade}
+                                className={`flex-1 py-2 rounded-xl font-bold border transition-all ${
+                                  isCurrentGrade
+                                    ? "bg-emerald-500 border-emerald-500 text-white shadow-md cursor-default ring-2 ring-emerald-400/50"
+                                    : "border-zinc-800/50 text-zinc-600 opacity-40 cursor-not-allowed bg-zinc-900"
+                                }`}
+                              >
+                                Grade {g}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <p className="text-[10px] text-zinc-400 mt-1">
+                          Auto-locked: Grade A (85-100%), Grade B (60-84%), Grade C (&lt;60%)
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-xs text-zinc-400">Inspection remarks</label>
+                        <input
+                          type="text"
+                          value={inspectionRemarks}
+                          onChange={(e) => setInspectionRemarks(e.target.value)}
+                          placeholder="Remarks about firmness or freshness"
+                          className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Compulsory Physical Inspection Confirmation */}
+                    <label className={`flex items-center gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                      isInspectionConfirmed
+                        ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
+                        : "bg-zinc-950 border-zinc-800 hover:border-zinc-700 text-zinc-400"
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={isInspectionConfirmed}
+                        onChange={(e) => setIsInspectionConfirmed(e.target.checked)}
+                        className="h-4 w-4 rounded accent-primary cursor-pointer"
+                      />
+                      <span className="text-xs font-semibold">
+                        I have physically inspected this produce and certify the verified Quality Score & Grade.
+                      </span>
+                    </label>
+                  </div>
+                )}
 
                 {/* DECISION ACTION SUBMIT */}
                 <div className="flex flex-col gap-3 border-t border-zinc-800 pt-4">
                   {showRejectionForm ? (
-                    <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl space-y-3">
+                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-3">
                       <label className="text-xs text-red-400 font-bold uppercase">Rejection Reason</label>
                       <select
                         value={rejectionReasonInput}
                         onChange={(e) => setRejectionReasonInput(e.target.value)}
-                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none"
+                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none text-white"
                       >
                         <option value="">Select reason</option>
+                        <option value="Weight Discrepancy / Scale Mismatch">Weight Discrepancy / Scale Mismatch</option>
                         <option value="Information mismatch">Information Mismatch</option>
                         <option value="Poor quality">Poor Quality</option>
                         <option value="Damaged product">Damaged Product</option>
@@ -2122,9 +2129,9 @@ export function ProcessorDashboard() {
                         <Button
                           disabled={!rejectionReasonInput}
                           onClick={() => handleInspectionDecision("Rejected")}
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl"
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md"
                         >
-                          Confirm Rejection
+                          Confirm Rejection on Chain
                         </Button>
                         <Button
                           variant="ghost"
@@ -2135,7 +2142,23 @@ export function ProcessorDashboard() {
                         </Button>
                       </div>
                     </div>
+                  ) : Number(receivedQtyInput) > 0 && Number(receivedQtyInput) !== selectedProduct.quantity ? (
+                    /* ONLY DISPLAY REJECT PRODUCT WHEN THERE IS A WEIGHT MISMATCH */
+                    <div className="space-y-2">
+                      <Button
+                        onClick={() => {
+                          const diff = Math.abs(selectedProduct.quantity - Number(receivedQtyInput))
+                          const type = Number(receivedQtyInput) < selectedProduct.quantity ? "Shortage" : "Excess"
+                          setRejectionReasonInput(`Weight Discrepancy / Scale Mismatch (${diff} kg ${type}: Scale ${receivedQtyInput} kg vs Origin ${selectedProduct.quantity} kg)`)
+                          setShowRejectionForm(true)
+                        }}
+                        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl py-3 text-sm shadow-lg gap-2"
+                      >
+                        ❌ Reject Product (Weight Mismatch)
+                      </Button>
+                    </div>
                   ) : (
+                    /* NORMAL VIEW: ACCEPT OR REJECT */
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
