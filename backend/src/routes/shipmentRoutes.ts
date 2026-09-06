@@ -1,6 +1,6 @@
 import express from 'express';
 import { createShipment, getShipments, updateShipmentStatus, logTelemetry, getAvailableBatches } from '../controllers/shipmentController';
-import { protect, restrictTo } from '../middleware/authMiddleware';
+import { protect, restrictTo } from '../middleware/auth';
 
 const router = express.Router();
 
