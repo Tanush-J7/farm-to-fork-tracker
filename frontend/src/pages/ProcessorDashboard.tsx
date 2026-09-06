@@ -130,6 +130,7 @@ export function ProcessorDashboard() {
   // Local storage states
   const [interests, setInterests] = useState<string[]>([])
   const [deals, setDeals] = useState<Record<string, "requested" | "accepted" | "dispatched" | "declined">>({})
+  const [declinedProducts, setDeclinedProducts] = useState<Record<string, boolean>>({})
   const [receipts, setReceipts] = useState<Record<string, ReceiptDetails>>({})
   const [verifications, setVerifications] = useState<Record<string, VerificationDetails>>({})
   const [inspections, setInspections] = useState<Record<string, InspectionDetails>>({})
@@ -401,21 +402,27 @@ export function ProcessorDashboard() {
     const storedLogs = localStorage.getItem("processor_logs")
     if (storedLogs) setAuditLogs(JSON.parse(storedLogs))
 
-    // Deals
-    const loadDeals = () => {
+    // Deals & Declined Status
+    const loadDealsAndDeclined = () => {
       try {
         const stored = JSON.parse(localStorage.getItem("farmer_deals") || "{}")
         setDeals(stored)
       } catch {
         setDeals({})
       }
+      try {
+        const storedDeclined = JSON.parse(localStorage.getItem("processor_declined_products") || "{}")
+        setDeclinedProducts(storedDeclined)
+      } catch {
+        setDeclinedProducts({})
+      }
     }
-    loadDeals()
-    window.addEventListener("farmer_deals_updated", loadDeals)
-    window.addEventListener("storage", loadDeals)
+    loadDealsAndDeclined()
+    window.addEventListener("farmer_deals_updated", loadDealsAndDeclined)
+    window.addEventListener("storage", loadDealsAndDeclined)
     return () => {
-      window.removeEventListener("farmer_deals_updated", loadDeals)
-      window.removeEventListener("storage", loadDeals)
+      window.removeEventListener("farmer_deals_updated", loadDealsAndDeclined)
+      window.removeEventListener("storage", loadDealsAndDeclined)
     }
   }, [])
 
@@ -510,6 +517,16 @@ export function ProcessorDashboard() {
     if (prodId !== product.id) {
       await updateDbStatus(prodId, "Processing")
     }
+  }
+
+  // Action: Dismiss Declined Product from Pipeline
+  const handleDismissDeclined = (productId: string, batchNumber?: string) => {
+    const updated = interests.filter(
+      id => id !== productId && id !== String(productId) && (!batchNumber || id !== batchNumber)
+    )
+    setInterests(updated)
+    localStorage.setItem("processor_interests", JSON.stringify(updated))
+    addLog(`Dismissed declined product from pipeline`, "Dismissed", productId)
   }
 
   // Action: Receive Product Form Submit
@@ -1076,7 +1093,15 @@ export function ProcessorDashboard() {
       const statusLower = (p.status || "").toLowerCase().trim()
       const matchesStatus = statusLower === "harvested" || statusLower === "available"
 
-      return matchesSearch && matchesCategory && matchesStatus
+      // 4. Exclude products declined by farmer for this processor
+      const isDeclined = Boolean(
+        declinedProducts[p.id] ||
+        declinedProducts[String(p.id)] ||
+        (p.batch_number && declinedProducts[p.batch_number]) ||
+        ((p as any).batchNumber && declinedProducts[(p as any).batchNumber])
+      )
+
+      return matchesSearch && matchesCategory && matchesStatus && !isDeclined
     })
     .sort((a, b) => {
       if (sortBy === "newest") return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -1291,8 +1316,60 @@ export function ProcessorDashboard() {
                 ) : (
                   <div className="grid gap-4">
                     {products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).map(p => {
-                      const dealStatus = deals[String(p.id)] || deals[p.batch_number || ""] || deals[p.id] || "requested"
+                      const isDeclined = Boolean(
+                        deals[String(p.id)] === "declined" ||
+                        deals[p.batch_number || ""] === "declined" ||
+                        deals[p.id] === "declined" ||
+                        declinedProducts[p.id] ||
+                        declinedProducts[String(p.id)] ||
+                        (p.batch_number && declinedProducts[p.batch_number]) ||
+                        ((p as any).batchNumber && declinedProducts[(p as any).batchNumber])
+                      )
+                      const dealStatus = isDeclined ? "declined" : (deals[String(p.id)] || deals[p.batch_number || ""] || deals[p.id] || "requested")
                       const isDispatched = dealStatus === "dispatched"
+
+                      if (isDeclined || dealStatus === "declined") {
+                        return (
+                          <div key={p.id} className="p-5 rounded-2xl border border-red-500/30 bg-red-500/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h4 className="font-bold text-lg text-foreground flex items-center gap-1.5">
+                                  {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : "🌱"}
+                                  {p.name}
+                                </h4>
+                                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 flex items-center gap-1">
+                                  ❌ Declined by Farmer
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Farmer: {p.farmer?.name || "Ravi"} • Quantity: {p.quantity} kg • Batch: {p.batch_number || p.id}
+                              </p>
+                              <p className="text-xs text-red-400/90 mt-1">
+                                Farmer declined your procurement request. This yield has been released back to the open market.
+                              </p>
+                            </div>
+                            <div className="flex gap-2 w-full md:w-auto items-center">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSelectedProduct(p)}
+                                className="rounded-xl flex-1 md:flex-initial"
+                              >
+                                Details
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDismissDeclined(String(p.id), p.batch_number)}
+                                className="rounded-xl border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500 flex-1 md:flex-initial gap-1.5 font-medium"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Dismiss from Pipeline
+                              </Button>
+                            </div>
+                          </div>
+                        )
+                      }
 
                       return (
                         <div key={p.id} className="p-5 rounded-2xl border bg-muted/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -1872,8 +1949,20 @@ export function ProcessorDashboard() {
                   <label className="text-xs text-zinc-400 uppercase font-bold">Received Qty (kg)</label>
                   <input
                     type="number"
+                    min="0"
+                    step="any"
                     value={receivedQtyInput}
-                    onChange={(e) => setReceivedQtyInput(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (val === "" || Number(val) >= 0) {
+                        setReceivedQtyInput(val)
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "-" || e.key === "e") {
+                        e.preventDefault()
+                      }
+                    }}
                     className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 mt-1 text-sm text-white focus:outline-none"
                     placeholder="Enter physical scale quantity"
                   />
@@ -2117,8 +2206,28 @@ export function ProcessorDashboard() {
                         <label className="text-xs text-zinc-400 uppercase font-bold">Actual Scale Weighed (kg)</label>
                         <input
                           type="number"
+                          min="0"
+                          max={selectedProduct.quantity}
+                          step="any"
                           value={receivedQtyInput}
-                          onChange={(e) => setReceivedQtyInput(e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            if (val === "") {
+                              setReceivedQtyInput("")
+                            } else {
+                              const num = Number(val)
+                              if (num >= 0 && num <= selectedProduct.quantity) {
+                                setReceivedQtyInput(val)
+                              } else if (num > selectedProduct.quantity) {
+                                setReceivedQtyInput(String(selectedProduct.quantity))
+                              }
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "-" || e.key === "e") {
+                              e.preventDefault()
+                            }
+                          }}
                           placeholder={`Enter scale weight (e.g. ${selectedProduct.quantity})`}
                           className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 mt-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-400"
                         />
@@ -2206,12 +2315,33 @@ export function ProcessorDashboard() {
                         const score = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
                         const grade = score >= 85 ? "A" : score >= 60 ? "B" : "C"
                         return (
-                          <span className="text-base font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-xl">
+                          <span className={`text-base font-bold px-3 py-1 rounded-xl border ${
+                            grade === "C"
+                              ? "text-red-400 bg-red-500/10 border-red-500/30"
+                              : "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                          }`}>
                             {score}% (Grade {grade})
                           </span>
                         )
                       })()}
                     </div>
+
+                    {/* Quality Failure Alert Banner if Grade C (<60%) */}
+                    {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) < 60 && (
+                      <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-1.5 text-xs">
+                        <div className="flex items-start gap-2.5 text-red-400 font-semibold">
+                          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-red-400" />
+                          <div>
+                            <p className="font-bold text-sm text-red-300">
+                              Quality Standards Failed (Grade C · {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)}%)
+                            </p>
+                            <p className="text-zinc-300 font-normal mt-0.5 text-[11px]">
+                              Physical quality parameters do not meet minimum processor intake specifications (60% / Grade B required). Accepting this batch on blockchain is restricted and produce delivery must be rejected.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -2228,7 +2358,9 @@ export function ProcessorDashboard() {
                                 disabled={!isCurrentGrade}
                                 className={`flex-1 py-2 rounded-xl font-bold border transition-all ${
                                   isCurrentGrade
-                                    ? "bg-emerald-500 border-emerald-500 text-white shadow-md cursor-default ring-2 ring-emerald-400/50"
+                                    ? autoGrade === "C"
+                                      ? "bg-red-500 border-red-500 text-white shadow-md cursor-default ring-2 ring-red-400/50"
+                                      : "bg-emerald-500 border-emerald-500 text-white shadow-md cursor-default ring-2 ring-emerald-400/50"
                                     : "border-zinc-800/50 text-zinc-600 opacity-40 cursor-not-allowed bg-zinc-900"
                                 }`}
                               >
@@ -2253,22 +2385,24 @@ export function ProcessorDashboard() {
                       </div>
                     </div>
 
-                    {/* Compulsory Physical Inspection Confirmation */}
-                    <label className={`flex items-center gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                      isInspectionConfirmed
-                        ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
-                        : "bg-zinc-950 border-zinc-800 hover:border-zinc-700 text-zinc-400"
-                    }`}>
-                      <input
-                        type="checkbox"
-                        checked={isInspectionConfirmed}
-                        onChange={(e) => setIsInspectionConfirmed(e.target.checked)}
-                        className="h-4 w-4 rounded accent-primary cursor-pointer"
-                      />
-                      <span className="text-xs font-semibold">
-                        I have physically inspected this produce and certify the verified Quality Score & Grade.
-                      </span>
-                    </label>
+                    {/* Compulsory Physical Inspection Confirmation - Only displayed for Grade A or B (score >= 60) */}
+                    {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) >= 60 && (
+                      <label className={`flex items-center gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                        isInspectionConfirmed
+                          ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
+                          : "bg-zinc-950 border-zinc-800 hover:border-zinc-700 text-zinc-400"
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={isInspectionConfirmed}
+                          onChange={(e) => setIsInspectionConfirmed(e.target.checked)}
+                          className="h-4 w-4 rounded accent-primary cursor-pointer"
+                        />
+                        <span className="text-xs font-semibold">
+                          I have physically inspected this produce and certify the verified Quality Score & Grade.
+                        </span>
+                      </label>
+                    )}
                   </div>
                 )}
 
@@ -2284,6 +2418,7 @@ export function ProcessorDashboard() {
                       >
                         <option value="">Select reason</option>
                         <option value="Weight Discrepancy / Scale Mismatch">Weight Discrepancy / Scale Mismatch</option>
+                        <option value="Quality Standards Failed (Grade C / Spoiled)">Quality Standards Failed (Grade C / Spoiled)</option>
                         <option value="Information mismatch">Information Mismatch</option>
                         <option value="Poor quality">Poor Quality</option>
                         <option value="Damaged product">Damaged Product</option>
@@ -2319,6 +2454,20 @@ export function ProcessorDashboard() {
                         className="w-full bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl py-3 text-sm shadow-lg gap-2"
                       >
                         ❌ Reject Product (Weight Mismatch)
+                      </Button>
+                    </div>
+                  ) : computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) < 60 ? (
+                    /* ONLY DISPLAY REJECT PRODUCT WHEN QUALITY STANDARDS FAIL (GRADE C) */
+                    <div className="space-y-2">
+                      <Button
+                        onClick={() => {
+                          const score = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
+                          setRejectionReasonInput(`Quality Standards Failed: Grade C produce (${score}%) does not meet intake quality specifications`)
+                          setShowRejectionForm(true)
+                        }}
+                        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl py-3 text-sm shadow-lg gap-2"
+                      >
+                        ❌ Reject Product (Quality Standards Failed)
                       </Button>
                     </div>
                   ) : (

@@ -113,6 +113,7 @@ export function FarmerDashboard() {
 
   // Deal Status State: { [productId: string]: "requested" | "accepted" | "dispatched" | "declined" }
   const [deals, setDeals] = useState<Record<string, "requested" | "accepted" | "dispatched" | "declined">>({})
+  const [decisions, setDecisions] = useState<Record<string, { decision: "Accepted" | "Rejected"; reason?: string; date: string; time: string }>>({})
 
   const headers = { Authorization: `Bearer ${token}` }
 
@@ -136,12 +137,24 @@ export function FarmerDashboard() {
     }
   }, [])
 
+  // Load Processor Intake Decisions
+  const loadDecisions = useCallback(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("processor_decisions") || "{}")
+      setDecisions(stored)
+    } catch {
+      setDecisions({})
+    }
+  }, [])
+
   useEffect(() => {
     loadNotifications()
     loadDeals()
+    loadDecisions()
     const handleUpdate = () => {
       loadNotifications()
       loadDeals()
+      loadDecisions()
       fetchProducts()
     }
     window.addEventListener("farmer_notifications_updated", handleUpdate)
@@ -152,7 +165,7 @@ export function FarmerDashboard() {
       window.removeEventListener("farmer_deals_updated", handleUpdate)
       window.removeEventListener("storage", handleUpdate)
     }
-  }, [loadNotifications, loadDeals])
+  }, [loadNotifications, loadDeals, loadDecisions])
 
   // Handlers for Farmer Deal Lifecycle
   const handleAcceptDeal = (productId: string, batchNumber: string) => {
@@ -186,12 +199,14 @@ export function FarmerDashboard() {
     setDeals(updated as any)
     localStorage.setItem("farmer_deals", JSON.stringify(updated))
 
+    // Record declined status in processor_declined_products map
     try {
-      const storedInterests: string[] = JSON.parse(localStorage.getItem("processor_interests") || "[]")
-      const updatedInterests = storedInterests.filter(id => id !== productId && id !== batchNumber)
-      localStorage.setItem("processor_interests", JSON.stringify(updatedInterests))
+      const declinedMap = JSON.parse(localStorage.getItem("processor_declined_products") || "{}")
+      declinedMap[productId] = true
+      declinedMap[batchNumber] = true
+      localStorage.setItem("processor_declined_products", JSON.stringify(declinedMap))
     } catch (e) {
-      console.warn("Could not update processor interests", e)
+      console.warn("Could not save declined product mapping", e)
     }
 
     try {
@@ -268,8 +283,17 @@ export function FarmerDashboard() {
   useEffect(() => { fetchProducts() }, [fetchProducts])
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const val = e.target.type === "checkbox" ? (e.target as HTMLInputElement).checked : e.target.value
-    setForm(f => ({ ...f, [e.target.name]: val }))
+    const { name, type, value } = e.target
+    if (type === "checkbox") {
+      const checked = (e.target as HTMLInputElement).checked
+      setForm(f => ({ ...f, [name]: checked }))
+    } else if (name === "quantity") {
+      if (value === "" || Number(value) >= 0) {
+        setForm(f => ({ ...f, [name]: value }))
+      }
+    } else {
+      setForm(f => ({ ...f, [name]: value }))
+    }
   }
 
   const openRegistrationForm = () => {
@@ -535,6 +559,9 @@ export function FarmerDashboard() {
                     <input
                       type={f.type || "text"}
                       name={f.name}
+                      min={f.type === "number" ? "0" : undefined}
+                      step={f.type === "number" ? "any" : undefined}
+                      onKeyDown={f.type === "number" ? (e) => { if (e.key === "-" || e.key === "e") e.preventDefault() } : undefined}
                       value={(form as any)[f.name]}
                       onChange={handleFormChange}
                       placeholder={f.placeholder}
@@ -687,11 +714,40 @@ export function FarmerDashboard() {
                     {sc.label}
                   </div>
 
-                  {/* Interactive Processor Deal Handshake */}
+                  {/* Interactive Processor Deal Handshake & Intake Outcome */}
                   {(() => {
-                    const isInterested = p.status === "Processing" || p.status === "In Transit" || notifications.some(n => (n.productId === p._id || n.batchNumber === p.batchNumber) && n.type === "processor_interest")
+                    const decisionRecord = decisions[p._id] || decisions[p.batchNumber] || (p.status === "Rejected by Processor" ? { decision: "Rejected" as const, reason: "Rejected by Processor" } : null)
                     const notif = notifications.find(n => (n.productId === p._id || n.batchNumber === p.batchNumber) && n.type === "processor_interest")
                     const processorName = notif?.processorName || "Processing Facility"
+
+                    // Stage 4: Final Intake Outcomes
+                    if (decisionRecord?.decision === "Accepted") {
+                      return (
+                        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-200 flex items-start gap-2.5 shadow-sm">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-emerald-100">✅ Verified & Accepted on Blockchain</p>
+                            <p className="text-[11px] text-emerald-300/80 mt-0.5">{processorName} verified QR certificate and scale weight. Produce has entered the processing line.</p>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    if (decisionRecord?.decision === "Rejected" || p.status === "Rejected by Processor") {
+                      return (
+                        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-200 flex items-start gap-2.5 shadow-sm">
+                          <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-red-100">❌ Rejected at Gate Intake by {processorName}</p>
+                            <p className="text-[11px] text-red-300/80 mt-0.5 leading-relaxed">
+                              Reason: {decisionRecord?.reason || "Intake scale weight or quality verification failed."}. Intake verification failed.
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    const isInterested = p.status === "Processing" || p.status === "In Transit" || Boolean(notif)
                     const currentDealState = deals[p._id] || deals[p.batchNumber] || (isInterested ? "requested" : null)
 
                     if (!isInterested || currentDealState === "declined" || !currentDealState) return null
