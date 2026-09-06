@@ -154,7 +154,16 @@ export function Sidebar() {
 
     if (Object.keys(updates).length > 0) {
       updateUser(updates)
-      setSuccessMsg(`${user?.role === "farmer" ? "Farmer" : "Processor"} settings saved successfully!`)
+      if (user?.email) {
+        try {
+          const cached = JSON.parse(localStorage.getItem(`farmchain_profile_${user.email.toLowerCase()}`) || "{}")
+          localStorage.setItem(`farmchain_profile_${user.email.toLowerCase()}`, JSON.stringify({ ...cached, ...updates }))
+        } catch (e) {
+          console.warn("Could not cache profile", e)
+        }
+      }
+      const roleDisplayName = user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1)) : "User"
+      setSuccessMsg(`${roleDisplayName} settings saved successfully!`)
       setTimeout(() => {
         setShowModal(false)
         setSuccessMsg("")
@@ -204,11 +213,11 @@ export function Sidebar() {
               </div>
             </div>
 
-            {user.role === "farmer" && (
+            {(user.role === "farmer" || user.role === "processor" || user.role === "distributor" || user.role === "retailer") && (
               <button
                 onClick={handleOpenModal}
                 className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-700 transition-colors"
-                title="Update Farmer Profile"
+                title={`Update ${user.role.charAt(0).toUpperCase() + user.role.slice(1)} Profile`}
               >
                 <Edit3 className="h-4 w-4" />
               </button>
@@ -313,6 +322,16 @@ export function Sidebar() {
                   <>
                     <Leaf className="h-5 w-5 text-emerald-600" />
                     <span>Farmer Profile & Policy Settings</span>
+                  </>
+                ) : user?.role === "distributor" ? (
+                  <>
+                    <Truck className="h-5 w-5 text-blue-600" />
+                    <span>Distributor Profile & Logistics Settings</span>
+                  </>
+                ) : user?.role === "retailer" ? (
+                  <>
+                    <ShoppingBag className="h-5 w-5 text-purple-600" />
+                    <span>Retailer Profile & Store Settings</span>
                   </>
                 ) : (
                   <span>⚙️ Processor Settings</span>
@@ -474,16 +493,16 @@ export function Sidebar() {
               </form>
             ) : (
               <form onSubmit={handleSaveProfile} className="space-y-4 text-left">
-                {/* 1. Processor Name */}
+                {/* 1. Name */}
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                    <span>1. 👤 Processor Name</span>
+                    <span>1. 👤 {user?.role === "distributor" ? "Distributor Name" : user?.role === "retailer" ? "Retailer / Store Name" : "Processor Name"}</span>
                   </label>
                   <input
                     type="text"
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
-                    placeholder="Enter company/processor name"
+                    placeholder={user?.role === "distributor" ? "Enter distributor/fleet company name" : user?.role === "retailer" ? "Enter store or retailer name" : "Enter company/processor name"}
                     className="flex h-9 w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
                   />
                 </div>
@@ -491,7 +510,7 @@ export function Sidebar() {
                 {/* 2. Profile Photo */}
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                    <span>2. 📷 Profile Photo</span>
+                    <span>2. 📷 {user?.role === "distributor" ? "Distributor Photo / Fleet Logo" : user?.role === "retailer" ? "Retailer Photo / Store Logo" : "Profile Photo"}</span>
                   </label>
                   <div className="flex items-center gap-3 pt-1">
                     {(newPhoto || user?.photo) ? (
@@ -530,7 +549,7 @@ export function Sidebar() {
                     type="email"
                     value={newEmail}
                     onChange={(e) => setNewEmail(e.target.value)}
-                    placeholder="processor@company.com"
+                    placeholder={user?.role === "distributor" ? "distributor@logistics.com" : user?.role === "retailer" ? "store@retail.com" : "processor@company.com"}
                     className="flex h-9 w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
                   />
                 </div>
@@ -549,11 +568,11 @@ export function Sidebar() {
                   />
                 </div>
 
-                {/* 5. Facility Address */}
+                {/* 5. Address */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                      <span>5. 📍 Facility Address</span>
+                      <span>5. 📍 {user?.role === "distributor" ? "Distribution Hub / Warehouse Address" : user?.role === "retailer" ? "Retailer / Store Address" : "Facility Address"}</span>
                     </label>
                     <button
                       type="button"
@@ -581,7 +600,7 @@ export function Sidebar() {
                       rows={2}
                       value={newAddress}
                       onChange={(e) => setNewAddress(e.target.value)}
-                      placeholder="Enter address manually"
+                      placeholder={user?.role === "distributor" ? "Enter distribution hub address manually" : user?.role === "retailer" ? "Enter store address manually" : "Enter address manually"}
                       className="flex w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 resize-none"
                     />
                   </div>
