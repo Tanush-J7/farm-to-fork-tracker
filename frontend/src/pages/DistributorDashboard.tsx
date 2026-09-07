@@ -397,17 +397,23 @@ export function DistributorDashboard() {
           <p className="text-muted-foreground mt-1">Manage logistics, smart routing, inventory, and blockchain handoffs.</p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-lg border shadow-sm">
-            <span className="text-sm font-medium text-muted-foreground px-2">Status:</span>
+          <div className="flex items-center bg-white dark:bg-slate-900 px-1 py-1 rounded-full border shadow-sm transition-all hover:shadow-md">
+            <div className={`h-2.5 w-2.5 rounded-full ml-3 mr-2 ${
+              user?.availability_status === 'Unavailable' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 
+              user?.availability_status === 'On Route' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 
+              'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
+            }`} />
+            <span className="text-sm font-medium text-muted-foreground mr-1">Status:</span>
             <select 
-              className="text-sm bg-transparent border-none focus:ring-0 outline-none font-medium text-slate-900 dark:text-white cursor-pointer"
+              className="text-sm bg-transparent border-0 focus:ring-0 py-1.5 pl-1 pr-7 m-0 outline-none font-semibold text-slate-900 dark:text-white cursor-pointer appearance-none"
               defaultValue={user?.availability_status || "Available for Trip"}
               onChange={(e) => updateStatus(e.target.value)}
               disabled={statusLoading}
+              style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.25rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.2em 1.2em' }}
             >
-              <option value="Available for Trip">✅ Available for Trip</option>
-              <option value="On Route">🚚 On Route</option>
-              <option value="Unavailable">⛔ Unavailable</option>
+              <option value="Available for Trip">Available for Trip</option>
+              <option value="On Route">On Route</option>
+              <option value="Unavailable">Unavailable</option>
             </select>
           </div>
           {statusLoading && <span className="text-xs text-blue-500 animate-pulse">Updating...</span>}
