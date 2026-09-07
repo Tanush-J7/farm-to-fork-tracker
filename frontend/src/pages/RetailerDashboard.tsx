@@ -1,8 +1,7 @@
-
 import { useState, useEffect } from "react"
 import axios from "axios"
 import { useAuth } from "../context/AuthContext"
-import { ShoppingBag, AlertTriangle, TrendingDown, TrendingUp, ShieldCheck, QrCode, Tag, Truck, RefreshCw, Star, ArrowUpRight, BarChart3, Package, Store } from "lucide-react"
+import { ShoppingBag, AlertTriangle, TrendingDown, TrendingUp, ShieldCheck, QrCode, Tag, Truck, RefreshCw, Star, BarChart3, Package, Store } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
 import { Button } from "../components/ui/Button"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts"
@@ -33,12 +32,11 @@ export function RetailerDashboard() {
 
   // Quality Feedback state
   const [qualityFeedback, setQualityFeedback] = useState("Excellent")
-  const [qualityRemarks, setQualityRemarks] = useState("")
 
   const fetchInventory = async () => {
     try {
-      const res = await axios.get(${API_URL}/products/my, {
-        headers: { Authorization: \Bearer \\ }
+      const res = await axios.get(`${API_URL}/products/my`, {
+        headers: { Authorization: `Bearer ${token}` }
       })
       setInventory(res.data.data || [])
     } catch (err) {
@@ -59,17 +57,17 @@ export function RetailerDashboard() {
     setHandoffSuccess("")
     
     try {
-      const res = await axios.get(${API_URL}/products/blockchain/\)
+      const res = await axios.get(`${API_URL}/products/blockchain/${handoffId}`)
       const product = res.data.data
       
-      await axios.put(${API_URL}/products/\/status, {
+      await axios.put(`${API_URL}/products/${product.id}/status`, {
         status: 'In Retail',
         current_owner_id: user?.id
       }, {
-        headers: { Authorization: \Bearer \\ }
+        headers: { Authorization: `Bearer ${token}` }
       })
       
-      setHandoffSuccess(\Successfully received \ (Batch: \). Quality feedback submitted to blockchain.\)
+      setHandoffSuccess(`Successfully received ${product.name} (Batch: ${product.batch_number}). Quality feedback submitted to blockchain.`)
       setHandoffId("")
       fetchInventory()
     } catch (err: any) {
@@ -80,7 +78,7 @@ export function RetailerDashboard() {
   }
 
   const handleRestock = (productName: string) => {
-    alert(\Restock request for \ sent directly to the local processor/farmer!\)
+    alert(`Restock request for ${productName} sent directly to the local processor/farmer!`)
   }
 
   const getShelfLifeAnalysis = (expiryDate: string) => {
@@ -105,6 +103,7 @@ export function RetailerDashboard() {
     { title: "Waste Avoided", value: "312 kg", icon: TrendingDown, color: "text-green-500" },
     { title: "Food Miles Saved", value: "12,400 km", icon: Truck, color: "text-amber-500" },
   ]
+
   const OverviewTab = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
       <div className="grid gap-4 md:grid-cols-4">
@@ -112,7 +111,7 @@ export function RetailerDashboard() {
           <Card key={s.title} className="col-span-1 border-border/50 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">{s.title}</CardTitle>
-              <s.icon className={\h-4 w-4 \\} />
+              <s.icon className={`h-4 w-4 ${s.color}`} />
             </CardHeader>
             <CardContent><div className="text-2xl font-bold">{s.value}</div></CardContent>
           </Card>
@@ -163,6 +162,7 @@ export function RetailerDashboard() {
       </div>
     </div>
   )
+
   const ReceivingTab = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
       <Card className="max-w-2xl mx-auto border-border/50 shadow-sm">
@@ -240,11 +240,16 @@ export function RetailerDashboard() {
                       <tr key={item.id} className="border-b border-muted/30">
                         <td className="py-4 px-2">
                           <div className="font-semibold text-slate-900 dark:text-white">{item.name}</div>
-                          <div className="font-mono text-[10px] text-muted-foreground mt-0.5">{item.batch_number} • {item.quantity} units</div>
+                          <div className="font-mono text-[10px] text-muted-foreground mt-0.5">{item.batch_number} â€¢ {item.quantity} units</div>
                         </td>
                         <td className="py-4 px-2">
-                          <div className={\inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium \\}>
-                            {analysis.daysLeft > 0 ? \\ Days Left\ : 'Expired'}
+                          <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            analysis.risk === 'expired' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                            analysis.risk === 'high' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' :
+                            analysis.risk === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                            'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          }`}>
+                            {analysis.daysLeft > 0 ? `${analysis.daysLeft} Days Left` : 'Expired'}
                           </div>
                         </td>
                         <td className="py-4 px-2">
@@ -275,6 +280,7 @@ export function RetailerDashboard() {
       </Card>
     </div>
   )
+
   const RestockingTab = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
       <div className="grid gap-6 lg:grid-cols-2">
