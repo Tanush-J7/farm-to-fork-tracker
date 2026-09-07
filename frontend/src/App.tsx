@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom"
 import { AuthProvider } from "./context/AuthContext"
 import { DashboardLayout } from "./components/layout/DashboardLayout"
+import { ProtectedRoute } from "./components/layout/ProtectedRoute"
 import { PublicLayout } from "./components/layout/PublicLayout"
 import { LandingPage } from "./pages/LandingPage"
 import { LoginPage } from "./pages/LoginPage"
@@ -10,13 +11,25 @@ import { FarmerDashboard } from "./pages/FarmerDashboard"
 import { MyProductsPage } from "./pages/MyProductsPage"
 import { ProcessorDashboard } from "./pages/ProcessorDashboard"
 import { DistributorDashboard } from "./pages/DistributorDashboard"
-import { RetailerDashboard } from "./pages/RetailerDashboard"
+import { RetailerDashboard as OldRetailerDashboard } from "./pages/RetailerDashboard"
 import { AnalyticsDashboard } from "./pages/AnalyticsDashboard"
 import { Tracker } from "./pages/Tracker"
 import { AdminUsers } from "./pages/admin/AdminUsers"
 import { AdminUserDetails } from "./pages/admin/AdminUserDetails"
 import { AdminProducts } from "./pages/admin/AdminProducts"
 import { AdminProductDetails } from "./pages/admin/AdminProductDetails"
+
+import { Dashboard as RetailerDashboardPlaceholder } from "./pages/retailer/Dashboard"
+import { ProductRequests as RetailerProductRequests } from "./pages/retailer/ProductRequests"
+import { Shipments as RetailerShipments } from "./pages/retailer/Shipments"
+import { ReceiveProduct as RetailerReceiveProduct } from "./pages/retailer/ReceiveProduct"
+import { Inventory as RetailerInventory } from "./pages/retailer/Inventory"
+import { Sales as RetailerSales } from "./pages/retailer/Sales"
+import { Wastage as RetailerWastage } from "./pages/retailer/Wastage"
+import { Expiry as RetailerExpiry } from "./pages/retailer/Expiry"
+import { Alerts as RetailerAlerts } from "./pages/retailer/Alerts"
+import { Traceability as RetailerTraceability } from "./pages/retailer/Traceability"
+import { Returns as RetailerReturns } from "./pages/retailer/Returns"
 
 function App() {
   return (
@@ -57,8 +70,20 @@ function App() {
             <Route index element={<DistributorDashboard />} />
           </Route>
 
-          <Route path="/retailer" element={<DashboardLayout />}>
-            <Route index element={<RetailerDashboard />} />
+          <Route element={<ProtectedRoute allowedRoles={['retailer']} />}>
+            <Route path="/retailer" element={<DashboardLayout />}>
+              <Route index element={<RetailerDashboardPlaceholder />} />
+              <Route path="requests" element={<RetailerProductRequests />} />
+              <Route path="shipments" element={<RetailerShipments />} />
+              <Route path="receive" element={<RetailerReceiveProduct />} />
+              <Route path="inventory" element={<RetailerInventory />} />
+              <Route path="sales" element={<RetailerSales />} />
+              <Route path="wastage" element={<RetailerWastage />} />
+              <Route path="expiry" element={<RetailerExpiry />} />
+              <Route path="returns" element={<RetailerReturns />} />
+              <Route path="alerts" element={<RetailerAlerts />} />
+              <Route path="traceability" element={<RetailerTraceability />} />
+            </Route>
           </Route>
 
           {/* Fallback */}

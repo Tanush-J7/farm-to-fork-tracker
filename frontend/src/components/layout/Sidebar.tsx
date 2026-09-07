@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
   LayoutDashboard, Leaf, PackageSearch, Truck,
-  Factory, ShoppingBag, LogOut, BarChart3, Menu, X, Edit3, Camera, MapPin, Locate, Loader2, CheckCircle2, Clock
+  Factory, ShoppingBag, LogOut, BarChart3, Menu, X, Edit3, Camera, MapPin, Locate, Loader2, Lock, AlertCircle, CheckCircle2, Clock, Send, Box, QrCode, Tag, Trash2, ShoppingCart, Package, DollarSign, RefreshCw, AlertTriangle, LinkIcon
 } from "lucide-react"
 import { cn } from "../../utils"
 import { useAuth } from "../../context/AuthContext"
@@ -29,8 +29,17 @@ const roleNavMap: Record<string, { name: string; path: string; icon: React.Eleme
     { name: "Track Product", path: "/track", icon: PackageSearch },
   ],
   retailer: [
-    { name: "Inventory", path: "/retailer", icon: ShoppingBag },
-    { name: "Track Product", path: "/track", icon: PackageSearch },
+    { name: "Dashboard", path: "/retailer", icon: LayoutDashboard },
+    { name: "Order Stock", path: "/retailer/requests", icon: ShoppingCart },
+    { name: "Shipments", path: "/retailer/shipments", icon: Truck },
+    { name: "Receive Batch", path: "/retailer/receive", icon: QrCode },
+    { name: "Inventory", path: "/retailer/inventory", icon: Package },
+    { name: "Point of Sale", path: "/retailer/sales", icon: DollarSign },
+    { name: "Wastage", path: "/retailer/wastage", icon: Trash2 },
+    { name: "Expiry", path: "/retailer/expiry", icon: Clock },
+    { name: "Returns", path: "/retailer/returns", icon: RefreshCw },
+    { name: "Alerts", path: "/retailer/alerts", icon: AlertTriangle },
+    { name: "Traceability", path: "/retailer/traceability", icon: LinkIcon },
   ],
   consumer: [
     { name: "Track Product", path: "/track", icon: PackageSearch },

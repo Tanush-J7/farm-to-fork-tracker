@@ -346,7 +346,7 @@ export const getUserDetails = async (req: Request, res: Response) => {
       .eq('id', id)
       .single();
       
-    let finalUser = user;
+    let finalUser: any = user;
 
     if (userErr || !user) {
       // If phone/address columns don't exist, fallback to basic fields
