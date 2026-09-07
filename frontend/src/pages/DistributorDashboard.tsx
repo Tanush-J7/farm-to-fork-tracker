@@ -364,7 +364,14 @@ export function DistributorDashboard() {
   )
 
 
+  const [statusLoading, setStatusLoading] = useState(false)
+  const [statusError, setStatusError] = useState("")
+  const [statusSuccess, setStatusSuccess] = useState(false)
+
   const updateStatus = async (status: string) => {
+    setStatusLoading(true)
+    setStatusError("")
+    setStatusSuccess(false)
     try {
       await axios.put(`${API_URL}/auth/status`, { availability_status: status }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -372,10 +379,13 @@ export function DistributorDashboard() {
       if (user) {
         updateUser({ availability_status: status })
       }
-      alert("Status updated successfully")
-    } catch (err) {
+      setStatusSuccess(true)
+      setTimeout(() => setStatusSuccess(false), 3000)
+    } catch (err: any) {
       console.error(err)
-      alert("Failed to update status")
+      setStatusError("DB Error: Column 'availability_status' is missing in Supabase.")
+    } finally {
+      setStatusLoading(false)
     }
   }
 
@@ -386,17 +396,23 @@ export function DistributorDashboard() {
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Distributor Operations</h1>
           <p className="text-muted-foreground mt-1">Manage logistics, smart routing, inventory, and blockchain handoffs.</p>
         </div>
-        <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-lg border shadow-sm">
-          <span className="text-sm font-medium text-muted-foreground px-2">Status:</span>
-          <select 
-            className="text-sm bg-transparent border-none focus:ring-0 outline-none font-medium text-slate-900 dark:text-white cursor-pointer"
-            defaultValue={user?.availability_status || "Available for Trip"}
-            onChange={(e) => updateStatus(e.target.value)}
-          >
-            <option value="Available for Trip">✅ Available for Trip</option>
-            <option value="On Route">🚚 On Route</option>
-            <option value="Unavailable">⛔ Unavailable</option>
-          </select>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-lg border shadow-sm">
+            <span className="text-sm font-medium text-muted-foreground px-2">Status:</span>
+            <select 
+              className="text-sm bg-transparent border-none focus:ring-0 outline-none font-medium text-slate-900 dark:text-white cursor-pointer"
+              defaultValue={user?.availability_status || "Available for Trip"}
+              onChange={(e) => updateStatus(e.target.value)}
+              disabled={statusLoading}
+            >
+              <option value="Available for Trip">✅ Available for Trip</option>
+              <option value="On Route">🚚 On Route</option>
+              <option value="Unavailable">⛔ Unavailable</option>
+            </select>
+          </div>
+          {statusLoading && <span className="text-xs text-blue-500 animate-pulse">Updating...</span>}
+          {statusSuccess && <span className="text-xs text-emerald-500">Status updated!</span>}
+          {statusError && <span className="text-xs text-red-500 font-medium bg-red-50 p-1 rounded max-w-xs text-right">{statusError}</span>}
         </div>
       </div>
 
