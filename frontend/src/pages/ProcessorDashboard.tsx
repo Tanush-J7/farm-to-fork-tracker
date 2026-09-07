@@ -121,6 +121,7 @@ export function ProcessorDashboard() {
   // API Products State
   const [products, setProducts] = useState<Product[]>([])
   const [loadingProducts, setLoadingProducts] = useState(false)
+  const [distributors, setDistributors] = useState<any[]>([])
 
   // Search/Filter/Sort state
   const [searchTerm, setSearchTerm] = useState("")
@@ -312,7 +313,7 @@ export function ProcessorDashboard() {
       setStorageTempInput("2°C - 4°C (Refrigerated Cold-Chain)")
       setDestinationHubInput("Central Supermarket Distribution Center - Retail Hub")
     }
-    setPackagingDistributor(distributors[0] || "FastCold Logistics")
+    setPackagingDistributor(distributors[0]?.name || "FastCold Logistics")
   }
 
   const handleLogisticsModeChange = (mode: "cold_chain" | "dry_freight" | "deep_freeze", qty: number) => {
@@ -398,7 +399,7 @@ export function ProcessorDashboard() {
     const storedBatches = localStorage.getItem("processor_batches")
     if (storedBatches) setBatches(JSON.parse(storedBatches))
 
-    // Logs
+  // Logs
     const storedLogs = localStorage.getItem("processor_logs")
     if (storedLogs) setAuditLogs(JSON.parse(storedLogs))
 
@@ -420,11 +421,25 @@ export function ProcessorDashboard() {
     loadDealsAndDeclined()
     window.addEventListener("farmer_deals_updated", loadDealsAndDeclined)
     window.addEventListener("storage", loadDealsAndDeclined)
+
+    // Fetch live distributors
+    const fetchDistributors = async () => {
+      try {
+        const res = await axios.get(`${API}/auth/distributors`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        setDistributors(res.data.data || [])
+      } catch (e) {
+        console.error("Failed to load distributors", e)
+      }
+    }
+    fetchDistributors()
+
     return () => {
       window.removeEventListener("farmer_deals_updated", loadDealsAndDeclined)
       window.removeEventListener("storage", loadDealsAndDeclined)
     }
-  }, [])
+  }, [token])
 
   // Helper: Add log
   const addLog = (action: string, status: string, productId?: string, batchId?: string) => {
@@ -1110,8 +1125,7 @@ export function ProcessorDashboard() {
       return 0
     })
 
-  // Pre-configured distributors list
-  const distributors = ["XYZ Logistics", "EcoFresh Transport", "ColdChain Express", "Global Food Transports"]
+
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 pb-20 pt-6">
@@ -2819,7 +2833,7 @@ export function ProcessorDashboard() {
                           className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-xs mt-1 text-white focus:outline-none"
                         >
                           {distributors.map(d => (
-                            <option key={d} value={d}>{d}</option>
+                            <option key={d.id} value={d.name}>{d.name} ({d.availability_status || "Unknown"})</option>
                           ))}
                         </select>
                       </div>
@@ -2995,3 +3009,4 @@ export function ProcessorDashboard() {
     </div>
   )
 }
+

@@ -10,6 +10,7 @@ export interface IUser {
   password: string; // bcrypt hash, only selected explicitly
   role: UserRole;
   wallet_address?: string | null;
+  availability_status?: string | null;
   created_at: string;
   updated_at: string;
 }

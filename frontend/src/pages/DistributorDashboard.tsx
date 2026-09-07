@@ -18,7 +18,7 @@ const routeData = [
 ]
 
 export function DistributorDashboard() {
-  const { user, token } = useAuth()
+  const { user, token, updateUser } = useAuth()
   const [activeTab, setActiveTab] = useState("overview")
   const [inventory, setInventory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -364,11 +364,40 @@ export function DistributorDashboard() {
   )
 
 
+  const updateStatus = async (status: string) => {
+    try {
+      await axios.put(`${API_URL}/auth/status`, { availability_status: status }, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (user) {
+        updateUser({ availability_status: status })
+      }
+      alert("Status updated successfully")
+    } catch (err) {
+      console.error(err)
+      alert("Failed to update status")
+    }
+  }
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Distributor Operations</h1>
-        <p className="text-muted-foreground mt-1">Manage logistics, smart routing, inventory, and blockchain handoffs.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Distributor Operations</h1>
+          <p className="text-muted-foreground mt-1">Manage logistics, smart routing, inventory, and blockchain handoffs.</p>
+        </div>
+        <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-lg border shadow-sm">
+          <span className="text-sm font-medium text-muted-foreground px-2">Status:</span>
+          <select 
+            className="text-sm bg-transparent border-none focus:ring-0 outline-none font-medium text-slate-900 dark:text-white cursor-pointer"
+            defaultValue={user?.availability_status || "Available for Trip"}
+            onChange={(e) => updateStatus(e.target.value)}
+          >
+            <option value="Available for Trip">✅ Available for Trip</option>
+            <option value="On Route">🚚 On Route</option>
+            <option value="Unavailable">⛔ Unavailable</option>
+          </select>
+        </div>
       </div>
 
       <div className="flex overflow-x-auto pb-2 -mb-2 scrollbar-none gap-2">

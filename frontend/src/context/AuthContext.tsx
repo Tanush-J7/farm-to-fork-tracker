@@ -11,6 +11,7 @@ export interface User {
   phone?: string
   address?: string
   photo?: string
+  availability_status?: string | null
   photoLastUpdated?: string
   addressLastUpdated?: string
 }

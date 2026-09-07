@@ -72,7 +72,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     res.status(201).json({
       success: true,
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, availability_status: (user as any).availability_status },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error', error });
@@ -90,7 +90,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, name, email, password, role')
+      .select('id, name, email, password, role, availability_status')
       .eq('email', email)
       .maybeSingle<IUser>();
 
@@ -115,9 +115,49 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     res.status(200).json({
       success: true,
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, availability_status: (user as any).availability_status },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error', error });
+  }
+};
+export const updateUserStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    const { availability_status } = req.body;
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .update({ availability_status })
+      .eq('id', userId)
+      .select('id, name, email, role, availability_status')
+      .single();
+
+    if (error) {
+      res.status(500).json({ success: false, message: 'Server Error updating status', error });
+      return;
+    }
+
+    res.status(200).json({ success: true, data: user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+export const getDistributors = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { data: distributors, error } = await supabase
+      .from('users')
+      .select('id, name, email, availability_status')
+      .eq('role', 'distributor');
+
+    if (error) {
+      res.status(500).json({ success: false, message: 'Server Error', error });
+      return;
+    }
+
+    res.status(200).json({ success: true, data: distributors });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
