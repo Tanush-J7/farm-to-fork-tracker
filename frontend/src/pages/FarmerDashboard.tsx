@@ -348,11 +348,26 @@ export function FarmerDashboard() {
       // Generate unique 6-digit numeric Product ID
       const product_id = Math.floor(100000 + Math.random() * 900000)
 
-      await axios.post(
+      const res = await axios.post(
         `${API}/products`,
         { ...form, quantity: Number(form.quantity), imageData, blockchainHash: null, product_id },
         { headers }
       )
+
+      // Attach farmer profile location mapping
+      try {
+        const storedUser = JSON.parse(localStorage.getItem("farmchain_user") || "{}")
+        const currentFarmerLoc = storedUser.address || localStorage.getItem("farmer_address") || ""
+        if (currentFarmerLoc) {
+          const locMap = JSON.parse(localStorage.getItem("product_farmer_locations") || "{}")
+          locMap[String(product_id)] = currentFarmerLoc
+          locMap[String(form.batchNumber)] = currentFarmerLoc
+          if (res.data?.data?.id) locMap[String(res.data.data.id)] = currentFarmerLoc
+          localStorage.setItem("product_farmer_locations", JSON.stringify(locMap))
+        }
+      } catch (err) {
+        console.warn("Could not save product location map", err)
+      }
 
       setFormMsg({ type: "success", text: "✅ Product submitted! Awaiting admin approval." })
       setForm(createProductForm())

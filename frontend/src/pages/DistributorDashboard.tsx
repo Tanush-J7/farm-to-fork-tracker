@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import axios from "axios"
-import { Package, Truck, CheckCircle, Zap, AlertTriangle, TrendingUp, MapPin, QrCode, SplitSquareHorizontal, Clock, ShieldCheck } from "lucide-react"
+import { Package, Truck, CheckCircle, Zap, AlertTriangle, TrendingUp, QrCode, SplitSquareHorizontal, Clock, ShieldCheck } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
 import { Button } from "../components/ui/Button"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
@@ -289,7 +289,7 @@ export function DistributorDashboard() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Number of Child Pallets</label>
-                <input type="number" defaultValue={2} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" />
+                <input type="number" defaultValue={2} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
               </div>
               <Button className="w-full mt-4" disabled={inventory.length === 0}>
                 <SplitSquareHorizontal className="mr-2 h-4 w-4" />

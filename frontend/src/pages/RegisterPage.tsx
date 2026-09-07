@@ -69,6 +69,40 @@ export function RegisterPage() {
     e.preventDefault()
     setError("")
     setSuccessMsg("")
+
+    if ((formData.role === "farmer" || formData.role === "processor") && !formData.address.trim()) {
+      setError('Please set your location using the "Use Current Location" button.')
+      return
+    }
+
+    // Persist registration details to persistent local registry
+    if (formData.address || formData.name || formData.email) {
+      try {
+        const userProfiles = JSON.parse(localStorage.getItem("registered_user_profiles") || "{}")
+        const emailKey = formData.email.toLowerCase().trim()
+        const nameKey = formData.name.toLowerCase().trim()
+        const profileData = {
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+          phone: formData.phone,
+          address: formData.address,
+          photo: formData.photo || photoPreview
+        }
+        if (emailKey) userProfiles[emailKey] = profileData
+        if (nameKey) userProfiles[nameKey] = profileData
+        localStorage.setItem("registered_user_profiles", JSON.stringify(userProfiles))
+
+        if (formData.role === "farmer" && formData.address) {
+          localStorage.setItem("farmer_address", formData.address)
+        } else if (formData.role === "processor" && formData.address) {
+          localStorage.setItem("processor_address", formData.address)
+        }
+      } catch (err) {
+        console.warn("Could not save to registered_user_profiles", err)
+      }
+    }
+
     try {
       await register(formData.name, formData.email, formData.password, formData.role)
       const stored = localStorage.getItem("farmchain_user")
@@ -275,20 +309,14 @@ export function RegisterPage() {
                   <MapPin className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                   <textarea
                     rows={2}
+                    readOnly
                     value={formData.address}
-                    onChange={e => setFormData({ ...formData, address: e.target.value })}
-                    placeholder={
-                      formData.role === "farmer"
-                        ? "123 Farm Road, Valley Region (or detect via GPS)"
-                        : "123 Processing Unit, Industrial Area (or detect via GPS)"
-                    }
-                    className="flex w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 resize-none"
+                    placeholder="Click 'Use Current Location' above to detect and fill address via GPS"
+                    className="flex w-full rounded-xl border border-slate-200 bg-slate-100 pl-10 pr-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:outline-none cursor-default resize-none"
                   />
                 </div>
                 <p className="text-[11px] text-slate-500">
-                  {formData.role === "farmer"
-                    ? 'You can click "Use Current Location" to auto-fill or enter your farm address manually.'
-                    : 'You can click "Use Current Location" to auto-fill or enter your processor address manually.'}
+                  📍 Click <strong className="text-emerald-700 font-semibold">"Use Current Location"</strong> above to auto-detect and lock your coordinates and address.
                 </p>
               </div>
 

@@ -24,6 +24,24 @@ export function LoginPage() {
       
       if (stored) {
         const u = JSON.parse(stored)
+        try {
+          const userProfiles = JSON.parse(localStorage.getItem("registered_user_profiles") || "{}")
+          const emailKey = (u.email || email || "").toLowerCase().trim()
+          const nameKey = (u.name || "").toLowerCase().trim()
+          const savedProfile = userProfiles[emailKey] || userProfiles[nameKey]
+          if (savedProfile) {
+            if (savedProfile.address && !u.address) u.address = savedProfile.address
+            if (savedProfile.phone && !u.phone) u.phone = savedProfile.phone
+            if (savedProfile.photo && !u.photo) u.photo = savedProfile.photo
+            localStorage.setItem("farmchain_user", JSON.stringify(u))
+          }
+          if (u.role === "farmer" && u.address) {
+            localStorage.setItem("farmer_address", u.address)
+          } else if (u.role === "processor" && u.address) {
+            localStorage.setItem("processor_address", u.address)
+          }
+        } catch {}
+
         if (u.role === "consumer") navigate("/track")
         else navigate(`/${u.role}`)
       } else {

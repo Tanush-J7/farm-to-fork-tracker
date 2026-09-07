@@ -6,11 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../co
 import {
   Factory, AlertCircle, Search, ShieldCheck, Camera, Brain, Clock, User, MapPin,
   Star, Package, Truck, Loader2, QrCode, Upload, Printer, Video, VideoOff, Download, X,
-  Trash2, RefreshCw, Zap, Scale, Lock
+  Trash2, Scale, Lock, CheckCircle
 } from "lucide-react"
 import { Html5Qrcode } from "html5-qrcode"
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
 import jsQR from "jsqr"
+import { getFarmerLocation } from "../utils"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
@@ -30,9 +31,12 @@ interface Product {
   product_image_url?: string
   created_at: string
   blockchain_hash?: string
+  farm_location?: string
   farmer?: {
     name: string
     email: string
+    address?: string
+    location?: string
   }
 }
 
@@ -61,6 +65,7 @@ interface InspectionDetails {
   grade: "A" | "B" | "C"
   remarks: string
   inspectorName: string
+  facilityLocation?: string
   date: string
   time: string
 }
@@ -69,6 +74,8 @@ interface ProcessingBatch {
   batchId: string
   productId: string
   originalProduct: Product
+  processorName?: string
+  facilityLocation?: string
   stage: "Accepted" | "Processing Started" | "Processing In Progress" | "Quality Check" | "Processing Completed" | "Transferred"
   stageLogs: {
     stage: string
@@ -78,6 +85,11 @@ interface ProcessingBatch {
   }[]
   createdDate: string
   createdTime: string
+  processedQuantity?: number
+  estimatedShelfLifeDays?: number
+  expiryDate?: string
+  completionDate?: string
+  completionTime?: string
   distributor?: string
   destinationHub?: string
   packagingFormat?: string
@@ -103,6 +115,7 @@ import { useSearchParams } from "react-router-dom"
 export function ProcessorDashboard() {
   const { token, user } = useAuth()
   const processorName = user?.name || "Processor Admin"
+  const processorAddress = user?.address || localStorage.getItem("processor_address") || "Processing Facility"
 
   // Tabs state
   const [searchParams] = useSearchParams()
@@ -121,7 +134,6 @@ export function ProcessorDashboard() {
   // API Products State
   const [products, setProducts] = useState<Product[]>([])
   const [loadingProducts, setLoadingProducts] = useState(false)
-  const [distributors, setDistributors] = useState<any[]>([])
 
   // Search/Filter/Sort state
   const [searchTerm, setSearchTerm] = useState("")
@@ -164,7 +176,7 @@ export function ProcessorDashboard() {
   
   // Verification Checks
   const [infoVerified, setInfoVerified] = useState<"Verified" | "Mismatch" | "">("")
-  const [verificationRemarks, setVerificationRemarks] = useState("")
+  const [remarksInput, setRemarksInput] = useState("")
   const [isInspectionConfirmed, setIsInspectionConfirmed] = useState(false)
 
   // Physical Inspection
@@ -173,7 +185,6 @@ export function ProcessorDashboard() {
   const [damageInput, setDamageInput] = useState("Low")
   const [cleanlinessInput, setCleanlinessInput] = useState("Good")
   const [qualityGradeInput, setQualityGradeInput] = useState<"A" | "B" | "C">("A")
-  const [inspectionRemarks, setInspectionRemarks] = useState("")
 
   const computePhysicalQualityScore = (appearance: string, freshness: string, cleanliness: string, damage: string) => {
     let score = 0
@@ -221,113 +232,37 @@ export function ProcessorDashboard() {
   const [showRejectionForm, setShowRejectionForm] = useState(false)
 
 
-  // Universal Crop Classification & Dynamic Shelf-Life Helpers
-  const isDryGrainCrop = (cropName: string = "", category: string = "") => {
-    const text = `${cropName} ${category}`.toLowerCase()
-    return Boolean(
-      text.match(/(grain|cereal|wheat|rice|pulse|lentil|spice|flour|corn|maize|millet|barley|oat|bean|dal|seed|coffee|tea|sugar|dry)/)
-    )
+
+
+  // Processing Completion Modal state
+  const [processingModalBatch, setProcessingModalBatch] = useState<ProcessingBatch | null>(null)
+  const [processedQtyInput, setProcessedQtyInput] = useState("")
+  const [estimatedShelfLifeInput, setEstimatedShelfLifeInput] = useState("")
+
+  const formatToDdMmYyyy = (dateStr: string) => {
+    if (!dateStr) return ""
+    if (dateStr.includes("-") && dateStr.split("-")[0].length === 4) {
+      const [y, m, d] = dateStr.split("-")
+      return `${d}-${m}-${y}`
+    }
+    return dateStr
   }
 
-  const computeCropShelfLife = (cropName: string = "", createdAt: string = "", qualityScore: number = 90) => {
-    const name = (cropName || "").toLowerCase()
-    let baseDays = 10
-    if (name.match(/(wheat|rice|grain|pulse|lentil|dal|cereal|millet|corn|maize|barley|oat|seed|spice|coffee|tea)/)) {
-      baseDays = 365
-    } else if (name.match(/(apple|orange|citrus|lemon|pomegranate)/)) {
-      baseDays = 30
-    } else if (name.match(/(potato|onion|garlic|yam)/)) {
-      baseDays = 45
-    } else if (name.match(/(grape|berry|strawberry|blueberry|cherry)/)) {
-      baseDays = 14
-    } else if (name.match(/(tomato|mango|banana|papaya|avocado)/)) {
-      baseDays = 7
-    } else if (name.match(/(spinach|lettuce|herb|leaf|coriander|greens)/)) {
-      baseDays = 5
-    }
-
-    // Quality Score degradation factor
-    if (qualityScore < 60) baseDays = Math.max(1, Math.floor(baseDays * 0.4))
-    else if (qualityScore < 85) baseDays = Math.max(2, Math.floor(baseDays * 0.75))
-
-    const harvestTime = new Date(createdAt).getTime()
-    const daysSince = isNaN(harvestTime) ? 0 : Math.max(0, Math.floor((Date.now() - harvestTime) / (1000 * 60 * 60 * 24)))
-    const remainingDays = Math.max(0, baseDays - daysSince)
-
-    // User Tiers: >7 days (Optimal), 3-7 days (Moderate), 0-2 days (Critical / Expired)
-    let tier: "optimal" | "moderate" | "critical" | "expired" = "optimal"
-    let label = ""
-
-    if (remainingDays === 0) {
-      tier = "expired"
-      label = "0 Days (Expired / Past Shelf-Life)"
-    } else if (remainingDays <= 2) {
-      tier = "critical"
-      label = `${remainingDays} Day${remainingDays === 1 ? "" : "s"} (Critical 0-2 Days - Urgent Action)`
-    } else if (remainingDays <= 7) {
-      tier = "moderate"
-      label = `${remainingDays} Days (Moderate 3-7 Days - Priority Dispatch)`
-    } else {
-      tier = "optimal"
-      label = `${remainingDays} Days (Optimal >7 Days Freshness)`
-    }
-
-    return {
-      totalDays: baseDays,
-      daysSince,
-      remainingDays,
-      tier,
-      isExpired: remainingDays === 0,
-      isCritical: remainingDays > 0 && remainingDays <= 2,
-      isModerate: remainingDays >= 3 && remainingDays <= 7,
-      isOptimal: remainingDays > 7,
-      label
-    }
+  const computeShelfLifeDays = (dateStr: string) => {
+    if (!dateStr) return 14
+    const target = new Date(dateStr)
+    const now = new Date()
+    const diffTime = target.getTime() - new Date(now.toISOString().split("T")[0]).getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return Math.max(1, diffDays)
   }
 
-  // Disposal & Diversion Modal state for Expired / Critical Batches
-  const [disposalModalBatch, setDisposalModalBatch] = useState<{ batch: ProcessingBatch; action: "discard" | "divert" | "flash_sale" } | null>(null)
-  const [discardReasonInput, setDiscardReasonInput] = useState("Expired past shelf-life threshold")
-  const [divertDestinationInput, setDivertDestinationInput] = useState("Agricultural Bio-Composting Facility")
-
-  // Packaging & Transfer Modal state
-  const [packagingModalBatch, setPackagingModalBatch] = useState<ProcessingBatch | null>(null)
-  const [logisticsModeInput, setLogisticsModeInput] = useState<"cold_chain" | "dry_freight" | "deep_freeze">("cold_chain")
-  const [packagingTypeInput, setPackagingTypeInput] = useState("1 kg Eco-Friendly Retail Pouches")
-  const [storageTempInput, setStorageTempInput] = useState("2°C - 4°C (Refrigerated Cold Chain)")
-  const [packagingDistributor, setPackagingDistributor] = useState("FastCold Logistics")
-  const [destinationHubInput, setDestinationHubInput] = useState("Central Supermarket Distribution Center - Retail Hub")
-
-  const openPackagingModal = (b: ProcessingBatch) => {
-    setPackagingModalBatch(b)
-    const isDry = isDryGrainCrop(b.originalProduct.name, b.originalProduct.category)
-    const defaultMode: "cold_chain" | "dry_freight" = isDry ? "dry_freight" : "cold_chain"
-    setLogisticsModeInput(defaultMode)
+  const openProcessingModal = (b: ProcessingBatch) => {
+    setProcessingModalBatch(b)
     const qty = receipts[b.originalProduct.id]?.receivedQty || b.originalProduct.quantity || 100
-    if (isDry) {
-      setPackagingTypeInput(`25 kg Standard Jute Sacks (${Math.ceil(qty / 25)} Sacks)`)
-      setStorageTempInput("Ambient Room Temp (Dry / Moisture-Controlled Storage)")
-      setDestinationHubInput("National Food Grain Silo & Wholesale Distribution Center")
-    } else {
-      setPackagingTypeInput(`1 kg Eco-Friendly Retail Pouches (${qty} Packs)`)
-      setStorageTempInput("2°C - 4°C (Refrigerated Cold-Chain)")
-      setDestinationHubInput("Central Supermarket Distribution Center - Retail Hub")
-    }
-    setPackagingDistributor(distributors[0]?.name || "FastCold Logistics")
-  }
-
-  const handleLogisticsModeChange = (mode: "cold_chain" | "dry_freight" | "deep_freeze", qty: number) => {
-    setLogisticsModeInput(mode)
-    if (mode === "dry_freight") {
-      setPackagingTypeInput(`25 kg Standard Jute Sacks (${Math.ceil(qty / 25)} Sacks)`)
-      setStorageTempInput("Ambient Room Temp (Dry / Moisture-Controlled Storage)")
-    } else if (mode === "deep_freeze") {
-      setPackagingTypeInput(`5 kg Cold-Insulated Cryo-Boxes (${Math.ceil(qty / 5)} Boxes)`)
-      setStorageTempInput("-18°C (Deep-Freeze Sub-Zero Cold Chain)")
-    } else {
-      setPackagingTypeInput(`1 kg Eco-Friendly Retail Pouches (${qty} Packs)`)
-      setStorageTempInput("2°C - 4°C (Refrigerated Cold-Chain)")
-    }
+    setProcessedQtyInput(String(qty))
+    const defaultExpiry = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+    setEstimatedShelfLifeInput(defaultExpiry.toISOString().split("T")[0])
   }
 
   // Fetch Products
@@ -421,19 +356,6 @@ export function ProcessorDashboard() {
     loadDealsAndDeclined()
     window.addEventListener("farmer_deals_updated", loadDealsAndDeclined)
     window.addEventListener("storage", loadDealsAndDeclined)
-
-    // Fetch live distributors
-    const fetchDistributors = async () => {
-      try {
-        const res = await axios.get(`${API}/auth/distributors`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        setDistributors(res.data.data || [])
-      } catch (e) {
-        console.error("Failed to load distributors", e)
-      }
-    }
-    fetchDistributors()
 
     return () => {
       window.removeEventListener("farmer_deals_updated", loadDealsAndDeclined)
@@ -667,7 +589,8 @@ export function ProcessorDashboard() {
     if (isMatch) {
       setCameraError("")
       setInfoVerified("Verified")
-      setVerificationRemarks(`Cryptographic QR Verified on Blockchain. Matches Batch ${selectedProduct?.batch_number || p6Digit}`)
+      setRemarksInput("")
+      setIsInspectionConfirmed(false)
       // ONLY advance to the physical inspection grading page on successful verification!
       setQrScanned(true)
     } else {
@@ -782,7 +705,7 @@ export function ProcessorDashboard() {
     setScannedRawText("")
     setIsInspectionConfirmed(false)
     setInfoVerified("")
-    setVerificationRemarks("")
+    setRemarksInput("")
   }
 
   // Submit Inspection and Accept/Reject Decision
@@ -797,7 +720,7 @@ export function ProcessorDashboard() {
     const verification: VerificationDetails = {
       productId: selectedProduct.id,
       status: infoVerified === "Verified" ? "Verified" : "Mismatch",
-      remarks: verificationRemarks,
+      remarks: remarksInput || "Blockchain batch cryptographic match confirmed",
       date: formattedDate,
       time: formattedTime
     }
@@ -806,6 +729,8 @@ export function ProcessorDashboard() {
     localStorage.setItem("processor_verifications", JSON.stringify(updatedVerifications))
 
     // Save Quality inspection details
+    const computedScore = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
+    const autoGrade: "A" | "B" | "C" = computedScore >= 85 ? "A" : computedScore >= 60 ? "B" : "C"
     const inspection: InspectionDetails = {
       productId: selectedProduct.id,
       appearance: appearanceInput,
@@ -813,8 +738,9 @@ export function ProcessorDashboard() {
       damage: damageInput,
       cleanliness: cleanlinessInput,
       grade: qualityGradeInput,
-      remarks: inspectionRemarks,
+      remarks: remarksInput || `Quality Score: ${computedScore}% (Grade ${autoGrade})`,
       inspectorName: processorName,
+      facilityLocation: processorAddress,
       date: formattedDate,
       time: formattedTime
     }
@@ -861,8 +787,6 @@ export function ProcessorDashboard() {
       setReceipts(updatedReceipts)
       localStorage.setItem("processor_receipts", JSON.stringify(updatedReceipts))
 
-      const computedScore = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
-      const autoGrade: "A" | "B" | "C" = computedScore >= 85 ? "A" : computedScore >= 60 ? "B" : "C"
       const verifiedProduct: Product = {
         ...selectedProduct,
         quantity: verifiedQty,
@@ -873,13 +797,15 @@ export function ProcessorDashboard() {
       // Create batch ID: PB-XXXXXX mapped randomly
       const randomBatchId = `PB-${Math.floor(10000 + Math.random() * 90000)}`
       const remarksText = hasShortage
-        ? `Batch verified & accepted at gate. Scale Weight: ${verifiedQty} kg (${shortageAmount} kg Shortage [${shortagePercent}%], Reason: ${transitLossReasonInput}). Quality Score: ${computedScore}% (Grade ${autoGrade}).`
-        : `Batch verified & accepted at gate. Scale Weight: ${verifiedQty} kg. Quality Score: ${computedScore}% (Grade ${autoGrade}).`
+        ? `Batch verified & accepted at gate. Scale Weight: ${verifiedQty} kg (${shortageAmount} kg Shortage [${shortagePercent}%], Reason: ${transitLossReasonInput}). Quality Score: ${computedScore}% (Grade ${autoGrade}). Remarks: ${remarksInput || "Standard Intake"}`
+        : `Batch verified & accepted at gate. Scale Weight: ${verifiedQty} kg. Quality Score: ${computedScore}% (Grade ${autoGrade}). Remarks: ${remarksInput || "Standard Intake"}`
 
       const newBatch: ProcessingBatch = {
         batchId: randomBatchId,
         productId: selectedProduct.id,
         originalProduct: verifiedProduct,
+        processorName: processorName,
+        facilityLocation: processorAddress,
         stage: "Accepted",
         stageLogs: [{ stage: "Accepted", date: formattedDate, time: formattedTime, remarks: remarksText }],
         createdDate: formattedDate,
@@ -950,21 +876,18 @@ export function ProcessorDashboard() {
     setIsVerifyModalOpen(false)
     setQrScanned(false)
     setInfoVerified("")
-    setVerificationRemarks("")
+    setRemarksInput("")
     setIsInspectionConfirmed(false)
     setRejectionReasonInput("")
     setShowRejectionForm(false)
     setSelectedProduct(null)
   }
 
-  // Direct Packaging & Distributor Transfer Action
-  const handlePackagingAndTransfer = async (
+  // Complete Processing Action (Manual Processed Quantity + Manual Estimated Shelf Life Date + Auto Completion Date & Time)
+  const handleCompleteProcessing = async (
     batchId: string, 
-    packagingType: string, 
-    storageTemp: string, 
-    distributorName: string,
-    destinationHub: string = "Central Supermarket Distribution Center - Retail Hub",
-    logisticsMode: string = "cold_chain"
+    processedQty: number,
+    expiryDateInput: string
   ) => {
     const batch = batches[batchId]
     if (!batch) return
@@ -972,22 +895,34 @@ export function ProcessorDashboard() {
     const now = new Date()
     const formattedDate = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
     const formattedTime = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+    const formattedExpiry = formatToDdMmYyyy(expiryDateInput)
+    const shelfLifeDays = computeShelfLifeDays(expiryDateInput)
 
     const updatedLogs = [
       ...batch.stageLogs,
-      { stage: "Processing Completed", date: formattedDate, time: formattedTime, remarks: `Packaged as: ${packagingType}. Storage: ${storageTemp}.` },
-      { stage: "Transferred", date: formattedDate, time: formattedTime, remarks: `Transferred to ${distributorName} (Hub: ${destinationHub}).` }
+      { 
+        stage: "Processing Completed", 
+        date: formattedDate, 
+        time: formattedTime, 
+        remarks: `Processing completed. Processed Quantity: ${processedQty} kg. Estimated Shelf Life: ${formattedExpiry} (${shelfLifeDays} Days).` 
+      },
+      { 
+        stage: "Transferred", 
+        date: formattedDate, 
+        time: formattedTime, 
+        remarks: `Certified batch ready and transferred to distribution pipeline.` 
+      }
     ]
 
     const updatedBatch: ProcessingBatch = {
       ...batch,
       stage: "Transferred",
       stageLogs: updatedLogs,
-      distributor: distributorName,
-      destinationHub: destinationHub,
-      packagingFormat: packagingType,
-      storageTemp: storageTemp,
-      logisticsMode: logisticsMode,
+      processedQuantity: processedQty,
+      estimatedShelfLifeDays: shelfLifeDays,
+      expiryDate: formattedExpiry,
+      completionDate: formattedDate,
+      completionTime: formattedTime,
       transferDate: formattedDate,
       transferTime: formattedTime
     }
@@ -996,72 +931,13 @@ export function ProcessorDashboard() {
     setBatches(updatedBatches)
     localStorage.setItem("processor_batches", JSON.stringify(updatedBatches))
 
-    addLog(`Packaged & Transferred Batch ${batchId} to ${distributorName} (→ ${destinationHub})`, "Transferred to Distributor", batch.productId, batchId)
+    addLog(`Completed Processing for Batch ${batchId} (${processedQty} kg, Est. Shelf Life: ${formattedExpiry})`, "Processing Completed", batch.productId, batchId)
     await updateDbStatus(batch.productId, "In Transit")
+    setProcessingModalBatch(null)
     setPipelineStep("completed")
   }
 
-  // Quarantine & Discard Action (for Expired Batches)
-  const handleDiscardBatch = async (batchId: string, reason: string = "Expired past shelf-life threshold") => {
-    const batch = batches[batchId]
-    if (!batch) return
 
-    const now = new Date()
-    const formattedDate = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-    const formattedTime = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-
-    const updatedLogs = [
-      ...batch.stageLogs,
-      { stage: "Quarantined & Discarded", date: formattedDate, time: formattedTime, remarks: `Produce quarantined & discarded. Reason: ${reason}. Logged on chain.` }
-    ]
-
-    const updatedBatch: ProcessingBatch = {
-      ...batch,
-      stage: "Transferred",
-      stageLogs: updatedLogs,
-      distributor: "Quarantined & Discarded (Food Loss)",
-      transferDate: formattedDate,
-      transferTime: formattedTime
-    }
-
-    const updatedBatches = { ...batches, [batchId]: updatedBatch }
-    setBatches(updatedBatches)
-    localStorage.setItem("processor_batches", JSON.stringify(updatedBatches))
-
-    addLog(`Quarantined & Discarded Batch ${batchId} (${batch.originalProduct.name}) - ${reason}`, "Quarantined & Discarded", batch.productId, batchId)
-    await updateDbStatus(batch.productId, "Quarantined & Discarded")
-  }
-
-  // Divert Action (to Bio-Compost / Animal Feed)
-  const handleDivertBatch = async (batchId: string, destination: string = "Local Bio-Composting Facility") => {
-    const batch = batches[batchId]
-    if (!batch) return
-
-    const now = new Date()
-    const formattedDate = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-    const formattedTime = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-
-    const updatedLogs = [
-      ...batch.stageLogs,
-      { stage: "Diverted to Bio-Waste", date: formattedDate, time: formattedTime, remarks: `Diverted to ${destination}. Logged on chain.` }
-    ]
-
-    const updatedBatch: ProcessingBatch = {
-      ...batch,
-      stage: "Transferred",
-      stageLogs: updatedLogs,
-      distributor: `Diverted: ${destination}`,
-      transferDate: formattedDate,
-      transferTime: formattedTime
-    }
-
-    const updatedBatches = { ...batches, [batchId]: updatedBatch }
-    setBatches(updatedBatches)
-    localStorage.setItem("processor_batches", JSON.stringify(updatedBatches))
-
-    addLog(`Diverted Batch ${batchId} to ${destination}`, "Diverted to Bio-Waste", batch.productId, batchId)
-    await updateDbStatus(batch.productId, `Diverted: ${destination}`)
-  }
 
 
 
@@ -1240,7 +1116,7 @@ export function ProcessorDashboard() {
                           </div>
                           <div className="flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-muted-foreground" />
-                            <span>Location: <span className="text-muted-foreground">{p.farmer?.email ? "Raichur, India" : "Local Farm"}</span></span>
+                            <span>Location: <span className="text-muted-foreground">{getFarmerLocation(p)}</span></span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Package className="h-4 w-4 text-muted-foreground" />
@@ -1427,9 +1303,11 @@ export function ProcessorDashboard() {
                                 onClick={() => {
                                   setSelectedProduct(p)
                                   setReceivedQtyInput(String(p.quantity))
+                                  setRemarksInput("")
+                                  setIsInspectionConfirmed(false)
                                   setIsVerifyModalOpen(true)
                                 }}
-                                className="rounded-xl text-white bg-primary hover:bg-primary/95 flex-1 md:flex-initial gap-1.5 font-semibold shadow-md"
+                                className="rounded-xl text-white bg-primary hover:bg-primary/95 flex-1 md:flex-initial gap-1.5 font-semibold shadow-md cursor-pointer"
                               >
                                 <QrCode className="h-4 w-4" />
                                 Scan QR & Verify
@@ -1483,9 +1361,12 @@ export function ProcessorDashboard() {
                           size="sm"
                           onClick={() => {
                             setSelectedProduct(p)
+                            setReceivedQtyInput(String(receipts[p.id]?.receivedQty || p.quantity))
+                            setRemarksInput("")
+                            setIsInspectionConfirmed(false)
                             setIsVerifyModalOpen(true)
                           }}
-                          className="rounded-xl text-white bg-primary hover:bg-primary/95 w-full md:w-auto"
+                          className="rounded-xl text-white bg-primary hover:bg-primary/95 w-full md:w-auto cursor-pointer"
                         >
                           Scan QR & Verify
                         </Button>
@@ -1528,138 +1409,42 @@ export function ProcessorDashboard() {
                           </span>
                         </div>
 
-                        {(() => {
-                          const shelfInfo = computeCropShelfLife(b.originalProduct.name, b.originalProduct.created_at, b.originalProduct.ai_quality_score || 90)
-                          const isDry = isDryGrainCrop(b.originalProduct.name, b.originalProduct.category)
+                        <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                          <div className="space-y-1">
+                            <span className="text-xs font-bold text-emerald-400 uppercase flex items-center gap-1.5">
+                              <Package className="h-4 w-4" />
+                              Batch Status: Intake Verified & Ready for Processing
+                            </span>
+                            <p className="text-xs text-zinc-300">
+                              Produce verified at scale with <strong className="text-emerald-400 font-semibold">{b.originalProduct.ai_quality_score || 90}% ({b.originalProduct.ai_quality_label || "Grade A"})</strong> quality score.
+                            </p>
+                          </div>
+                          <Button
+                            onClick={() => openProcessingModal(b)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs gap-2 shrink-0 shadow-md py-2.5 px-4 cursor-pointer"
+                          >
+                            <Package className="h-4 w-4" />
+                            📦 Complete Processing
+                          </Button>
+                        </div>
 
-                          return (
-                            <>
-                              {/* 1. EXPIRED (0 Days) Warning & Safety Lock Banner */}
-                              {shelfInfo.isExpired && (
-                                <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-3">
-                                  <div className="flex items-start gap-2.5 text-xs text-red-400">
-                                    <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-red-400" />
-                                    <div>
-                                      <p className="font-bold text-sm text-red-300">Food Safety Lock: Produce is Expired (0 Days Remaining)</p>
-                                      <p className="text-zinc-300 mt-0.5">
-                                        This batch has exceeded its {shelfInfo.totalDays}-day shelf life. In compliance with food safety regulations, <strong>standard retail distribution is locked</strong>. You must safely quarantine & discard or divert to bio-waste.
-                                      </p>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex flex-wrap gap-2 pt-1 border-t border-red-500/20">
-                                    <Button
-                                      onClick={() => setDisposalModalBatch({ batch: b, action: "discard" })}
-                                      className="bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs gap-1.5 shadow-md py-2 px-3.5 cursor-pointer"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                      🗑️ Quarantine & Discard on Chain
-                                    </Button>
-                                    <Button
-                                      onClick={() => setDisposalModalBatch({ batch: b, action: "divert" })}
-                                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs gap-1.5 shadow-md py-2 px-3.5 cursor-pointer"
-                                    >
-                                      <RefreshCw className="h-3.5 w-3.5" />
-                                      ♻️ Divert to Bio-Compost / Feed
-                                    </Button>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* 2. CRITICAL (1-2 Days) Fast-Action Banner */}
-                              {shelfInfo.isCritical && (
-                                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-3">
-                                  <div className="flex items-start gap-2.5 text-xs text-amber-400">
-                                    <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-amber-400" />
-                                    <div>
-                                      <p className="font-bold text-sm text-amber-300">Critical Shelf-Life (0-2 Days Window)</p>
-                                      <p className="text-zinc-300 mt-0.5">
-                                        Produce is nearing expiration ({shelfInfo.remainingDays} days left). Prioritize immediate local flash clearance or re-route to bio-processing.
-                                      </p>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex flex-wrap gap-2 pt-1 border-t border-amber-500/20">
-                                    <Button
-                                      onClick={() => openPackagingModal(b)}
-                                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs gap-1.5 shadow-md py-2 px-3.5 cursor-pointer"
-                                    >
-                                      <Zap className="h-3.5 w-3.5" />
-                                      🚨 Flash Clearance / Local Sale
-                                    </Button>
-                                    <Button
-                                      onClick={() => setDisposalModalBatch({ batch: b, action: "divert" })}
-                                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs gap-1.5 py-2 px-3.5 cursor-pointer"
-                                    >
-                                      <RefreshCw className="h-3.5 w-3.5" />
-                                      ♻️ Divert to Bio-Compost
-                                    </Button>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* 3. OPTIMAL (>7 Days) & MODERATE (3-7 Days) Packaging Banner */}
-                              {!shelfInfo.isExpired && !shelfInfo.isCritical && (
-                                <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                  <div className="space-y-1">
-                                    <span className="text-xs font-bold text-emerald-400 uppercase flex items-center gap-1.5">
-                                      <Package className="h-4 w-4" />
-                                      Produce Status: Quality Certified & Ready for Packaging
-                                    </span>
-                                    <p className="text-xs text-zinc-300">
-                                      Produce is certified <strong className="text-emerald-400 font-semibold">{b.originalProduct.ai_quality_score || 90}% ({b.originalProduct.ai_quality_label || "Grade A"})</strong>. Recommended: <span className="text-emerald-300 font-semibold">{isDry ? "🚛 Standard Dry Freight (Ambient)" : "❄️ Cold-Chain Logistics (2°C - 4°C)"}</span>.
-                                    </p>
-                                  </div>
-                                  <Button
-                                    onClick={() => openPackagingModal(b)}
-                                    className={`${
-                                      shelfInfo.isModerate ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700"
-                                    } text-white font-bold rounded-xl text-xs gap-2 shrink-0 shadow-md py-2.5 px-4 cursor-pointer`}
-                                  >
-                                    {shelfInfo.isModerate ? (
-                                      <>
-                                        <Zap className="h-4 w-4" />
-                                        ⚡ Priority Package & Dispatch
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Package className="h-4 w-4" />
-                                        📦 Package & Hand Over to Distributor
-                                      </>
-                                    )}
-                                  </Button>
-                                </div>
-                              )}
-
-                              {/* AI Support Insights */}
-                              <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl grid gap-4 md:grid-cols-3">
-                                <div className="flex items-center gap-2">
-                                  <Brain className="h-5 w-5 text-blue-500" />
-                                  <div>
-                                    <p className="text-[10px] text-muted-foreground uppercase font-bold">AI Quality Score</p>
-                                    <p className="text-sm font-semibold">{b.originalProduct.ai_quality_score || 90}% ({b.originalProduct.ai_quality_label || "Grade A"})</p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <AlertCircle className="h-5 w-5 text-emerald-500" />
-                                  <div>
-                                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Disease Risk</p>
-                                    <p className="text-sm font-semibold text-emerald-500">Low</p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Clock className={`h-5 w-5 ${shelfInfo.isExpired || shelfInfo.isCritical ? "text-red-400" : shelfInfo.isModerate ? "text-amber-400" : "text-emerald-400"}`} />
-                                  <div>
-                                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Est. Shelf Life</p>
-                                    <p className={`text-sm font-semibold ${shelfInfo.isExpired || shelfInfo.isCritical ? "text-red-400 font-bold" : shelfInfo.isModerate ? "text-amber-400 font-bold" : "text-emerald-400"}`}>
-                                      {shelfInfo.label}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            </>
-                          )
-                        })()}
+                        {/* AI Quality & Intake Details */}
+                        <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl grid gap-4 md:grid-cols-2">
+                          <div className="flex items-center gap-2">
+                            <Brain className="h-5 w-5 text-blue-500" />
+                            <div>
+                              <p className="text-[10px] text-muted-foreground uppercase font-bold">AI Quality Score</p>
+                              <p className="text-sm font-semibold text-emerald-400">{b.originalProduct.ai_quality_score || 90}% ({b.originalProduct.ai_quality_label || "Grade A"})</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Scale className="h-5 w-5 text-emerald-500" />
+                            <div>
+                              <p className="text-[10px] text-muted-foreground uppercase font-bold">Intake Scale Weight</p>
+                              <p className="text-sm font-semibold text-white">{receipts[b.originalProduct.id]?.receivedQty || b.originalProduct.quantity} kg</p>
+                            </div>
+                          </div>
+                        </div>
 
                         <div className="flex justify-end gap-2 flex-wrap">
                           <Button
@@ -1704,7 +1489,6 @@ export function ProcessorDashboard() {
                         ? b.originalProduct.product_id 
                         : 100000 + (Math.abs(Number(b.originalProduct.product_id || 0)) % 899999)
                       const receivedWeight = receipts[b.originalProduct.id]?.receivedQty || b.originalProduct.quantity
-                      const isDry = isDryGrainCrop(b.originalProduct.name, b.originalProduct.category)
 
                       return (
                         <div key={b.batchId} className="p-6 rounded-3xl border bg-card/60 hover:bg-card/90 transition-all space-y-5 shadow-sm">
@@ -1732,48 +1516,44 @@ export function ProcessorDashboard() {
 
                           {/* 4-Grid Key Logistics Details */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-                            {/* Carrier Partner */}
+                            {/* Processed Quantity */}
                             <div className="p-3.5 rounded-2xl bg-muted/30 border space-y-1">
                               <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
-                                🏢 Carrier Logistics Partner
+                                📦 Processed Quantity
                               </span>
-                              <p className="font-bold text-sm text-foreground">{b.distributor || "XYZ Logistics"}</p>
-                              <p className="text-[11px] text-emerald-400 font-medium">Verified Carrier Partner</p>
+                              <p className="font-bold text-sm text-foreground">{b.processedQuantity || receivedWeight} kg</p>
+                              <p className="text-[11px] text-emerald-400 font-medium">Output Packaged Produce</p>
                             </div>
 
-                            {/* Destination Hub */}
+                            {/* Estimated Shelf Life */}
                             <div className="p-3.5 rounded-2xl bg-muted/30 border space-y-1">
                               <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
-                                📍 Destination Delivery Hub
+                                ⏳ Estimated Shelf Life
                               </span>
-                              <p className="font-semibold text-foreground truncate" title={b.destinationHub || "Central Supermarket Distribution Center - Retail Hub"}>
-                                {b.destinationHub || (isDry ? "National Grain Silo & Wholesale Center" : "Central Supermarket Distribution Center")}
-                              </p>
-                              <p className="text-[11px] text-muted-foreground">Logistics: {isDry ? "Dry Freight" : "Cold-Chain (2°C-4°C)"}</p>
+                              <p className="font-bold text-sm text-foreground">{b.expiryDate || (b.estimatedShelfLifeDays ? `${b.estimatedShelfLifeDays} Days` : "14 Days")}</p>
+                              <p className="text-[11px] text-muted-foreground">{b.expiryDate ? `~${b.estimatedShelfLifeDays || 14} Days Certified` : "Certified Shelf Life"}</p>
                             </div>
 
-                            {/* Packaging & Net Weight */}
+                            {/* Certified Quality & Grade */}
                             <div className="p-3.5 rounded-2xl bg-muted/30 border space-y-1">
                               <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
-                                📦 Packaging & Dispatched Net
-                              </span>
-                              <p className="font-semibold text-foreground truncate" title={b.packagingFormat || "Standard Retail Packaging"}>
-                                {b.packagingFormat || (isDry ? `25 kg Sacks (${Math.ceil(receivedWeight / 25)} Sacks)` : `1 kg Pouches (${receivedWeight} Packs)`)}
-                              </p>
-                              <p className="text-[11px] text-emerald-400 font-bold">Total Weight: {receivedWeight} kg</p>
-                            </div>
-
-                            {/* Quality & Timestamp */}
-                            <div className="p-3.5 rounded-2xl bg-muted/30 border space-y-1">
-                              <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
-                                🏅 Certified Quality & Dispatch
+                                🏅 Certified Quality & Grade
                               </span>
                               <p className="font-semibold text-emerald-400">
                                 {b.originalProduct.ai_quality_label || "Grade A"} ({b.originalProduct.ai_quality_score || 90}% Score)
                               </p>
-                              <p className="text-[11px] text-muted-foreground">
-                                {b.transferDate || b.createdDate} • {b.transferTime || b.createdTime}
+                              <p className="text-[11px] text-muted-foreground">Gate Physical Inspection</p>
+                            </div>
+
+                            {/* Processing Completion Timestamp */}
+                            <div className="p-3.5 rounded-2xl bg-muted/30 border space-y-1">
+                              <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                                🕒 Processing Completed
+                              </span>
+                              <p className="font-semibold text-foreground">
+                                {b.completionDate || b.transferDate || b.createdDate} • {b.completionTime || b.transferTime || b.createdTime}
                               </p>
+                              <p className="text-[11px] text-emerald-400 font-medium">Recorded on Blockchain</p>
                             </div>
                           </div>
 
@@ -1977,7 +1757,7 @@ export function ProcessorDashboard() {
                         e.preventDefault()
                       }
                     }}
-                    className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 mt-1 text-sm text-white focus:outline-none"
+                    className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 mt-1 text-sm text-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     placeholder="Enter physical scale quantity"
                   />
                 </div>
@@ -2158,7 +1938,7 @@ export function ProcessorDashboard() {
                       <div><span className="text-zinc-400">Product:</span> <strong className="text-emerald-400 font-semibold ml-1">{selectedProduct.name}</strong></div>
                       <div><span className="text-zinc-400">Product ID:</span> <strong className="text-emerald-400 font-mono font-semibold ml-1">FP-{(selectedProduct.product_id && selectedProduct.product_id >= 100000 && selectedProduct.product_id <= 999999) ? selectedProduct.product_id : 100000 + (Math.abs(Number(selectedProduct.product_id || 0)) % 899999)}</strong></div>
                       <div><span className="text-zinc-400">Farmer:</span> <strong className="text-emerald-400 font-semibold ml-1">{selectedProduct.farmer?.name || "Ravi"}</strong></div>
-                      <div><span className="text-zinc-400">Location:</span> <strong className="text-emerald-400 font-semibold ml-1">{selectedProduct.farmer?.email ? "Raichur, India" : "Local Farm"}</strong></div>
+                      <div><span className="text-zinc-400">Location:</span> <strong className="text-emerald-400 font-semibold ml-1">{getFarmerLocation(selectedProduct)}</strong></div>
                       <div><span className="text-zinc-400">Quantity:</span> <strong className="text-emerald-400 font-semibold ml-1">{selectedProduct.quantity} kg</strong></div>
                       <div><span className="text-zinc-400">Harvest Date:</span> <strong className="text-emerald-400 font-semibold ml-1">{new Date(selectedProduct.created_at).toLocaleDateString()}</strong></div>
                     </div>
@@ -2183,17 +1963,6 @@ export function ProcessorDashboard() {
                       <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-xs border border-emerald-500/40 shrink-0">
                         Verified ✓
                       </span>
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-zinc-400 uppercase font-bold">Verification Remarks</label>
-                      <input
-                        type="text"
-                        value={verificationRemarks}
-                        onChange={(e) => setVerificationRemarks(e.target.value)}
-                        placeholder="Remarks e.g. batch cryptographic match confirmed"
-                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 mt-1 text-sm focus:outline-none text-white"
-                      />
                     </div>
                   </div>
 
@@ -2243,32 +2012,31 @@ export function ProcessorDashboard() {
                             }
                           }}
                           placeholder={`Enter scale weight (e.g. ${selectedProduct.quantity})`}
-                          className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 mt-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                          className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 mt-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                     </div>
 
-                    {/* Weight Shortage / Discrepancy Live Alert */}
+                    {/* Weight Shortage Live Notice (Produce can still be accepted) */}
                     {(() => {
                       const scaleWeight = Number(receivedQtyInput)
                       const originWeight = selectedProduct.quantity
-                      const hasWeightDiff = scaleWeight > 0 && scaleWeight !== originWeight
-                      if (!hasWeightDiff) return null
+                      const hasShortage = scaleWeight > 0 && scaleWeight < originWeight
+                      if (!hasShortage) return null
 
                       const diffAmount = Math.abs(originWeight - scaleWeight)
                       const diffPercent = originWeight > 0 ? ((diffAmount / originWeight) * 100).toFixed(0) : "0"
-                      const isShortage = scaleWeight < originWeight
 
                       return (
-                        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-2 text-xs">
-                          <div className="flex items-start gap-2.5 text-red-400 font-semibold">
-                            <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-red-400" />
+                        <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-1.5 text-xs">
+                          <div className="flex items-start gap-2.5 text-amber-400 font-semibold">
+                            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" />
                             <div>
-                              <p className="font-bold text-sm text-red-300">
-                                Weight Mismatch Detected: {diffAmount} kg {isShortage ? "Shortage" : "Excess"} ({diffPercent}% vs Origin {originWeight} kg)
+                              <p className="font-bold text-sm text-amber-300">
+                                ⚠️ Scale Weight Shortage: {diffAmount} kg Shortage ({diffPercent}% vs Registered {originWeight} kg)
                               </p>
                               <p className="text-zinc-300 font-normal mt-0.5 text-[11px]">
-                                Actual scale weight ({scaleWeight} kg) does not match farm registered quantity ({originWeight} kg). Physical quality inspection is locked and produce delivery must be rejected.
+                                Actual scale weight ({scaleWeight} kg) is less than origin registered quantity ({originWeight} kg). Produce can still be inspected and accepted with actual weighed quantity.
                               </p>
                             </div>
                           </div>
@@ -2277,148 +2045,148 @@ export function ProcessorDashboard() {
                     })()}
                   </div>
 
-                {/* 3. PHYSICAL QUALITY INSPECTION FORM - Hidden if there is a weight mismatch */}
-                {!(Number(receivedQtyInput) > 0 && Number(receivedQtyInput) !== selectedProduct.quantity) && (
-                  <div className="space-y-4 border-t border-zinc-800 pt-4">
-                    <h4 className="font-bold text-sm text-zinc-300">3. Physical Quality Inspection</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs text-zinc-400">Appearance</label>
-                        <select value={appearanceInput} onChange={(e) => handlePhysicalParamChange("appearance", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none">
-                          <option>Good</option>
-                          <option>Excellent</option>
-                          <option>Average</option>
-                          <option>Poor</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs text-zinc-400">Freshness</label>
-                        <select value={freshnessInput} onChange={(e) => handlePhysicalParamChange("freshness", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none">
-                          <option>Excellent</option>
-                          <option>Good</option>
-                          <option>Average</option>
-                          <option>Stale</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs text-zinc-400">Damage</label>
-                        <select value={damageInput} onChange={(e) => handlePhysicalParamChange("damage", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none">
-                          <option>Low</option>
-                          <option>Medium</option>
-                          <option>High</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs text-zinc-400">Cleanliness</label>
-                        <select value={cleanlinessInput} onChange={(e) => handlePhysicalParamChange("cleanliness", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none">
-                          <option>Good</option>
-                          <option>Excellent</option>
-                          <option>Average</option>
-                          <option>Poor</option>
-                        </select>
-                      </div>
+                {/* 3. PHYSICAL QUALITY INSPECTION FORM */}
+                <div className="space-y-4 border-t border-zinc-800 pt-4">
+                  <h4 className="font-bold text-sm text-zinc-300">3. Physical Quality Inspection</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs text-zinc-400">Appearance</label>
+                      <select value={appearanceInput} onChange={(e) => handlePhysicalParamChange("appearance", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
+                        <option>Good</option>
+                        <option>Excellent</option>
+                        <option>Average</option>
+                        <option>Poor</option>
+                      </select>
                     </div>
-
-                    {/* Live in-hand calculated score */}
-                    <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-zinc-400 font-medium">In-Hand Verified Quality Score</p>
-                        <p className="text-[11px] text-zinc-500">Calculated from physical appearance, freshness, damage & cleanliness</p>
-                      </div>
-                      {(() => {
-                        const score = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
-                        const grade = score >= 85 ? "A" : score >= 60 ? "B" : "C"
-                        return (
-                          <span className={`text-base font-bold px-3 py-1 rounded-xl border ${
-                            grade === "C"
-                              ? "text-red-400 bg-red-500/10 border-red-500/30"
-                              : "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
-                          }`}>
-                            {score}% (Grade {grade})
-                          </span>
-                        )
-                      })()}
+                    <div>
+                      <label className="text-xs text-zinc-400">Freshness</label>
+                      <select value={freshnessInput} onChange={(e) => handlePhysicalParamChange("freshness", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
+                        <option>Excellent</option>
+                        <option>Good</option>
+                        <option>Average</option>
+                        <option>Stale</option>
+                      </select>
                     </div>
-
-                    {/* Quality Failure Alert Banner if Grade C (<60%) */}
-                    {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) < 60 && (
-                      <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-1.5 text-xs">
-                        <div className="flex items-start gap-2.5 text-red-400 font-semibold">
-                          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-red-400" />
-                          <div>
-                            <p className="font-bold text-sm text-red-300">
-                              Quality Standards Failed (Grade C · {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)}%)
-                            </p>
-                            <p className="text-zinc-300 font-normal mt-0.5 text-[11px]">
-                              Physical quality parameters do not meet minimum processor intake specifications (60% / Grade B required). Accepting this batch on blockchain is restricted and produce delivery must be rejected.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs text-zinc-400">Certified Quality Grade</label>
-                        <div className="flex gap-2 mt-1">
-                          {(["A", "B", "C"] as const).map(g => {
-                            const computedScore = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
-                            const autoGrade = computedScore >= 85 ? "A" : computedScore >= 60 ? "B" : "C"
-                            const isCurrentGrade = autoGrade === g
-                            return (
-                              <button
-                                key={g}
-                                type="button"
-                                disabled={!isCurrentGrade}
-                                className={`flex-1 py-2 rounded-xl font-bold border transition-all ${
-                                  isCurrentGrade
-                                    ? autoGrade === "C"
-                                      ? "bg-red-500 border-red-500 text-white shadow-md cursor-default ring-2 ring-red-400/50"
-                                      : "bg-emerald-500 border-emerald-500 text-white shadow-md cursor-default ring-2 ring-emerald-400/50"
-                                    : "border-zinc-800/50 text-zinc-600 opacity-40 cursor-not-allowed bg-zinc-900"
-                                }`}
-                              >
-                                Grade {g}
-                              </button>
-                            )
-                          })}
-                        </div>
-                        <p className="text-[10px] text-zinc-400 mt-1">
-                          Auto-locked: Grade A (85-100%), Grade B (60-84%), Grade C (&lt;60%)
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-zinc-400">Inspection remarks</label>
-                        <input
-                          type="text"
-                          value={inspectionRemarks}
-                          onChange={(e) => setInspectionRemarks(e.target.value)}
-                          placeholder="Remarks about firmness or freshness"
-                          className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none"
-                        />
-                      </div>
+                    <div>
+                      <label className="text-xs text-zinc-400">Damage</label>
+                      <select value={damageInput} onChange={(e) => handlePhysicalParamChange("damage", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
+                        <option>Low</option>
+                        <option>Medium</option>
+                        <option>High</option>
+                      </select>
                     </div>
-
-                    {/* Compulsory Physical Inspection Confirmation - Only displayed for Grade A or B (score >= 60) */}
-                    {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) >= 60 && (
-                      <label className={`flex items-center gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                        isInspectionConfirmed
-                          ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
-                          : "bg-zinc-950 border-zinc-800 hover:border-zinc-700 text-zinc-400"
-                      }`}>
-                        <input
-                          type="checkbox"
-                          checked={isInspectionConfirmed}
-                          onChange={(e) => setIsInspectionConfirmed(e.target.checked)}
-                          className="h-4 w-4 rounded accent-primary cursor-pointer"
-                        />
-                        <span className="text-xs font-semibold">
-                          I have physically inspected this produce and certify the verified Quality Score & Grade.
-                        </span>
-                      </label>
-                    )}
+                    <div>
+                      <label className="text-xs text-zinc-400">Cleanliness</label>
+                      <select value={cleanlinessInput} onChange={(e) => handlePhysicalParamChange("cleanliness", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
+                        <option>Good</option>
+                        <option>Excellent</option>
+                        <option>Average</option>
+                        <option>Poor</option>
+                      </select>
+                    </div>
                   </div>
-                )}
+
+                  {/* Live in-hand calculated score */}
+                  <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-zinc-400 font-medium">In-Hand Verified Quality Score</p>
+                      <p className="text-[11px] text-zinc-500">Calculated from physical appearance, freshness, damage & cleanliness</p>
+                    </div>
+                    {(() => {
+                      const score = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
+                      const grade = score >= 85 ? "A" : score >= 60 ? "B" : "C"
+                      return (
+                        <span className={`text-base font-bold px-3 py-1 rounded-xl border ${
+                          grade === "C"
+                            ? "text-red-400 bg-red-500/10 border-red-500/30"
+                            : "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                        }`}>
+                          {score}% (Grade {grade})
+                        </span>
+                      )
+                    })()}
+                  </div>
+
+                  {/* Quality Failure Alert Banner if Grade C (<60%) */}
+                  {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) < 60 && (
+                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-1.5 text-xs">
+                      <div className="flex items-start gap-2.5 text-red-400 font-semibold">
+                        <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-red-400" />
+                        <div>
+                          <p className="font-bold text-sm text-red-300">
+                            Quality Standards Failed (Grade C · {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)}%)
+                          </p>
+                          <p className="text-zinc-300 font-normal mt-0.5 text-[11px]">
+                            Physical quality parameters do not meet minimum processor intake specifications (60% / Grade B required). Accepting this batch on blockchain is restricted and produce delivery must be rejected.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs text-zinc-400">Certified Quality Grade</label>
+                      <div className="flex gap-2 mt-1">
+                        {(["A", "B", "C"] as const).map(g => {
+                          const computedScore = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
+                          const autoGrade = computedScore >= 85 ? "A" : computedScore >= 60 ? "B" : "C"
+                          const isCurrentGrade = autoGrade === g
+                          return (
+                            <button
+                              key={g}
+                              type="button"
+                              disabled={!isCurrentGrade}
+                              className={`flex-1 py-2 rounded-xl font-bold border transition-all ${
+                                isCurrentGrade
+                                  ? autoGrade === "C"
+                                    ? "bg-red-500 border-red-500 text-white shadow-md cursor-default ring-2 ring-red-400/50"
+                                    : "bg-emerald-500 border-emerald-500 text-white shadow-md cursor-default ring-2 ring-emerald-400/50"
+                                  : "border-zinc-800/50 text-zinc-600 opacity-40 cursor-not-allowed bg-zinc-900"
+                              }`}
+                            >
+                              Grade {g}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <p className="text-[10px] text-zinc-400 mt-1">
+                        Auto-locked: Grade A (85-100%), Grade B (60-84%), Grade C (&lt;60%)
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-zinc-400 font-medium">
+                        Remarks <span className="text-zinc-500 font-normal">(Optional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={remarksInput}
+                        onChange={(e) => setRemarksInput(e.target.value)}
+                        placeholder="Enter remarks (optional) e.g. Batch verified, produce in good condition"
+                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white focus:ring-1 focus:ring-emerald-400"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Physical Inspection Confirmation - Only displayed for Grade A or B (score >= 60) */}
+                  {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) >= 60 && (
+                    <label className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                      isInspectionConfirmed
+                        ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
+                        : "bg-zinc-950 border-zinc-800 hover:border-zinc-700 text-zinc-400"
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={isInspectionConfirmed}
+                        onChange={(e) => setIsInspectionConfirmed(e.target.checked)}
+                        className="h-4 w-4 rounded accent-primary cursor-pointer"
+                      />
+                      <span className="text-xs font-semibold">
+                        I have physically inspected this produce and certify the verified Quality Score & Grade.
+                      </span>
+                    </label>
+                  )}
+                </div>
 
                 {/* DECISION ACTION SUBMIT */}
                 <div className="flex flex-col gap-3 border-t border-zinc-800 pt-4">
@@ -2431,44 +2199,28 @@ export function ProcessorDashboard() {
                         className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none text-white"
                       >
                         <option value="">Select reason</option>
-                        <option value="Weight Discrepancy / Scale Mismatch">Weight Discrepancy / Scale Mismatch</option>
                         <option value="Quality Standards Failed (Grade C / Spoiled)">Quality Standards Failed (Grade C / Spoiled)</option>
+                        <option value="Severe Physical Damage">Severe Physical Damage</option>
                         <option value="Information mismatch">Information Mismatch</option>
                         <option value="Poor quality">Poor Quality</option>
-                        <option value="Damaged product">Damaged Product</option>
                         <option value="Product not suitable for processing">Product not suitable for processing</option>
                       </select>
                       <div className="flex gap-2">
                         <Button
                           disabled={!rejectionReasonInput}
                           onClick={() => handleInspectionDecision("Rejected")}
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md"
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md cursor-pointer"
                         >
                           Confirm Rejection on Chain
                         </Button>
                         <Button
                           variant="ghost"
                           onClick={() => setShowRejectionForm(false)}
-                          className="rounded-xl text-zinc-400"
+                          className="rounded-xl text-zinc-400 cursor-pointer"
                         >
                           Cancel
                         </Button>
                       </div>
-                    </div>
-                  ) : Number(receivedQtyInput) > 0 && Number(receivedQtyInput) !== selectedProduct.quantity ? (
-                    /* ONLY DISPLAY REJECT PRODUCT WHEN THERE IS A WEIGHT MISMATCH */
-                    <div className="space-y-2">
-                      <Button
-                        onClick={() => {
-                          const diff = Math.abs(selectedProduct.quantity - Number(receivedQtyInput))
-                          const type = Number(receivedQtyInput) < selectedProduct.quantity ? "Shortage" : "Excess"
-                          setRejectionReasonInput(`Weight Discrepancy / Scale Mismatch (${diff} kg ${type}: Scale ${receivedQtyInput} kg vs Origin ${selectedProduct.quantity} kg)`)
-                          setShowRejectionForm(true)
-                        }}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl py-3 text-sm shadow-lg gap-2"
-                      >
-                        ❌ Reject Product (Weight Mismatch)
-                      </Button>
                     </div>
                   ) : computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) < 60 ? (
                     /* ONLY DISPLAY REJECT PRODUCT WHEN QUALITY STANDARDS FAIL (GRADE C) */
@@ -2479,7 +2231,7 @@ export function ProcessorDashboard() {
                           setRejectionReasonInput(`Quality Standards Failed: Grade C produce (${score}%) does not meet intake quality specifications`)
                           setShowRejectionForm(true)
                         }}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl py-3 text-sm shadow-lg gap-2"
+                        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl py-3 text-sm shadow-lg gap-2 cursor-pointer"
                       >
                         ❌ Reject Product (Quality Standards Failed)
                       </Button>
@@ -2490,7 +2242,7 @@ export function ProcessorDashboard() {
                       <Button
                         variant="outline"
                         onClick={() => setShowRejectionForm(true)}
-                        className="flex-1 rounded-xl border-red-500/30 text-red-500 hover:bg-red-500/10 hover:border-red-500"
+                        className="flex-1 rounded-xl border-red-500/30 text-red-500 hover:bg-red-500/10 hover:border-red-500 cursor-pointer"
                       >
                         ❌ Reject Product
                       </Button>
@@ -2499,7 +2251,7 @@ export function ProcessorDashboard() {
                         onClick={() => handleInspectionDecision("Accepted")}
                         className={`flex-1 rounded-xl text-white ${
                           infoVerified === "Verified" && isInspectionConfirmed
-                            ? "bg-emerald-600 hover:bg-emerald-700 font-bold shadow-md"
+                            ? "bg-emerald-600 hover:bg-emerald-700 font-bold shadow-md cursor-pointer"
                             : "bg-zinc-800 text-zinc-500 cursor-not-allowed opacity-50 font-medium"
                         }`}
                       >
@@ -2512,7 +2264,7 @@ export function ProcessorDashboard() {
                     type="button"
                     variant="ghost"
                     onClick={closeVerifyModal}
-                    className="w-full text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl mt-1"
+                    className="w-full text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl mt-1 cursor-pointer"
                   >
                     Cancel & Close Verification
                   </Button>
@@ -2665,7 +2417,7 @@ export function ProcessorDashboard() {
               <p className="font-bold text-sm text-foreground">{qrViewBatch.originalProduct.name}</p>
               <p className="text-zinc-400 font-mono">Batch ID: <span className="text-blue-400 font-semibold">{qrViewBatch.batchId}</span></p>
               <p className="text-zinc-400">Certified Grade: <span className="text-emerald-400 font-bold">{qrViewBatch.originalProduct.ai_quality_label || "Grade A"} ({qrViewBatch.originalProduct.ai_quality_score || 90}%)</span></p>
-              <p className="text-zinc-400">Processor: <span className="text-zinc-200">{processorName}</span></p>
+              <p className="text-zinc-400">Processor: <span className="text-zinc-200">{processorName} • {processorAddress}</span></p>
             </div>
 
             <div className="flex flex-col gap-2 pt-1">
@@ -2706,303 +2458,132 @@ export function ProcessorDashboard() {
         </div>
       )}
 
-      {/* MODAL: Packaging & Distributor Transfer Modal */}
-      {packagingModalBatch && (
+      {/* MODAL: Processing Completion & Certification Modal */}
+      {processingModalBatch && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <Card className="max-w-xl w-full rounded-3xl border shadow-2xl p-6 bg-zinc-900 border-zinc-800 text-white space-y-5 my-auto">
+          <Card className="max-w-lg w-full rounded-3xl border shadow-2xl p-6 bg-zinc-900 border-zinc-800 text-white space-y-5 my-auto">
             <div className="flex justify-between items-start border-b border-zinc-800 pb-3">
               <div>
-                <h3 className="font-bold text-xl text-white">Packaging & Distributor Handover</h3>
-                <p className="text-xs text-zinc-400">Batch: <span className="text-emerald-400 font-mono font-semibold">{packagingModalBatch.batchId}</span> • Product: <span className="text-emerald-400 font-semibold">{packagingModalBatch.originalProduct.name}</span></p>
+                <h3 className="font-bold text-xl text-white flex items-center gap-2">
+                  <Package className="h-5 w-5 text-emerald-400" />
+                  Processing Completion & Certification
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  Batch: <span className="text-emerald-400 font-mono font-semibold">{processingModalBatch.batchId}</span> • Product: <span className="text-emerald-400 font-semibold">{processingModalBatch.originalProduct.name}</span>
+                </p>
               </div>
               <button
-                onClick={() => setPackagingModalBatch(null)}
+                onClick={() => setProcessingModalBatch(null)}
                 className="flex items-center justify-center p-2 rounded-full bg-zinc-800 text-zinc-200 hover:text-white hover:bg-zinc-700 border border-zinc-700 transition-all shadow-md shrink-0 cursor-pointer"
-                title="Close"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {(() => {
-              const qty = receipts[packagingModalBatch.originalProduct.id]?.receivedQty || packagingModalBatch.originalProduct.quantity || 100
+              const verifiedQty = receipts[processingModalBatch.originalProduct.id]?.receivedQty || processingModalBatch.originalProduct.quantity || 100
+              const now = new Date()
+              const formattedDate = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+              const formattedTime = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
 
               return (
                 <>
                   <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 grid grid-cols-2 gap-3 text-xs">
-                    <div><span className="text-zinc-400">Produce:</span> <strong className="text-emerald-400 font-semibold ml-1">{packagingModalBatch.originalProduct.name}</strong></div>
-                    <div><span className="text-zinc-400">Verified Quantity:</span> <strong className="text-emerald-400 font-semibold ml-1">{qty} kg</strong></div>
-                    <div><span className="text-zinc-400">Certified Quality:</span> <strong className="text-emerald-400 font-semibold ml-1">{packagingModalBatch.originalProduct.ai_quality_score || 90}% ({packagingModalBatch.originalProduct.ai_quality_label || "Grade A"})</strong></div>
-                    <div><span className="text-zinc-400">Farmer Origin:</span> <strong className="text-emerald-400 font-semibold ml-1">{packagingModalBatch.originalProduct.farmer?.name || "Ravi"}</strong></div>
+                    <div><span className="text-zinc-400">Produce:</span> <strong className="text-emerald-400 font-semibold ml-1">{processingModalBatch.originalProduct.name}</strong></div>
+                    <div><span className="text-zinc-400">Intake Scale Weight:</span> <strong className="text-emerald-400 font-semibold ml-1">{verifiedQty} kg</strong></div>
+                    <div><span className="text-zinc-400">Certified Quality:</span> <strong className="text-emerald-400 font-semibold ml-1">{processingModalBatch.originalProduct.ai_quality_score || 90}% ({processingModalBatch.originalProduct.ai_quality_label || "Grade A"})</strong></div>
+                    <div><span className="text-zinc-400">Farmer Origin:</span> <strong className="text-emerald-400 font-semibold ml-1">{processingModalBatch.originalProduct.farmer?.name || "Ravi"}</strong></div>
                   </div>
 
                   <div className="space-y-4 text-sm">
-                    {/* 1. SELECTABLE LOGISTICS MODE */}
+                    {/* 1. PROCESSED QUANTITY (KG) */}
                     <div>
-                      <label className="text-xs text-zinc-400 uppercase font-bold">1. Select Transport Logistics Mode</label>
-                      <div className="grid grid-cols-2 gap-2 mt-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handleLogisticsModeChange("cold_chain", qty)}
-                          className={`p-3 rounded-2xl border text-left flex flex-col gap-1 transition-all ${
-                            logisticsModeInput === "cold_chain"
-                              ? "bg-emerald-500/15 border-emerald-500 text-white shadow-md ring-1 ring-emerald-500/30"
-                              : "bg-zinc-850 border-zinc-700/60 text-zinc-400 hover:border-zinc-500 hover:text-white"
-                          }`}
-                        >
-                          <span className="text-xs font-bold flex items-center gap-1.5 text-emerald-400">
-                            ❄️ Cold-Chain Logistics
-                          </span>
-                          <span className="text-[11px] text-zinc-300">
-                            Refrigerated (2°C - 4°C) for fruits, vegetables & fresh produce.
-                          </span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleLogisticsModeChange("dry_freight", qty)}
-                          className={`p-3 rounded-2xl border text-left flex flex-col gap-1 transition-all ${
-                            logisticsModeInput === "dry_freight"
-                              ? "bg-emerald-500/15 border-emerald-500 text-white shadow-md ring-1 ring-emerald-500/30"
-                              : "bg-zinc-850 border-zinc-700/60 text-zinc-400 hover:border-zinc-500 hover:text-white"
-                          }`}
-                        >
-                          <span className="text-xs font-bold flex items-center gap-1.5 text-amber-400">
-                            🚛 Standard Dry Freight
-                          </span>
-                          <span className="text-[11px] text-zinc-300">
-                            Ambient Dry Storage for rice, wheat, grains, pulses & spices.
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 2. PACKAGING FORMAT SELECTION */}
-                    <div>
-                      <label className="text-xs text-zinc-400 uppercase font-bold">2. Select Packaging Format</label>
-                      <select
-                        value={packagingTypeInput}
-                        onChange={(e) => setPackagingTypeInput(e.target.value)}
-                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2.5 text-xs mt-1 text-white focus:outline-none"
-                      >
-                        {logisticsModeInput === "dry_freight" ? (
-                          <>
-                            <option value={`25 kg Standard Jute Sacks (${Math.ceil(qty / 25)} Sacks)`}>25 kg Standard Jute Sacks ({Math.ceil(qty / 25)} Sacks)</option>
-                            <option value={`50 kg Commercial Grain Sacks (${Math.ceil(qty / 50)} Sacks)`}>50 kg Commercial Grain Sacks ({Math.ceil(qty / 50)} Sacks)</option>
-                            <option value={`1 kg Retail Bags (${qty} Bags)`}>1 kg Retail Bags ({qty} Bags)</option>
-                            <option value="Bulk Packhouse Master Pallets">Bulk Packhouse Master Pallets</option>
-                          </>
-                        ) : (
-                          <>
-                            <option value={`1 kg Eco-Friendly Retail Pouches (${qty} Packs)`}>1 kg Eco-Friendly Retail Pouches ({qty} Packs)</option>
-                            <option value={`5 kg Corrugated Retail Cartons (${Math.ceil(qty / 5)} Boxes)`}>5 kg Corrugated Retail Cartons ({Math.ceil(qty / 5)} Boxes)</option>
-                            <option value={`20 kg Standard Cold-Storage Crates (${Math.ceil(qty / 20)} Crates)`}>20 kg Standard Cold-Storage Crates ({Math.ceil(qty / 20)} Crates)</option>
-                            <option value="Bulk Packhouse Master Pallets">Bulk Packhouse Master Pallets</option>
-                          </>
-                        )}
-                      </select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-zinc-400 uppercase font-bold">Storage Temperature</label>
-                        <select
-                          value={storageTempInput}
-                          onChange={(e) => setStorageTempInput(e.target.value)}
-                          className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-xs mt-1 text-white focus:outline-none"
-                        >
-                          {logisticsModeInput === "dry_freight" ? (
-                            <>
-                              <option value="Ambient Room Temp (Dry / Moisture-Controlled Storage)">Ambient Room Temp (Dry Storage)</option>
-                              <option value="15°C - 20°C (Silo Climate Controlled)">15°C - 20°C (Silo Controlled)</option>
-                            </>
-                          ) : (
-                            <>
-                              <option value="2°C - 4°C (Refrigerated Cold Chain)">2°C - 4°C (Refrigerated Cold Chain)</option>
-                              <option value="4°C - 8°C (Chilled Transport)">4°C - 8°C (Chilled Transport)</option>
-                              <option value="-18°C (Deep-Freeze Sub-Zero)">-18°C (Deep-Freeze Sub-Zero)</option>
-                            </>
-                          )}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs text-zinc-400 uppercase font-bold">3. Assign Carrier Partner</label>
-                        <select
-                          value={packagingDistributor}
-                          onChange={(e) => setPackagingDistributor(e.target.value)}
-                          className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-xs mt-1 text-white focus:outline-none"
-                        >
-                          {distributors.map(d => (
-                            <option key={d.id} value={d.name}>{d.name} ({d.availability_status || "Unknown"})</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-zinc-400 uppercase font-bold">4. Target Destination Delivery Hub</label>
+                      <label className="text-xs text-zinc-400 uppercase font-bold">Processed Quantity (kg)</label>
                       <input
-                        type="text"
-                        value={destinationHubInput}
-                        onChange={(e) => setDestinationHubInput(e.target.value)}
-                        placeholder="e.g. Central Retail Hub"
-                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-xs mt-1 text-white focus:outline-none"
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={processedQtyInput}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          if (val === "" || Number(val) >= 0) {
+                            setProcessedQtyInput(val)
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "-" || e.key === "e") e.preventDefault()
+                        }}
+                        placeholder={`e.g. ${verifiedQty}`}
+                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm mt-1 text-white focus:outline-none focus:ring-1 focus:ring-emerald-400 font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
 
-                    <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/25 rounded-2xl text-xs text-emerald-300 flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-400" />
-                      <span>Sealing this batch will generate an immutable on-chain handover record for <strong>{packagingDistributor}</strong> (Destination: <strong>{destinationHubInput}</strong>).</span>
+                    {/* 2. ESTIMATED SHELF LIFE (DD-MM-YYYY) */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs text-zinc-400 uppercase font-bold">Estimated shelf life</label>
+                        <span className="text-xs font-mono font-bold text-emerald-400">
+                          {formatToDdMmYyyy(estimatedShelfLifeInput) || "dd-mm-yyyy"}
+                        </span>
+                      </div>
+                      <input
+                        type="date"
+                        min={new Date().toISOString().split("T")[0]}
+                        value={estimatedShelfLifeInput}
+                        onChange={(e) => setEstimatedShelfLifeInput(e.target.value)}
+                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm mt-1 text-white focus:outline-none focus:ring-1 focus:ring-emerald-400 font-medium cursor-pointer"
+                      />
+                      <div className="flex justify-between items-center mt-1 text-[11px] text-zinc-400">
+                        <span>Format: <strong className="text-zinc-300 font-mono">dd-mm-yyyy</strong></span>
+                        {estimatedShelfLifeInput && (
+                          <span className="text-emerald-400 font-medium">
+                            (~{computeShelfLifeDays(estimatedShelfLifeInput)} days shelf life)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 3. PROCESSING COMPLETION DATE & TIME (AUTOMATIC) */}
+                    <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 text-zinc-300">
+                        <Clock className="h-4 w-4 text-emerald-400 shrink-0" />
+                        <div>
+                          <p className="text-[11px] text-zinc-400 uppercase font-bold">Processing Completion Timestamp</p>
+                          <p className="text-xs font-semibold text-emerald-400">{formattedDate} • {formattedTime} (Auto-recorded)</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        Live Clock ✓
+                      </span>
                     </div>
 
                     <div className="flex gap-2 pt-2">
                       <Button
                         variant="outline"
-                        onClick={() => setPackagingModalBatch(null)}
+                        onClick={() => setProcessingModalBatch(null)}
                         className="flex-1 rounded-xl border-zinc-700 text-zinc-300 hover:text-white"
                       >
                         Cancel
                       </Button>
                       <Button
+                        disabled={!processedQtyInput || Number(processedQtyInput) <= 0 || !estimatedShelfLifeInput}
                         onClick={async () => {
-                          const batchId = packagingModalBatch.batchId
-                          await handlePackagingAndTransfer(
-                            batchId, 
-                            packagingTypeInput, 
-                            storageTempInput, 
-                            packagingDistributor,
-                            destinationHubInput,
-                            logisticsModeInput
+                          await handleCompleteProcessing(
+                            processingModalBatch.batchId, 
+                            Number(processedQtyInput),
+                            estimatedShelfLifeInput
                           )
-                          setPackagingModalBatch(null)
                         }}
-                        className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shadow-md"
+                        className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                       >
-                        <Truck className="h-4 w-4" />
-                        🚚 Confirm & Transfer on Chain
+                        <CheckCircle className="h-4 w-4" />
+                        Complete Processing & Record on Chain
                       </Button>
                     </div>
                   </div>
                 </>
               )
             })()}
-          </Card>
-        </div>
-      )}
-
-      {/* MODAL: Quarantine & Discard / Bio-Divert Modal */}
-      {disposalModalBatch && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <Card className="max-w-md w-full rounded-3xl border shadow-2xl p-6 bg-zinc-900 border-zinc-800 text-white space-y-5 my-auto">
-            <div className="flex justify-between items-start border-b border-zinc-800 pb-3">
-              <div>
-                <h3 className="font-bold text-lg text-white flex items-center gap-2">
-                  {disposalModalBatch.action === "discard" ? (
-                    <>
-                      <Trash2 className="h-5 w-5 text-red-400" />
-                      Quarantine & Discard on Chain
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-5 w-5 text-amber-400" />
-                      Divert to Industrial Bio-Waste
-                    </>
-                  )}
-                </h3>
-                <p className="text-xs text-zinc-400">Batch: <span className="text-emerald-400 font-mono font-semibold">{disposalModalBatch.batch.batchId}</span> • Produce: <span className="text-emerald-400 font-semibold">{disposalModalBatch.batch.originalProduct.name}</span></p>
-              </div>
-              <button
-                onClick={() => setDisposalModalBatch(null)}
-                className="flex items-center justify-center p-2 rounded-full bg-zinc-800 text-zinc-200 hover:text-white hover:bg-zinc-700 border border-zinc-700 transition-all shadow-md shrink-0 cursor-pointer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800 grid grid-cols-2 gap-2.5 text-xs">
-              <div><span className="text-zinc-400">Produce:</span> <strong className="text-emerald-400 font-semibold ml-1">{disposalModalBatch.batch.originalProduct.name}</strong></div>
-              <div><span className="text-zinc-400">Quantity:</span> <strong className="text-emerald-400 font-semibold ml-1">{receipts[disposalModalBatch.batch.originalProduct.id]?.receivedQty || disposalModalBatch.batch.originalProduct.quantity} kg</strong></div>
-              <div><span className="text-zinc-400">Origin:</span> <strong className="text-emerald-400 font-semibold ml-1">{disposalModalBatch.batch.originalProduct.farmer?.name || "Ravi"}</strong></div>
-              <div><span className="text-zinc-400">Status:</span> <strong className="text-red-400 font-semibold ml-1">Past Shelf-Life</strong></div>
-            </div>
-
-            <div className="space-y-3.5 text-xs">
-              {disposalModalBatch.action === "discard" ? (
-                <div>
-                  <label className="text-zinc-400 uppercase font-bold text-[10px]">Reason for Food Loss / Quarantine</label>
-                  <select
-                    value={discardReasonInput}
-                    onChange={(e) => setDiscardReasonInput(e.target.value)}
-                    className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-xs mt-1 text-white focus:outline-none"
-                  >
-                    <option value="Expired past shelf-life threshold (0 days left)">Expired past shelf-life threshold (0 days left)</option>
-                    <option value="Spoilage & severe visual decay detected">Spoilage & severe visual decay detected</option>
-                    <option value="Failed secondary microbial safety inspection">Failed secondary microbial safety inspection</option>
-                    <option value="Packaging integrity breach in cold store">Packaging integrity breach in cold store</option>
-                  </select>
-                </div>
-              ) : (
-                <div>
-                  <label className="text-zinc-400 uppercase font-bold text-[10px]">Select Organic Re-route Destination</label>
-                  <select
-                    value={divertDestinationInput}
-                    onChange={(e) => setDivertDestinationInput(e.target.value)}
-                    className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-xs mt-1 text-white focus:outline-none"
-                  >
-                    <option value="Agricultural Bio-Composting Facility">Agricultural Bio-Composting Facility</option>
-                    <option value="Local Farm Animal Feed Pellet Unit">Local Farm Animal Feed Pellet Unit</option>
-                    <option value="Industrial Biogas & Ethanol Digester">Industrial Biogas & Ethanol Digester</option>
-                    <option value="Secondary Processing (Industrial Starch/Pulp)">Secondary Processing (Industrial Starch/Pulp)</option>
-                  </select>
-                </div>
-              )}
-
-              <div className={`p-3 rounded-xl border text-[11px] ${
-                disposalModalBatch.action === "discard"
-                  ? "bg-red-500/10 border-red-500/25 text-red-300"
-                  : "bg-amber-500/10 border-amber-500/25 text-amber-300"
-              }`}>
-                {disposalModalBatch.action === "discard"
-                  ? "⚠️ This action permanently flags this batch as food loss and logs the quarantine reason on the blockchain ledger."
-                  : "🌱 This action transfers custody of organic biomass to the industrial recycling/composting facility on the blockchain."}
-              </div>
-
-              <div className="flex gap-2 pt-1">
-                <Button
-                  variant="outline"
-                  onClick={() => setDisposalModalBatch(null)}
-                  className="flex-1 rounded-xl border-zinc-700 text-zinc-300 hover:text-white"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={async () => {
-                    const bId = disposalModalBatch.batch.batchId
-                    if (disposalModalBatch.action === "discard") {
-                      await handleDiscardBatch(bId, discardReasonInput)
-                    } else {
-                      await handleDivertBatch(bId, divertDestinationInput)
-                    }
-                    setDisposalModalBatch(null)
-                  }}
-                  className={`flex-1 rounded-xl text-white font-bold gap-1.5 shadow-md ${
-                    disposalModalBatch.action === "discard"
-                      ? "bg-red-600 hover:bg-red-700"
-                      : "bg-amber-600 hover:bg-amber-700"
-                  }`}
-                >
-                  {disposalModalBatch.action === "discard" ? (
-                    <>
-                      <Trash2 className="h-4 w-4" /> Confirm Discard
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-4 w-4" /> Confirm Diversion
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
           </Card>
         </div>
       )}

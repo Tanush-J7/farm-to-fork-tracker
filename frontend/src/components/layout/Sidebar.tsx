@@ -154,6 +154,10 @@ export function Sidebar() {
 
     if (Object.keys(updates).length > 0) {
       updateUser(updates)
+      if (updates.address) {
+        localStorage.setItem("farmer_address", updates.address)
+        window.dispatchEvent(new Event("farmer_profile_updated"))
+      }
       setSuccessMsg(`${user?.role === "farmer" ? "Farmer" : "Processor"} settings saved successfully!`)
       setTimeout(() => {
         setShowModal(false)
@@ -444,13 +448,13 @@ export function Sidebar() {
                         <MapPin className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                         <textarea
                           rows={2}
+                          readOnly
                           value={newAddress}
-                          onChange={(e) => setNewAddress(e.target.value)}
-                          placeholder="Enter farm address manually or use GPS button above"
-                          className="flex w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 resize-none"
+                          placeholder="Click 'Use Current Location' above to update address via GPS"
+                          className="flex w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus-visible:outline-none cursor-default resize-none"
                         />
                       </div>
-                      <p className="text-[10px] text-slate-400">Rule: Address can change 1 time in 6 months.</p>
+                      <p className="text-[10px] text-slate-400">Rule: Address must be set via GPS (1 update per 6 months).</p>
                     </div>
                   )}
                 </div>
@@ -579,10 +583,10 @@ export function Sidebar() {
                     <MapPin className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                     <textarea
                       rows={2}
+                      readOnly
                       value={newAddress}
-                      onChange={(e) => setNewAddress(e.target.value)}
-                      placeholder="Enter address manually"
-                      className="flex w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 resize-none"
+                      placeholder="Click 'Use Current Location' above to update facility address via GPS"
+                      className="flex w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus-visible:outline-none cursor-default resize-none"
                     />
                   </div>
 

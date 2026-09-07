@@ -10,6 +10,7 @@ import { Button } from "../components/ui/Button"
 import axios from "axios"
 import { Html5Qrcode } from "html5-qrcode"
 import jsQR from "jsqr"
+import { getFarmerLocation, getProcessorLocation } from "../utils"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 const RPC_URL = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545"
@@ -306,6 +307,18 @@ export function Tracker() {
 
   const mappedDisplayId = dbProduct ? format6DigitId(dbProduct.product_id || dbProduct.id) : (productIdInput || "100000")
 
+  const pNumId = dbProduct ? String(dbProduct.product_id) : ""
+  const pBatch = dbProduct ? String(dbProduct.batch_number) : ""
+  const inspection = storedInspections[pId] || (pNumId ? storedInspections[pNumId] : null) || (pBatch ? storedInspections[pBatch] : null)
+  const matchingBatch = Object.values(storedBatches).find((b: any) => 
+    (pId && b.productId === pId) || 
+    (pNumId && b.productId === pNumId) || 
+    (pBatch && b.originalProduct?.batch_number === pBatch)
+  ) as any
+
+  const processorFacilityName = inspection?.inspectorName || matchingBatch?.processorName || "Processing Facility"
+  const processorFacilityLocation = inspection?.facilityLocation || matchingBatch?.facilityLocation || getProcessorLocation(processorFacilityName)
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-24 pt-8 px-4">
       {/* Header Search & QR Trigger */}
@@ -498,14 +511,14 @@ export function Tracker() {
                 },
                 {
                   title: "Farmer Origin Record",
-                  desc: `Harvested by ${dbProduct?.farmer?.name || "Ravi"} • Location: ${dbProduct?.farmer?.email ? "Raichur, India" : "Local Certified Farm"}`,
+                  desc: `Harvested by ${dbProduct?.farmer?.name || "Ravi"} • Location: ${getFarmerLocation(dbProduct)}`,
                   status: "verified",
                   role: "Farmer"
                 },
                 {
                   title: "Processor Inspection Record",
                   desc: hasProcessorRecord
-                    ? `Physical quality inspected and certified: ${qualityGrade} (${qualityScore}%)`
+                    ? `Physical quality inspected and certified at ${processorFacilityName} • Location: ${processorFacilityLocation} • Certified: ${qualityGrade} (${qualityScore}%)`
                     : "Awaiting batch arrival and physical quality inspection at processing facility",
                   status: hasProcessorRecord ? "verified" : "pending",
                   role: "Processor"

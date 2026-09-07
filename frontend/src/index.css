@@ -45,6 +45,18 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
   }
+
+  /* Remove stepper/spinner up-down buttons from number inputs across the entire application */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
 }
 
 /* White + green application surfaces */
