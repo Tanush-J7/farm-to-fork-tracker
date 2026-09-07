@@ -92,6 +92,7 @@ const normaliseProduct = (product: any): Product => ({
 
 export function FarmerDashboard() {
   const { token } = useAuth()
+
   // Form state
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(createProductForm)
