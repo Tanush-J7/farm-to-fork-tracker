@@ -143,7 +143,7 @@ export const getMyProducts = async (req: Request, res: Response) => {
     const { data: products, error } = await supabase
       .from('products')
       .select('id, product_id, blockchain_hash, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, expiry_date, product_image_url, created_at, updated_at')
-      .eq('farmer_id', farmerId)
+      .or(`farmer_id.eq.${farmerId},current_owner_id.eq.${farmerId}`)
       .order('created_at', { ascending: false });
 
     if (error) {
