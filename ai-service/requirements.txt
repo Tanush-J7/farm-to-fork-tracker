@@ -8,3 +8,4 @@ pandas
 joblib
 xgboost
 supabase
+requests
