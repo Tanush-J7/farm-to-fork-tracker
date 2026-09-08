@@ -153,36 +153,36 @@ export function FarmerAIAssistant() {
         <div className="space-y-6 pt-4 border-t border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
           
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl bg-slate-800/50 border border-white/5">
-              <p className="text-xs font-medium text-slate-400 mb-1">CURRENT PRICE</p>
-              <div className="text-2xl font-bold text-white">₹{result.current_price.toFixed(2)}<span className="text-sm font-normal text-slate-400">/kg</span></div>
+            <div className="p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-white/5">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">CURRENT PRICE</p>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">₹{result.current_price.toFixed(2)}<span className="text-sm font-normal text-slate-500 dark:text-slate-400">/kg</span></div>
             </div>
             
-            <div className="p-4 rounded-xl bg-slate-800/50 border border-white/5">
-              <p className="text-xs font-medium text-slate-400 mb-1">PREDICTED PRICE</p>
-              <div className="text-2xl font-bold text-blue-400">
+            <div className="p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-white/5">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">PREDICTED PRICE</p>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                 ₹{result.predictions[result.predictions.length - 1].predicted_price.toFixed(2)}
-                <span className="text-sm font-normal text-slate-400">/kg</span>
+                <span className="text-sm font-normal text-slate-500 dark:text-slate-400">/kg</span>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-800/50 border border-white/5">
-              <p className="text-xs font-medium text-slate-400 mb-1">EXPECTED CHANGE</p>
+            <div className="p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-white/5">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">EXPECTED CHANGE</p>
               <div className={`text-2xl font-bold ${
-                result.expected_change_pct > 0 ? "text-emerald-400" : 
-                result.expected_change_pct < 0 ? "text-red-400" : "text-slate-300"
+                result.expected_change_pct > 0 ? "text-emerald-600 dark:text-emerald-400" : 
+                result.expected_change_pct < 0 ? "text-red-600 dark:text-red-400" : "text-slate-600 dark:text-slate-300"
               }`}>
                 {result.expected_change_pct > 0 ? '+' : ''}{result.expected_change_pct.toFixed(2)}%
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-800/50 border border-white/5">
-              <p className="text-xs font-medium text-slate-400 mb-1">MARKET TREND</p>
+            <div className="p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-white/5">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">MARKET TREND</p>
               <div className="flex items-center gap-2 mt-1">
-                {result.trend === "INCREASING" && <TrendingUp className="h-6 w-6 text-emerald-400" />}
-                {result.trend === "DECREASING" && <TrendingDown className="h-6 w-6 text-red-400" />}
-                {result.trend === "STABLE" && <Minus className="h-6 w-6 text-slate-400" />}
-                <span className="text-lg font-bold capitalize text-white">{result.trend.toLowerCase()}</span>
+                {result.trend === "INCREASING" && <TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />}
+                {result.trend === "DECREASING" && <TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400" />}
+                {result.trend === "STABLE" && <Minus className="h-6 w-6 text-slate-500 dark:text-slate-400" />}
+                <span className="text-lg font-bold capitalize text-slate-900 dark:text-white">{result.trend.toLowerCase()}</span>
               </div>
             </div>
           </div>
