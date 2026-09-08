@@ -3,3 +3,8 @@
 fastapi
 uvicorn
 pydantic
+scikit-learn
+pandas
+joblib
+xgboost
+supabase

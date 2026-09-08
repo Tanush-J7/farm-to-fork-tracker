@@ -1,0 +1,23 @@
+{
+    "train": {
+        "split": "Train",
+        "rows": 7,
+        "mae": 0.2564,
+        "rmse": 0.2564,
+        "mape": 0.6338
+    },
+    "val": {
+        "split": "Validation",
+        "rows": 1,
+        "mae": 0.2564,
+        "rmse": 0.2564,
+        "mape": 0.618
+    },
+    "test": {
+        "split": "Test",
+        "rows": 2,
+        "mae": 0.2564,
+        "rmse": 0.2564,
+        "mape": 0.6124
+    }
+}

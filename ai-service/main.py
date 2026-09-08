@@ -95,25 +95,46 @@ def predict_shelf_life(data: CropData):
 
 
 # ─────────────────────────────────────────────
-# 4. Market Price Prediction
+# 4. Market Price Prediction (XGBoost Real Pipeline)
 # ─────────────────────────────────────────────
-@app.post("/predict/price")
-def predict_price(data: CropData):
-    """Predict market price per kg (mocked)."""
-    base_prices = {
-        "tomatoes": 1.5, "mangoes": 3.2, "avocados": 4.5, "apples": 2.1,
-        "wheat": 0.4, "rice": 0.8, "grapes": 2.8
-    }
-    base = base_prices.get(data.crop_type.lower(), 2.0)
-    variation = random.uniform(0.85, 1.25)
-    predicted = round(base * variation, 2)
-    return {
-        "crop": data.crop_type,
-        "predicted_price_per_kg": predicted,
-        "price_trend": random.choice(["Rising", "Stable", "Falling"]),
-        "market_demand": random.choice(["High", "Medium", "Low"]),
-        "confidence": round(random.uniform(0.78, 0.95), 2)
-    }
+from services.price_prediction_service import PricePredictionService
+from pydantic import Field
+import pandas as pd
+import os
+
+# Load service strictly once at startup
+price_service = PricePredictionService(model_dir="models/price_model")
+
+class PricePredictionRequest(BaseModel):
+    commodity: str
+    market: str
+    forecast_days: int = Field(default=7, ge=1, le=7)
+
+@app.post("/api/farmer/price-prediction")
+def predict_price_real(data: PricePredictionRequest):
+    """
+    Real AI Endpoint predicting multi-day prices using XGBoost.
+    """
+    # -------------------------------------------------------------
+    # MOCK / REAL DATABASE FETCH
+    # Fetches real Postgres historical data via Supabase if configured.
+    # Automatically falls back to the local raw CSV if unreachable.
+    # -------------------------------------------------------------
+    from services.database import fetch_historical_prices
+    try:
+        df_history = fetch_historical_prices(data.commodity, data.market, limit=35)
+    except Exception as e:
+        return {"error": "DATABASE_ERROR", "message": f"Failed to retrieve history: {e}"}
+
+    # Execute Prediction
+    result = price_service.predict(
+        commodity=data.commodity,
+        market=data.market,
+        recent_history_df=df_history,
+        forecast_days=data.forecast_days
+    )
+    
+    return result
 
 
 # ─────────────────────────────────────────────

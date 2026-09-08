@@ -9,6 +9,7 @@ import { RegisterPage } from "./pages/RegisterPage"
 import { Dashboard } from "./pages/Dashboard"
 import { FarmerDashboard } from "./pages/FarmerDashboard"
 import { MyProductsPage } from "./pages/MyProductsPage"
+import { FarmerAIServices } from "./pages/FarmerAIServices"
 import { ProcessorDashboard } from "./pages/ProcessorDashboard"
 import { DistributorDashboard } from "./pages/DistributorDashboard"
 import { RetailerDashboard as OldRetailerDashboard } from "./pages/RetailerDashboard"
@@ -60,6 +61,7 @@ function App() {
           <Route path="/farmer" element={<DashboardLayout />}>
             <Route index element={<FarmerDashboard />} />
             <Route path="products" element={<MyProductsPage />} />
+            <Route path="ai-services" element={<FarmerAIServices />} />
           </Route>
 
           <Route path="/processor" element={<DashboardLayout />}>

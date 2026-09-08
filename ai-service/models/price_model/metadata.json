@@ -1,0 +1,95 @@
+{
+    "model_version": "1.0.0",
+    "model_type": "XGBoostRegressor",
+    "target": "modal_price",
+    "trained_at": "2026-09-08T22:49:44.452773",
+    "training_start": "2023-01-31",
+    "training_end": "2023-02-06",
+    "features": [
+        "commodity",
+        "market",
+        "arrivals",
+        "day_of_week",
+        "day_of_month",
+        "week_of_year",
+        "month",
+        "quarter",
+        "day_of_year",
+        "is_weekend",
+        "season",
+        "lag_1",
+        "lag_3",
+        "lag_7",
+        "lag_14",
+        "lag_30",
+        "arrival_lag_1",
+        "arrival_lag_7",
+        "rolling_mean_3",
+        "rolling_mean_7",
+        "rolling_mean_14",
+        "rolling_mean_30",
+        "rolling_std_7",
+        "rolling_std_14",
+        "rolling_std_30",
+        "arrival_rolling_mean_7",
+        "price_change_1d",
+        "price_change_7d",
+        "price_change_30d",
+        "price_pct_change_1d",
+        "price_pct_change_7d",
+        "price_pct_change_30d"
+    ],
+    "categorical_features": [
+        "commodity",
+        "market"
+    ],
+    "top_features": [
+        "lag_3",
+        "lag_1",
+        "day_of_year",
+        "day_of_week",
+        "arrivals"
+    ],
+    "metrics": {
+        "baseline": {
+            "train": {
+                "split": "Train",
+                "rows": 7,
+                "mae": 0.2564,
+                "rmse": 0.2564,
+                "mape": 0.6338
+            },
+            "val": {
+                "split": "Validation",
+                "rows": 1,
+                "mae": 0.2564,
+                "rmse": 0.2564,
+                "mape": 0.618
+            },
+            "test": {
+                "split": "Test",
+                "rows": 2,
+                "mae": 0.2564,
+                "rmse": 0.2564,
+                "mape": 0.6124
+            }
+        },
+        "xgboost": {
+            "train": {
+                "mae": 0.0005,
+                "rmse": 0.0006,
+                "mape": 0.0011
+            },
+            "val": {
+                "mae": 0.4648,
+                "rmse": 0.4648,
+                "mape": 1.1204
+            },
+            "test": {
+                "mae": 1.0004,
+                "rmse": 1.0041,
+                "mape": 2.3899
+            }
+        }
+    }
+}
