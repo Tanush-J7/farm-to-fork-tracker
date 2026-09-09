@@ -25,10 +25,10 @@ def main():
     manager = PriceDataSourceManager(supabase)
 
     # List of commodities/markets to sync
-    targets = [
-        ("Tomato", "Bangalore"),
-        ("Onion", "Bangalore")
-    ]
+    commodities = ["Tomato", "Onion", "Potato", "Carrot", "Cabbage", "Green Chilli", "Brinjal"]
+    markets = ["Bangalore", "Mysore", "Mumbai", "Pune", "Delhi", "Hyderabad", "Chennai"]
+    
+    targets = [(c, m) for c in commodities for m in markets]
 
     for commodity, market in targets:
         manager.fetch_and_publish(commodity, market)
