@@ -153,7 +153,7 @@ export function FarmerAIAssistant() {
           
           {/* Data Source Warnings */}
           {(result.data_source === "CEDA_AGMARKNET" || result.data_source === "DATABASE_CACHE" || !result.data_source) && (
-            <div className="p-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 text-yellow-800 dark:text-yellow-200 flex items-center gap-3">
+            <div className="p-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 text-amber-700 dark:text-amber-300 flex items-center gap-3">
               <AlertTriangle className="h-5 w-5 shrink-0" />
               <p className="text-sm font-medium">
                 {result.data_source === "CEDA_AGMARKNET" 
@@ -202,26 +202,26 @@ export function FarmerAIAssistant() {
           <div className="p-6 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
             <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-6">{forecastDays}-Day Price Forecast</h3>
             <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
+              <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" strokeOpacity={0.2} vertical={false} />
                 <XAxis 
                   dataKey="date" 
-                  stroke="rgba(255,255,255,0.4)" 
-                  tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
+                  stroke="#64748b" 
+                  tick={{ fill: '#64748b', fontSize: 12 }}
                   tickLine={false}
                   axisLine={false}
                   dy={10}
                 />
                 <YAxis 
                   domain={[minPrice, maxPrice]}
-                  stroke="rgba(255,255,255,0.4)" 
-                  tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
+                  stroke="#64748b" 
+                  tick={{ fill: '#64748b', fontSize: 12 }}
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(val) => `₹${val}`}
                 />
                 <RechartsTooltip 
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem' }}
+                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#f8fafc' }}
                   itemStyle={{ color: '#60a5fa', fontWeight: 'bold' }}
                   formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Price']}
                 />
@@ -230,7 +230,7 @@ export function FarmerAIAssistant() {
                   dataKey="price" 
                   stroke="#3b82f6" 
                   strokeWidth={3}
-                  dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+                  dot={{ r: 4, fill: '#3b82f6', strokeWidth: 0 }}
                   activeDot={{ r: 6, fill: '#60a5fa' }}
                 />
               </LineChart>
