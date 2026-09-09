@@ -123,6 +123,16 @@ class MarketPriceDBConsumer:
             "data_as_of": payload.get("data_as_of", payload["date"]),
             "fetched_at": payload.get("fetched_at", datetime.now(timezone.utc).isoformat())
         }
+        
+        # Add optional retail fields if present
+        if "wholesale_price" in payload:
+            db_record["wholesale_price"] = payload["wholesale_price"]
+        if "retail_min" in payload:
+            db_record["retail_min"] = payload["retail_min"]
+        if "retail_max" in payload:
+            db_record["retail_max"] = payload["retail_max"]
+        if "retail_unit" in payload:
+            db_record["retail_unit"] = payload["retail_unit"]
 
         try:
             # We rely on the unique constraint (commodity, market, date) for upsert resolution

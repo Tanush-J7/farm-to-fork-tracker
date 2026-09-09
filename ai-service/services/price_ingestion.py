@@ -63,6 +63,66 @@ class CedaAgmarknetSource(MarketPriceSource):
             logger.error(f"CedaAgmarknetSource fetch failed: {e}")
             return []
 
+import re
+import urllib.request
+
+class VegetableMarketPriceSource(MarketPriceSource):
+    def __init__(self):
+        super().__init__()
+        self.name = "VEGETABLE_MARKET_PRICE"
+
+    def fetch_data(self, commodity: str, market: str) -> List[Dict[str, Any]]:
+        # Map some common cities to the URL format
+        city_map = {
+            "bangalore": "bangalore",
+            "mumbai": "mumbai",
+            "chennai": "chennai",
+            "delhi": "delhi"
+        }
+        city_slug = city_map.get(market.lower(), market.lower().replace(" ", ""))
+        url = f"https://vegetablemarketprice.com/market/{city_slug}/today"
+        
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                html = response.read().decode('utf-8')
+                
+            # Naive scraping with regex for this fallback
+            # Look for table rows: <tr>...<td>...Vegetable...</td><td>Price</td><td>Retail</td><td>Units</td>...</tr>
+            # It's better to isolate the whole table, but we will look for rows containing our commodity.
+            # Convert HTML to one line
+            html_flat = html.replace('\n', ' ').replace('\r', '')
+            
+            # Simple regex search around the commodity name
+            # We look for: <tr ...> <td ...> ... </td> <td scope="row"> ... Tomato ... </td> <td> ₹33 </td> <td> ₹36 - 43 </td> <td> 1kg </td> </tr>
+            import re
+            pattern = rf'<tr[^>]*>.*?<td scope="row">\s*{commodity}\s*</td>\s*<td>\s*₹(\d+(?:\.\d+)?)\s*</td>\s*<td>\s*₹(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*</td>\s*<td>\s*(\w+)\s*</td>.*?</tr>'
+            match = re.search(pattern, html_flat, re.IGNORECASE)
+            
+            if match:
+                wholesale_price = float(match.group(1))
+                retail_min = float(match.group(2))
+                retail_max = float(match.group(3))
+                unit = match.group(4)
+                
+                # Normalize unit to match Agmarknet quintals if it is "1kg", or just leave it for normalizer to handle.
+                # Since ML expects modal_price in Quintals usually (e.g. 3300 for 33/kg).
+                # Actually, our normalizer looks for 'min_price', 'max_price', 'modal_price'.
+                # Let's pass the raw parsed data.
+                return [{
+                    "date": datetime.now().strftime("%Y-%m-%d"),
+                    "commodity": commodity,
+                    "market": market,
+                    "wholesale_price": wholesale_price,
+                    "retail_min": retail_min,
+                    "retail_max": retail_max,
+                    "unit": unit
+                }]
+            return []
+        except Exception as e:
+            logger.error(f"VegetableMarketPriceSource fetch failed: {e}")
+            return []
+
 class DatabaseCacheSource(MarketPriceSource):
     def __init__(self, supabase_client):
         super().__init__()
@@ -90,9 +150,10 @@ class PriceDataSourceManager:
     def __init__(self, supabase_client):
         api_key = os.getenv("DATA_GOV_API_KEY", "")
         self.sources = [
-            DataGovSource(api_key),
-            CedaAgmarknetSource(),
-            DatabaseCacheSource(supabase_client)
+            CedaAgmarknetSource(),                      # Primary
+            DataGovSource(api_key),                     # Fallback 1
+            VegetableMarketPriceSource(),               # Fallback 2
+            DatabaseCacheSource(supabase_client)        # Fallback 3
         ]
         self.kafka_producer = KafkaEventProducer()
 
@@ -117,7 +178,30 @@ class PriceDataSourceManager:
                     "fetched_at": datetime.now(timezone.utc).isoformat()
                 }
 
-            # Handle Agmarknet format
+            # Handle VegetableMarketPrice format
+            if source_name == "VEGETABLE_MARKET_PRICE":
+                return {
+                    "date": raw["date"],
+                    "commodity": raw["commodity"],
+                    "market": raw["market"],
+                    "state": "Unknown",
+                    "district": "Unknown",
+                    "variety": "FAQ",
+                    "grade": "FAQ",
+                    "min_price": float(raw["wholesale_price"]) * 100,  # approximate to Quintal for ML consistency
+                    "max_price": float(raw["wholesale_price"]) * 100,
+                    "modal_price": float(raw["wholesale_price"]) * 100,
+                    "arrivals": 0.0,
+                    "source": source_name,
+                    "data_as_of": raw["date"],
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "wholesale_price": float(raw["wholesale_price"]),
+                    "retail_min": float(raw["retail_min"]),
+                    "retail_max": float(raw["retail_max"]),
+                    "retail_unit": raw["unit"]
+                }
+
+            # Handle Agmarknet/DataGov format
             raw_date = raw.get("arrival_date", "")
             iso_date = datetime.strptime(raw_date, "%d/%m/%Y").strftime("%Y-%m-%d")
             
