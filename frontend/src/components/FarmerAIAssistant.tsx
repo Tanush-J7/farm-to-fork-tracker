@@ -152,7 +152,7 @@ export function FarmerAIAssistant() {
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           
           {/* Data Source Warnings */}
-          {(result.data_source === "CEDA_AGMARKNET" || result.data_source === "DATABASE_CACHE") && (
+          {(result.data_source === "CEDA_AGMARKNET" || result.data_source === "DATABASE_CACHE" || !result.data_source) && (
             <div className="p-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 text-yellow-800 dark:text-yellow-200 flex items-center gap-3">
               <AlertTriangle className="h-5 w-5 shrink-0" />
               <p className="text-sm font-medium">
@@ -167,7 +167,7 @@ export function FarmerAIAssistant() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Current Price</p>
-              <div className="text-2xl font-bold dark:text-white">₹{result.current_price.toFixed(2)}<span className="text-sm text-slate-500 dark:text-slate-400 font-normal">/kg</span></div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">₹{result.current_price?.toFixed(2) || "0.00"}<span className="text-sm text-slate-500 dark:text-slate-400 font-normal">/kg</span></div>
             </div>
             
             <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
@@ -192,7 +192,7 @@ export function FarmerAIAssistant() {
 
             <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Data Age</p>
-              <div className="text-2xl font-bold dark:text-white">
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">
                 {result.data_age_days === 0 ? "Today" : `${result.data_age_days} Days`}
               </div>
             </div>
