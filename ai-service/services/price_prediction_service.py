@@ -50,7 +50,9 @@ class PricePredictionService:
 
         current_price = float(df.iloc[-1]['modal_price'])
         data_as_of = df.iloc[-1]['date']
-        data_source = df.iloc[-1].get('source', 'DATABASE_CACHE')
+        data_source = df.iloc[-1].get('source')
+        if pd.isna(data_source) or not data_source:
+            data_source = 'DATABASE_CACHE'
         
         # Calculate data age
         age = (datetime.now().date() - data_as_of.date()).days

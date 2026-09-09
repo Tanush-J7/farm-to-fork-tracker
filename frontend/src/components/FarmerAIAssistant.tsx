@@ -244,7 +244,7 @@ export function FarmerAIAssistant() {
               <span>Forecast based on historical market patterns.</span>
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-2 opacity-80">
-              <span><strong>Data Source:</strong> {result.data_source.replace('_', ' ')}</span>
+              <span><strong>Data Source:</strong> {(result.data_source || 'DATABASE_CACHE').replace('_', ' ')}</span>
               <span><strong>Data As Of:</strong> {new Date(result.data_as_of).toLocaleDateString()}</span>
               <span><strong>Model:</strong> XGBoost v{result.model_version}</span>
             </div>
