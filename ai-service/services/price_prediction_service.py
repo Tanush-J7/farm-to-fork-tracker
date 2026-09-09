@@ -111,10 +111,21 @@ class PricePredictionService:
         else:
             trend = "STABLE"
 
+        # Get last 10 days of historical data for the frontend chart
+        history_subset = df.tail(10)
+        historical_data = [
+            {
+                "date": row['date'].strftime("%Y-%m-%d"),
+                "price": round(float(row['modal_price']), 2)
+            }
+            for _, row in history_subset.iterrows()
+        ]
+
         return {
             "commodity": commodity,
             "market": market,
             "current_price": round(current_price, 2),
+            "historical_data": historical_data,
             "predictions": predictions,
             "trend": trend,
             "data_source": data_source,

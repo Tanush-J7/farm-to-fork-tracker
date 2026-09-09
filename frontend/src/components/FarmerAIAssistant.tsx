@@ -11,10 +11,16 @@ interface PredictionItem {
   predicted_price: number
 }
 
+interface HistoricalItem {
+  date: string
+  price: number
+}
+
 interface PricePredictionResponse {
   commodity: string
   market: string
   current_price: number
+  historical_data?: HistoricalItem[]
   predictions: PredictionItem[]
   trend: "INCREASING" | "DECREASING" | "STABLE"
   data_source: string
@@ -58,7 +64,10 @@ export function FarmerAIAssistant() {
 
   // Transform data for Recharts
   const chartData = result ? [
-    { date: "Current", price: result.current_price },
+    ...(result.historical_data || []).map(h => ({
+      date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      price: h.price
+    })),
     ...result.predictions.map(p => {
       // Format date nicely (e.g. "Feb 10")
       const d = new Date(p.date)
