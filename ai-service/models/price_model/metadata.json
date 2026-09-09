@@ -2,13 +2,13 @@
     "model_version": "1.0.0",
     "model_type": "XGBoost Regressor",
     "target": "modal_price",
-    "trained_at": "2026-09-09T10:06:29.621134+00:00",
-    "training_start": "2023-02-01",
-    "training_end": "2023-02-07",
-    "training_rows": 7,
-    "MAE": 0.4469177050468254,
-    "RMSE": 0.4649429964871118,
-    "MAPE": 0.010664203619697558,
+    "trained_at": "2026-09-09T18:47:47.868122+00:00",
+    "training_start": "2023-01-31",
+    "training_end": "2023-02-23",
+    "training_rows": 24,
+    "MAE": 5.4654561665852865,
+    "RMSE": 5.505943919098161,
+    "MAPE": 0.16023331895515688,
     "features": [
         "lag_1",
         "lag_3",
@@ -39,5 +39,5 @@
         "arrival_lag_7",
         "arrival_rolling_mean_7"
     ],
-    "baseline_MAE": 0.2564102564102555
+    "baseline_MAE": 0.6785666666666662
 }
