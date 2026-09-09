@@ -45,7 +45,8 @@ MARKET_MODIFIER = {
 }
 
 DAYS = 60
-START_DATE = datetime(2023, 1, 1)
+# Make the data end EXACTLY yesterday, so today starts the predictions
+START_DATE = datetime.now() - timedelta(days=DAYS)
 
 rows = []
 for commodity, base_price in BASE_PRICES.items():
