@@ -9,17 +9,20 @@ const AI_API = import.meta.env.VITE_AI_API_URL || "http://localhost:8000"
 interface PredictionItem {
   date: string
   predicted_price: number
+  predicted_retail_price?: number
 }
 
 interface HistoricalItem {
   date: string
   price: number
+  retail_price?: number
 }
 
 interface PricePredictionResponse {
   commodity: string
   market: string
   current_price: number
+  current_retail_price?: number
   historical_data?: HistoricalItem[]
   predictions: PredictionItem[]
   trend: "INCREASING" | "DECREASING" | "STABLE"
@@ -33,6 +36,7 @@ export function FarmerAIAssistant() {
   const [commodity, setCommodity] = useState("Tomato")
   const [market, setMarket] = useState("Bangalore")
   const [forecastDays, setForecastDays] = useState<number>(7)
+  const [priceMode, setPriceMode] = useState<"wholesale" | "retail">("wholesale")
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<PricePredictionResponse | null>(null)
   const [error, setError] = useState("")
@@ -66,7 +70,7 @@ export function FarmerAIAssistant() {
   const chartData = result ? [
     ...(result.historical_data || []).map(h => ({
       date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      price: h.price
+      price: priceMode === 'retail' ? (h.retail_price || h.price * 1.3) : h.price
     })),
     ...result.predictions.map(p => {
       // Format date nicely (e.g. "Feb 10")
@@ -74,7 +78,7 @@ export function FarmerAIAssistant() {
       const formattedDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       return {
         date: formattedDate,
-        price: p.predicted_price
+        price: priceMode === 'retail' ? (p.predicted_retail_price || p.predicted_price * 1.3) : p.predicted_price
       }
     })
   ] : []
@@ -172,16 +176,48 @@ export function FarmerAIAssistant() {
             </div>
           )}
 
+          {/* Price Toggle */}
+          <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg w-max mb-6">
+            <button
+              onClick={() => setPriceMode("wholesale")}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                priceMode === "wholesale" 
+                  ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" 
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              }`}
+            >
+              Wholesale Mandi
+            </button>
+            <button
+              onClick={() => setPriceMode("retail")}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                priceMode === "retail" 
+                  ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" 
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              }`}
+            >
+              City Retail
+            </button>
+          </div>
+
           {/* Quick Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Current Price</p>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">₹{result.current_price?.toFixed(2) || "0.00"}<span className="text-sm text-slate-500 dark:text-slate-400 font-normal">/kg</span></div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Current {priceMode === 'retail' ? 'Retail' : 'Wholesale'}</p>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">₹{
+                priceMode === 'retail' 
+                  ? (result.current_retail_price?.toFixed(2) || (result.current_price * 1.3).toFixed(2))
+                  : (result.current_price?.toFixed(2) || "0.00")
+              }<span className="text-sm text-slate-500 dark:text-slate-400 font-normal">/kg</span></div>
             </div>
             
             <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Predicted Price</p>
-              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">₹{result.predictions[result.predictions.length - 1].predicted_price.toFixed(2)}<span className="text-sm font-normal text-blue-400/70">/kg</span></div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Predicted {priceMode === 'retail' ? 'Retail' : 'Wholesale'}</p>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">₹{
+                priceMode === 'retail'
+                  ? (result.predictions[result.predictions.length - 1].predicted_retail_price?.toFixed(2) || (result.predictions[result.predictions.length - 1].predicted_price * 1.3).toFixed(2))
+                  : result.predictions[result.predictions.length - 1].predicted_price.toFixed(2)
+              }<span className="text-sm font-normal text-blue-400/70">/kg</span></div>
             </div>
 
             <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
