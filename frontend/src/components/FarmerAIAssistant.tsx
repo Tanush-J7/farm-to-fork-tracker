@@ -83,9 +83,9 @@ export function FarmerAIAssistant() {
     })
   ] : []
 
-  // Calculate Y-axis domain
-  const minPrice = chartData.length > 0 ? Math.min(...chartData.map(d => d.price)) * 0.95 : 0
-  const maxPrice = chartData.length > 0 ? Math.max(...chartData.map(d => d.price)) * 1.05 : 0
+  // Calculate Y-axis domain (using floor/ceil to prevent extremely long decimals breaking Recharts YAxis)
+  const minPrice = chartData.length > 0 ? Math.floor(Math.min(...chartData.map(d => d.price)) * 0.95) : 0
+  const maxPrice = chartData.length > 0 ? Math.ceil(Math.max(...chartData.map(d => d.price)) * 1.05) : 0
 
   return (
     <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-sm text-slate-900 dark:text-white">
@@ -112,6 +112,10 @@ export function FarmerAIAssistant() {
             <option value="Tomato">Tomato</option>
             <option value="Onion">Onion</option>
             <option value="Potato">Potato</option>
+            <option value="Carrot">Carrot</option>
+            <option value="Cabbage">Cabbage</option>
+            <option value="Green Chilli">Green Chilli</option>
+            <option value="Brinjal">Brinjal</option>
           </select>
         </div>
 
@@ -125,8 +129,12 @@ export function FarmerAIAssistant() {
             className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all dark:text-white"
           >
             <option value="Bangalore">Bangalore</option>
+            <option value="Mysore">Mysore</option>
             <option value="Mumbai">Mumbai</option>
+            <option value="Pune">Pune</option>
             <option value="Delhi">Delhi</option>
+            <option value="Hyderabad">Hyderabad</option>
+            <option value="Chennai">Chennai</option>
           </select>
         </div>
 
@@ -263,12 +271,12 @@ export function FarmerAIAssistant() {
                   tick={{ fill: '#64748b', fontSize: 12 }}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(val) => `₹${val}`}
+                  tickFormatter={(val) => `\u20B9${val}`}
                 />
                 <RechartsTooltip 
                   contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#f8fafc' }}
                   itemStyle={{ color: '#60a5fa', fontWeight: 'bold' }}
-                  formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Price']}
+                  formatter={(value: number) => [`\u20B9${value.toFixed(2)}`, 'Price']}
                 />
                 <Line 
                   type="monotone" 
@@ -299,3 +307,4 @@ export function FarmerAIAssistant() {
     </div>
   )
 }
+
