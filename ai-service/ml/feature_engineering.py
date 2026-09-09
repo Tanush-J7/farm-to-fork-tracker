@@ -8,196 +8,82 @@ class FeatureEngineer:
     def __init__(self):
         pass
 
-    def get_season(self, month: int) -> int:
-        """
-        Map month to a season integer.
-        1: Winter (Dec, Jan, Feb)
-        2: Spring (Mar, Apr, May)
-        3: Summer/Monsoon (Jun, Jul, Aug)
-        4: Autumn/Post-Monsoon (Sep, Oct, Nov)
-        """
-        if month in [12, 1, 2]:
-            return 1
-        elif month in [3, 4, 5]:
-            return 2
-        elif month in [6, 7, 8]:
-            return 3
-        else:
-            return 4
-
-    def expand_to_daily(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Ensures strict chronological continuity by expanding the dataset to daily frequency
-        per commodity-market combination. This guarantees that a 7-day lag is exactly 7 days.
-        """
-        expanded_dfs = []
-        df['date'] = pd.to_datetime(df['date'])
-        
-        for (commodity, market), group in df.groupby(['commodity', 'market']):
-            group = group.set_index('date').sort_index()
-            # Create a full daily date range for this group
-            full_idx = pd.date_range(start=group.index.min(), end=group.index.max(), freq='D')
-            
-            # Reindex to full daily range
-            group = group.reindex(full_idx)
-            
-            # Restore group identifiers
-            group['commodity'] = commodity
-            group['market'] = market
-            
-            # Forward fill prices (markets closed on weekends/holidays hold previous price)
-            # Limit to 14 days to prevent filling massive gaps from missing data
-            group['modal_price'] = group['modal_price'].ffill(limit=14)
-            group['min_price'] = group['min_price'].ffill(limit=14)
-            group['max_price'] = group['max_price'].ffill(limit=14)
-            
-            # Arrivals should be 0 on missing days (market closed means 0 arrivals)
-            group['arrivals'] = group['arrivals'].fillna(0)
-            
-            expanded_dfs.append(group)
-            
-        if not expanded_dfs:
-            return pd.DataFrame()
-            
-        full_df = pd.concat(expanded_dfs).rename_axis('date').reset_index()
-        return full_df
-
     def create_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Generates lag, rolling, and time features strictly preventing future data leakage.
+        Generates strict time-series features without future data leakage.
+        Required columns: 'date', 'modal_price', 'arrivals'
         """
-        logger.info("Starting feature engineering. Expanding to daily frequency...")
-        df = self.expand_to_daily(df)
+        logger.info("Generating XGBoost features...")
+        df = df.copy()
         
-        # Sort values securely
-        df = df.sort_values(['commodity', 'market', 'date']).reset_index(drop=True)
-        
-        # ==========================================================
-        # TIME FEATURES
-        # ==========================================================
+        # Ensure date is datetime
+        df['date'] = pd.to_datetime(df['date'])
+        df = df.sort_values('date').reset_index(drop=True)
+
+        # 1. Date/Time Features
         df['day_of_week'] = df['date'].dt.dayofweek
         df['day_of_month'] = df['date'].dt.day
         df['week_of_year'] = df['date'].dt.isocalendar().week.astype(int)
         df['month'] = df['date'].dt.month
         df['quarter'] = df['date'].dt.quarter
         df['day_of_year'] = df['date'].dt.dayofyear
-        df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)
-        df['season'] = df['month'].apply(self.get_season)
 
-        # ==========================================================
-        # TARGET VARIABLE
-        # ==========================================================
-        # The target is the current row's 'modal_price'. 
-        # All features MUST be derived from shifted past values.
+        # Ensure arrivals exists
+        if 'arrivals' not in df.columns:
+            df['arrivals'] = 0.0
+            
+        # We must shift EVERYTHING by 1 day minimum so today's prediction only uses up to yesterday's data.
+        # But wait, the prompt says "tomorrow price = latest known price" and "target = modal_price".
+        # Standard approach: features are calculated on today's row, and we shift the TARGET to be tomorrow's price.
+        # Or, we shift the features so today's row has yesterday's features and today's target.
+        # Let's shift features so row `t` has features from `t-1` and target from `t`.
         
-        grouped = df.groupby(['commodity', 'market'])
+        # Actually, using pandas `shift(1)` on the rolling/lag calculations inherently prevents leakage 
+        # if we are predicting `modal_price` of row `t`.
         
-        logger.info("Generating lag and rolling features...")
-        
-        # Base shifted series (past values) to guarantee no leakage
-        past_price = grouped['modal_price'].shift(1)
-        past_arrivals = grouped['arrivals'].shift(1)
-        
-        # ==========================================================
-        # PRICE LAGS
-        # ==========================================================
-        df['lag_1'] = past_price
-        df['lag_3'] = grouped['modal_price'].shift(3)
-        df['lag_7'] = grouped['modal_price'].shift(7)
-        df['lag_14'] = grouped['modal_price'].shift(14)
-        df['lag_30'] = grouped['modal_price'].shift(30)
-        
-        # ==========================================================
-        # ARRIVALS FEATURES
-        # ==========================================================
-        df['arrival_lag_1'] = past_arrivals
-        df['arrival_lag_7'] = grouped['arrivals'].shift(7)
-        
-        # ==========================================================
-        # ROLLING FEATURES (Computed on past_price to prevent leakage)
-        # ==========================================================
-        df['rolling_mean_3'] = past_price.groupby(df['commodity'].astype(str) + df['market'].astype(str)).rolling(3, min_periods=1).mean().values
-        df['rolling_mean_7'] = past_price.groupby(df['commodity'].astype(str) + df['market'].astype(str)).rolling(7, min_periods=1).mean().values
-        df['rolling_mean_14'] = past_price.groupby(df['commodity'].astype(str) + df['market'].astype(str)).rolling(14, min_periods=1).mean().values
-        df['rolling_mean_30'] = past_price.groupby(df['commodity'].astype(str) + df['market'].astype(str)).rolling(30, min_periods=1).mean().values
-        
-        df['rolling_std_7'] = past_price.groupby(df['commodity'].astype(str) + df['market'].astype(str)).rolling(7, min_periods=2).std().values
-        df['rolling_std_14'] = past_price.groupby(df['commodity'].astype(str) + df['market'].astype(str)).rolling(14, min_periods=2).std().values
-        df['rolling_std_30'] = past_price.groupby(df['commodity'].astype(str) + df['market'].astype(str)).rolling(30, min_periods=2).std().values
-        
-        df['arrival_rolling_mean_7'] = past_arrivals.groupby(df['commodity'].astype(str) + df['market'].astype(str)).rolling(7, min_periods=1).mean().values
+        # 2. Lag Features (Price)
+        df['lag_1'] = df['modal_price'].shift(1)
+        df['lag_3'] = df['modal_price'].shift(3)
+        df['lag_7'] = df['modal_price'].shift(7)
+        df['lag_14'] = df['modal_price'].shift(14)
+        df['lag_30'] = df['modal_price'].shift(30)
 
-        # ==========================================================
-        # PRICE CHANGE FEATURES
-        # ==========================================================
-        df['price_change_1d'] = df['lag_1'] - df['lag_3'] # T-1 compared to T-3
+        # 3. Rolling Means (Price)
+        # Shift(1) ensures we don't include today's price in today's rolling mean
+        df['rolling_mean_3'] = df['modal_price'].shift(1).rolling(window=3).mean()
+        df['rolling_mean_7'] = df['modal_price'].shift(1).rolling(window=7).mean()
+        df['rolling_mean_14'] = df['modal_price'].shift(1).rolling(window=14).mean()
+        df['rolling_mean_30'] = df['modal_price'].shift(1).rolling(window=30).mean()
+
+        # 4. Rolling Std (Price)
+        df['rolling_std_7'] = df['modal_price'].shift(1).rolling(window=7).std()
+        df['rolling_std_14'] = df['modal_price'].shift(1).rolling(window=14).std()
+        df['rolling_std_30'] = df['modal_price'].shift(1).rolling(window=30).std()
+
+        # 5. Price Changes (Absolute)
+        df['price_change_1d'] = df['lag_1'] - df['modal_price'].shift(2)
         df['price_change_7d'] = df['lag_1'] - df['lag_7']
         df['price_change_30d'] = df['lag_1'] - df['lag_30']
-        
-        # Percentage changes (adding small epsilon to prevent div by zero)
-        eps = 1e-6
-        df['price_pct_change_1d'] = (df['price_change_1d'] / (df['lag_3'] + eps)) * 100
-        df['price_pct_change_7d'] = (df['price_change_7d'] / (df['lag_7'] + eps)) * 100
-        df['price_pct_change_30d'] = (df['price_change_30d'] / (df['lag_30'] + eps)) * 100
-        
-        # ==========================================================
-        # WEATHER FEATURES (PLACEHOLDER)
-        # ==========================================================
-        # Set to NaNs or 0 so the model architecture is ready, but it doesn't break if absent.
-        df['temperature'] = np.nan
-        df['rainfall'] = np.nan
-        df['humidity'] = np.nan
 
-        # ==========================================================
-        # DROP INVALID/INITIAL ROWS
-        # ==========================================================
-        # Since we use up to 30 days of lag, the first 30 days for each market-commodity 
-        # pair will have NaNs in 'lag_30'. We drop rows missing strictly required features.
-        
-        logger.info(f"Shape before dropping NaNs: {df.shape}")
-        
-        # Target must exist
-        df = df.dropna(subset=['modal_price'])
-        
-        # Required core features must exist
-        core_features = ['lag_1', 'lag_7', 'lag_30', 'rolling_mean_7']
-        df = df.dropna(subset=core_features)
-        
-        logger.info(f"Shape after dropping NaNs: {df.shape}")
-        
-        return df.reset_index(drop=True)
+        # 6. Price Changes (Percentage)
+        df['price_pct_change_1d'] = (df['price_change_1d'] / df['modal_price'].shift(2)).replace([np.inf, -np.inf], 0).fillna(0)
+        df['price_pct_change_7d'] = (df['price_change_7d'] / df['lag_7']).replace([np.inf, -np.inf], 0).fillna(0)
+        df['price_pct_change_30d'] = (df['price_change_30d'] / df['lag_30']).replace([np.inf, -np.inf], 0).fillna(0)
 
-# Quick test routine
-if __name__ == "__main__":
-    from preprocessing import DataPreprocessor
-    import os
-    
-    # Run the dummy data through preprocessor
-    test_csv = "data/test_raw_feat.csv"
-    os.makedirs("data", exist_ok=True)
-    
-    # Generate 40 days of dummy data to test 30-day lag
-    dates = pd.date_range(start="2023-01-01", periods=40, freq='D')
-    mock_data = pd.DataFrame({
-        "Price Date": dates,
-        "Commodity": ["Tomato"] * 40,
-        "Market Name": ["Bangalore"] * 40,
-        "Variety": ["Local"] * 40,
-        "Grade": ["FAQ"] * 40,
-        "Min Price (Rs./Quintal)": np.linspace(3000, 4000, 40),
-        "Max Price (Rs./Quintal)": np.linspace(3500, 4500, 40),
-        "Modal Price (Rs./Quintal)": np.linspace(3200, 4200, 40),
-        "Arrivals (Tonnes)": np.random.randint(100, 200, 40)
-    })
-    # Drop one day to test daily expansion gap filling
-    mock_data = mock_data.drop(5) 
-    mock_data.to_csv(test_csv, index=False)
-    
-    preprocessor = DataPreprocessor()
-    df_clean = preprocessor.process(test_csv)
-    
-    engineer = FeatureEngineer()
-    df_features = engineer.create_features(df_clean)
-    
-    print("\nFeature Engineering Complete. Head:")
-    print(df_features[['date', 'modal_price', 'lag_1', 'lag_7', 'rolling_mean_7', 'price_pct_change_7d']].head())
+        # 7. Arrivals Features
+        df['arrival_lag_1'] = df['arrivals'].shift(1)
+        df['arrival_lag_7'] = df['arrivals'].shift(7)
+        df['arrival_rolling_mean_7'] = df['arrivals'].shift(1).rolling(window=7).mean()
+
+        return df
+
+    def get_feature_columns(self) -> list:
+        return [
+            'lag_1', 'lag_3', 'lag_7', 'lag_14', 'lag_30',
+            'rolling_mean_3', 'rolling_mean_7', 'rolling_mean_14', 'rolling_mean_30',
+            'rolling_std_7', 'rolling_std_14', 'rolling_std_30',
+            'price_change_1d', 'price_change_7d', 'price_change_30d',
+            'price_pct_change_1d', 'price_pct_change_7d', 'price_pct_change_30d',
+            'day_of_week', 'day_of_month', 'week_of_year', 'month', 'quarter', 'day_of_year',
+            'arrivals', 'arrival_lag_1', 'arrival_lag_7', 'arrival_rolling_mean_7'
+        ]

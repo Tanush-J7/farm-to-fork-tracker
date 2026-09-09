@@ -16,107 +16,100 @@ interface PricePredictionResponse {
   market: string
   current_price: number
   predictions: PredictionItem[]
-  trend: "INCREASING" | "DECREASING" | "STABLE" | "UNKNOWN"
-  expected_change_pct: number
+  trend: "INCREASING" | "DECREASING" | "STABLE"
+  data_source: string
+  data_as_of: string
+  data_age_days: number
   model_version: string
-  model_info: {
-    type: string
-    last_trained: string
-    evaluation_mae: number
-  }
 }
 
 export function FarmerAIAssistant() {
   const [commodity, setCommodity] = useState("Tomato")
   const [market, setMarket] = useState("Bangalore")
-  const [forecastDays, setForecastDays] = useState(7)
-
+  const [forecastDays, setForecastDays] = useState<number>(7)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<PricePredictionResponse | null>(null)
-  const [errorMsg, setErrorMsg] = useState("")
+  const [error, setError] = useState("")
 
-  const handlePredictPrice = async () => {
+  const handlePredict = async () => {
     setLoading(true)
-    setErrorMsg("")
-    setResult(null)
+    setError("")
     
     try {
-      const payload = {
+      const response = await axios.post(`${AI_API}/api/farmer/price-prediction`, {
         commodity,
         market,
         forecast_days: forecastDays
-      }
+      })
       
-      const res = await axios.post(`${AI_API}/api/farmer/price-prediction`, payload)
-      
-      if (res.data.error) {
-        setErrorMsg(res.data.message || "Failed to fetch prediction.")
+      if (response.data.error) {
+        setError(response.data.message || "Failed to fetch prediction")
+        setResult(null)
       } else {
-        setResult(res.data)
+        setResult(response.data)
       }
     } catch (err: any) {
-      console.error(err)
-      setErrorMsg(err.response?.data?.message || "Failed to connect to AI service. Ensure it's running.")
+      setError(err.response?.data?.message || "AI Service is unreachable.")
+      setResult(null)
     } finally {
       setLoading(false)
     }
   }
 
-  // Generate chart data combining current price (Day 0) and predictions
+  // Transform data for Recharts
   const chartData = result ? [
     { date: "Current", price: result.current_price },
-    ...result.predictions.map(p => ({
-      date: new Date(p.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-      price: p.predicted_price
-    }))
+    ...result.predictions.map(p => {
+      // Format date nicely (e.g. "Feb 10")
+      const d = new Date(p.date)
+      const formattedDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      return {
+        date: formattedDate,
+        price: p.predicted_price
+      }
+    })
   ] : []
 
+  // Calculate Y-axis domain
+  const minPrice = chartData.length > 0 ? Math.min(...chartData.map(d => d.price)) * 0.95 : 0
+  const maxPrice = chartData.length > 0 ? Math.max(...chartData.map(d => d.price)) * 1.05 : 0
+
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-900/50 backdrop-blur-md p-5 sm:p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-blue-500/20 text-blue-400">
-            <TrendingUp className="h-6 w-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-foreground">AI Price Prediction</h2>
-            <p className="text-sm text-slate-400 mt-0.5">Forecast market prices using historical data</p>
-          </div>
+    <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-sm text-slate-900 dark:text-white">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="p-2 bg-blue-100 dark:bg-blue-500/20 rounded-lg">
+          <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold">AI Price Prediction</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Forecast market prices using historical data</p>
         </div>
       </div>
 
-      {errorMsg && (
-        <div className="flex items-center gap-2 p-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 text-sm">
-          <AlertTriangle className="h-4 w-4 shrink-0" />
-          {errorMsg}
-        </div>
-      )}
-
-      {/* Input Controls */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div>
-          <label className="text-xs font-medium text-slate-400 mb-1.5 flex items-center gap-1.5">
-            <Package className="h-3.5 w-3.5" /> Commodity
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">
+            <Package className="h-3 w-3" /> Commodity
           </label>
           <select 
-            value={commodity} 
+            value={commodity}
             onChange={(e) => setCommodity(e.target.value)}
-            className="w-full bg-slate-800/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all dark:text-white"
           >
             <option value="Tomato">Tomato</option>
             <option value="Onion">Onion</option>
             <option value="Potato">Potato</option>
           </select>
         </div>
-        
+
         <div>
-          <label className="text-xs font-medium text-slate-400 mb-1.5 flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5" /> Market
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">
+            <MapPin className="h-3 w-3" /> Market
           </label>
           <select 
-            value={market} 
+            value={market}
             onChange={(e) => setMarket(e.target.value)}
-            className="w-full bg-slate-800/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all dark:text-white"
           >
             <option value="Bangalore">Bangalore</option>
             <option value="Mumbai">Mumbai</option>
@@ -125,13 +118,13 @@ export function FarmerAIAssistant() {
         </div>
 
         <div>
-          <label className="text-xs font-medium text-slate-400 mb-1.5 flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5" /> Forecast Horizon
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">
+            <Calendar className="h-3 w-3" /> Forecast Horizon
           </label>
           <select 
-            value={forecastDays} 
+            value={forecastDays}
             onChange={(e) => setForecastDays(Number(e.target.value))}
-            className="w-full bg-slate-800/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all dark:text-white"
           >
             <option value={1}>1 Day</option>
             <option value={3}>3 Days</option>
@@ -141,72 +134,91 @@ export function FarmerAIAssistant() {
       </div>
 
       <Button 
-        onClick={handlePredictPrice} 
+        onClick={handlePredict} 
         disabled={loading}
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0 shadow-[0_0_20px_rgba(37,99,235,0.3)] disabled:opacity-50"
+        className="w-full py-6 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-500/20 mb-6"
       >
-        {loading ? "Generating Prediction..." : "Predict Price"}
+        {loading ? "Analyzing Market Data..." : "Predict Price"}
       </Button>
 
-      {/* Results Section */}
+      {error && (
+        <div className="p-4 mb-6 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <p className="text-sm font-medium">{error}</p>
+        </div>
+      )}
+
       {result && (
-        <div className="space-y-6 pt-4 border-t border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-white/5">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">CURRENT PRICE</p>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">₹{result.current_price.toFixed(2)}<span className="text-sm font-normal text-slate-500 dark:text-slate-400">/kg</span></div>
+          {/* Data Source Warnings */}
+          {(result.data_source === "CEDA_AGMARKNET" || result.data_source === "DATABASE_CACHE") && (
+            <div className="p-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 text-yellow-800 dark:text-yellow-200 flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <p className="text-sm font-medium">
+                {result.data_source === "CEDA_AGMARKNET" 
+                  ? "Primary market data source unavailable. Using CEDA Agmarknet data." 
+                  : "Live market data unavailable. Using the latest stored market data."}
+              </p>
+            </div>
+          )}
+
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Current Price</p>
+              <div className="text-2xl font-bold dark:text-white">₹{result.current_price.toFixed(2)}<span className="text-sm text-slate-500 dark:text-slate-400 font-normal">/kg</span></div>
             </div>
             
-            <div className="p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-white/5">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">PREDICTED PRICE</p>
-              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                ₹{result.predictions[result.predictions.length - 1].predicted_price.toFixed(2)}
-                <span className="text-sm font-normal text-slate-500 dark:text-slate-400">/kg</span>
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Predicted Price</p>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">₹{result.predictions[result.predictions.length - 1].predicted_price.toFixed(2)}<span className="text-sm font-normal text-blue-400/70">/kg</span></div>
+            </div>
+
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Market Trend</p>
+              <div className="flex items-center gap-2">
+                {result.trend === 'INCREASING' && <TrendingUp className="h-6 w-6 text-green-500" />}
+                {result.trend === 'DECREASING' && <TrendingDown className="h-6 w-6 text-red-500" />}
+                {result.trend === 'STABLE' && <Minus className="h-6 w-6 text-slate-400" />}
+                <span className={`text-xl font-bold ${
+                  result.trend === 'INCREASING' ? 'text-green-600 dark:text-green-400' : 
+                  result.trend === 'DECREASING' ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-300'
+                }`}>
+                  {result.trend.charAt(0) + result.trend.slice(1).toLowerCase()}
+                </span>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-white/5">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">EXPECTED CHANGE</p>
-              <div className={`text-2xl font-bold ${
-                result.expected_change_pct > 0 ? "text-emerald-600 dark:text-emerald-400" : 
-                result.expected_change_pct < 0 ? "text-red-600 dark:text-red-400" : "text-slate-600 dark:text-slate-300"
-              }`}>
-                {result.expected_change_pct > 0 ? '+' : ''}{result.expected_change_pct.toFixed(2)}%
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-white/5">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">MARKET TREND</p>
-              <div className="flex items-center gap-2 mt-1">
-                {result.trend === "INCREASING" && <TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />}
-                {result.trend === "DECREASING" && <TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400" />}
-                {result.trend === "STABLE" && <Minus className="h-6 w-6 text-slate-500 dark:text-slate-400" />}
-                <span className="text-lg font-bold capitalize text-slate-900 dark:text-white">{result.trend.toLowerCase()}</span>
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Data Age</p>
+              <div className="text-2xl font-bold dark:text-white">
+                {result.data_age_days === 0 ? "Today" : `${result.data_age_days} Days`}
               </div>
             </div>
           </div>
 
-          {/* Chart */}
-          <div className="p-4 rounded-xl bg-slate-800/30 border border-white/5 h-72">
-            <h3 className="text-sm font-medium text-slate-300 mb-4">{forecastDays}-Day Price Forecast</h3>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+          {/* Line Chart */}
+          <div className="p-6 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
+            <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-6">{forecastDays}-Day Price Forecast</h3>
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
                 <XAxis 
                   dataKey="date" 
-                  stroke="#94a3b8" 
-                  fontSize={12} 
+                  stroke="rgba(255,255,255,0.4)" 
+                  tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
                   tickLine={false}
                   axisLine={false}
+                  dy={10}
                 />
                 <YAxis 
-                  stroke="#94a3b8" 
-                  fontSize={12} 
+                  domain={[minPrice, maxPrice]}
+                  stroke="rgba(255,255,255,0.4)" 
+                  tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(val) => `₹${val}`}
-                  domain={['auto', 'auto']}
                 />
                 <RechartsTooltip 
                   contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem' }}
@@ -225,16 +237,16 @@ export function FarmerAIAssistant() {
             </ResponsiveContainer>
           </div>
 
-          {/* Model Info - Replacing Fake Confidence */}
-          <div className="p-4 rounded-xl bg-slate-900/50 border border-white/5 text-xs text-slate-400 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+          {/* Model Info */}
+          <div className="p-4 rounded-xl bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-white/5 text-xs text-slate-600 dark:text-slate-400 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
             <div className="flex items-center gap-2">
-              <Info className="h-4 w-4 text-blue-400 shrink-0" />
+              <Info className="h-4 w-4 text-blue-500 dark:text-blue-400 shrink-0" />
               <span>Forecast based on historical market patterns.</span>
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-2 opacity-80">
-              <span><strong>Model:</strong> {result.model_info.type} v{result.model_version}</span>
-              <span><strong>MAE:</strong> ₹{result.model_info.evaluation_mae.toFixed(2)}</span>
-              <span><strong>Trained:</strong> {new Date(result.model_info.last_trained).toLocaleDateString()}</span>
+              <span><strong>Data Source:</strong> {result.data_source.replace('_', ' ')}</span>
+              <span><strong>Data As Of:</strong> {new Date(result.data_as_of).toLocaleDateString()}</span>
+              <span><strong>Model:</strong> XGBoost v{result.model_version}</span>
             </div>
           </div>
         </div>

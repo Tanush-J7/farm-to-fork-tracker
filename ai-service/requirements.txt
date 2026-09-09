@@ -9,3 +9,4 @@ joblib
 xgboost
 supabase
 requests
+confluent-kafka

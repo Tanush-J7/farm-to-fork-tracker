@@ -276,6 +276,21 @@ export const receiveProduct = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    // 3.5 Create Kafka Outbox Event (Phase 7 - Event Streaming)
+    const { randomUUID } = require('crypto');
+    await supabase.from('event_outbox').insert({
+      event_id: randomUUID(),
+      event_type: 'SHIPMENT_RECEIVED',
+      topic: 'shipment-events',
+      payload: {
+        shipment_id: shipment.id,
+        batch_id: shipment.batch_number,
+        retailer_id: retailer_id,
+        quantity: shipment.quantity,
+        unit: shipment.unit
+      }
+    });
+
     // 4. Create RETAILER_RECEIVED Traceability Event
     const { error: eventErr } = await supabase
       .from('traceability_events')
@@ -295,6 +310,33 @@ export const receiveProduct = async (req: Request, res: Response): Promise<void>
 
     if (eventErr) {
       console.error("Traceability event creation failed:", eventErr);
+    } else {
+      const { randomUUID } = require('crypto');
+      // Phase 9: RETAILER_RECEIVED Traceability Kafka Event
+      await supabase.from('event_outbox').insert({
+        event_id: randomUUID(),
+        event_type: 'RETAILER_RECEIVED',
+        topic: 'traceability-events',
+        payload: {
+          batch_id: shipment.batch_number,
+          shipment_id: shipment.id,
+          retailer_id: retailer_id,
+          quantity: shipment.quantity
+        }
+      });
+      // Phase 9: BLOCKCHAIN_RECORDED Traceability Kafka Event
+      if (txHash) {
+        await supabase.from('event_outbox').insert({
+          event_id: randomUUID(),
+          event_type: 'BLOCKCHAIN_RECORDED',
+          topic: 'traceability-events',
+          payload: {
+            batch_id: shipment.batch_number,
+            tx_hash: txHash,
+            event_source: 'RETAILER_RECEIVED'
+          }
+        });
+      }
     }
 
     // 5. Fetch product to get expiry_date and create Inventory Record
@@ -318,6 +360,20 @@ export const receiveProduct = async (req: Request, res: Response): Promise<void>
 
     if (invErr) {
       console.error("Inventory creation failed:", invErr);
+    } else {
+      // Create Kafka Outbox Event for Inventory (Phase 8)
+      await supabase.from('event_outbox').insert({
+        event_id: randomUUID(),
+        event_type: 'INVENTORY_CREATED',
+        topic: 'inventory-events',
+        payload: {
+          batch_id: shipment.batch_number,
+          retailer_id: retailer_id,
+          product_id: shipment.product_id,
+          quantity: shipment.quantity,
+          unit: shipment.unit
+        }
+      });
     }
 
     res.status(200).json({ 
@@ -429,6 +485,29 @@ export const recordSale = async (req: Request, res: Response): Promise<void> => 
 
     if (saleErr) {
       console.error("Sale record creation failed:", saleErr);
+    } else {
+      const { randomUUID } = require('crypto');
+      await supabase.from('event_outbox').insert({
+        event_id: randomUUID(),
+        event_type: 'SALE_CREATED',
+        topic: 'inventory-events',
+        payload: {
+          batch_id: inventory.batch_number,
+          retailer_id: retailer_id,
+          quantity_sold: quantity_sold
+        }
+      });
+      // Also notify INVENTORY_UPDATED
+      await supabase.from('event_outbox').insert({
+        event_id: randomUUID(),
+        event_type: 'INVENTORY_UPDATED',
+        topic: 'inventory-events',
+        payload: {
+          batch_id: inventory.batch_number,
+          retailer_id: retailer_id,
+          new_quantity: newQuantity
+        }
+      });
     }
 
     // 6. Create Traceability Event
@@ -553,6 +632,29 @@ export const reportWastage = async (req: Request, res: Response): Promise<void> 
 
     if (wastageErr) {
       console.error("Wastage record creation failed:", wastageErr);
+    } else {
+      const { randomUUID } = require('crypto');
+      await supabase.from('event_outbox').insert({
+        event_id: randomUUID(),
+        event_type: 'WASTAGE_RECORDED',
+        topic: 'inventory-events',
+        payload: {
+          batch_id: inventory.batch_number,
+          retailer_id: retailer_id,
+          quantity_wasted: quantity,
+          reason: reason
+        }
+      });
+      await supabase.from('event_outbox').insert({
+        event_id: randomUUID(),
+        event_type: 'INVENTORY_UPDATED',
+        topic: 'inventory-events',
+        payload: {
+          batch_id: inventory.batch_number,
+          retailer_id: retailer_id,
+          new_quantity: newQuantity
+        }
+      });
     }
 
     // 5. Create Traceability Event

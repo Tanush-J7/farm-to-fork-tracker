@@ -107,6 +107,21 @@ export const registerProduct = async (req: Request, res: Response) => {
       return;
     }
 
+    // Add BATCH_CREATED outbox event for Kafka (Phase 9)
+    const { randomUUID } = require('crypto');
+    await supabase.from('event_outbox').insert({
+      event_id: randomUUID(),
+      event_type: 'BATCH_CREATED',
+      topic: 'traceability-events',
+      payload: {
+        batch_id: batchNumber,
+        product_id: product.id,
+        farmer_id: farmerId,
+        quantity: quantity,
+        status: initialStatus
+      }
+    });
+
     res.status(201).json({
       success: true,
       data: product,
