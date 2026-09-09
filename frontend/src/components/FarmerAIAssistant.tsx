@@ -5,6 +5,7 @@ import axios from "axios"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts"
 
 const AI_API = import.meta.env.VITE_AI_API_URL || "http://localhost:8000"
+const RUPEE = "\u20B9"
 
 interface PredictionItem {
   date: string
@@ -66,24 +67,23 @@ export function FarmerAIAssistant() {
     }
   }
 
-  // Transform data for Recharts
-  const chartData = result ? [
-    ...(result.historical_data || []).map(h => ({
-      date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      price: priceMode === 'retail' ? (h.retail_price || h.price * 1.3) : h.price
-    })),
-    ...result.predictions.map(p => {
-      // Format date nicely (e.g. "Feb 10")
-      const d = new Date(p.date)
-      const formattedDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      return {
-        date: formattedDate,
-        price: priceMode === 'retail' ? (p.predicted_retail_price || p.predicted_price * 1.3) : p.predicted_price
-      }
-    })
-  ] : []
+  // Chart data: ONLY future predictions
+  const chartData = result ? result.predictions.map(p => {
+    const d = new Date(p.date)
+    return {
+      date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      price: priceMode === 'retail' ? (p.predicted_retail_price || p.predicted_price * 1.3) : p.predicted_price
+    }
+  }) : []
 
-  // Calculate Y-axis domain (using floor/ceil to prevent extremely long decimals breaking Recharts YAxis)
+  // Historical data for the table
+  const historyTableData = result ? (result.historical_data || []).map(h => ({
+    date: new Date(h.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+    wholesale: h.price,
+    retail: h.retail_price || Math.round(h.price * 1.3 * 100) / 100
+  })) : []
+
+  // Y-axis domain
   const minPrice = chartData.length > 0 ? Math.floor(Math.min(...chartData.map(d => d.price)) * 0.95) : 0
   const maxPrice = chartData.length > 0 ? Math.ceil(Math.max(...chartData.map(d => d.price)) * 1.05) : 0
 
@@ -185,7 +185,7 @@ export function FarmerAIAssistant() {
           )}
 
           {/* Price Toggle */}
-          <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg w-max mb-6">
+          <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg w-max">
             <button
               onClick={() => setPriceMode("wholesale")}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -212,7 +212,7 @@ export function FarmerAIAssistant() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Current {priceMode === 'retail' ? 'Retail' : 'Wholesale'}</p>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">₹{
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{RUPEE}{
                 priceMode === 'retail' 
                   ? (result.current_retail_price?.toFixed(2) || (result.current_price * 1.3).toFixed(2))
                   : (result.current_price?.toFixed(2) || "0.00")
@@ -221,7 +221,7 @@ export function FarmerAIAssistant() {
             
             <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Predicted {priceMode === 'retail' ? 'Retail' : 'Wholesale'}</p>
-              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">₹{
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{RUPEE}{
                 priceMode === 'retail'
                   ? (result.predictions[result.predictions.length - 1].predicted_retail_price?.toFixed(2) || (result.predictions[result.predictions.length - 1].predicted_price * 1.3).toFixed(2))
                   : result.predictions[result.predictions.length - 1].predicted_price.toFixed(2)
@@ -251,7 +251,7 @@ export function FarmerAIAssistant() {
             </div>
           </div>
 
-          {/* Line Chart */}
+          {/* Predicted Price Forecast Chart - ONLY future data */}
           <div className="p-6 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
             <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-6">{forecastDays}-Day Price Forecast</h3>
             <ResponsiveContainer width="100%" height={240}>
@@ -271,12 +271,12 @@ export function FarmerAIAssistant() {
                   tick={{ fill: '#64748b', fontSize: 12 }}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(val) => `\u20B9${val}`}
+                  tickFormatter={(val) => `${RUPEE}${val}`}
                 />
                 <RechartsTooltip 
                   contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#f8fafc' }}
                   itemStyle={{ color: '#60a5fa', fontWeight: 'bold' }}
-                  formatter={(value: number) => [`\u20B9${value.toFixed(2)}`, 'Price']}
+                  formatter={(value: number) => [`${RUPEE}${value.toFixed(2)}`, 'Price']}
                 />
                 <Line 
                   type="monotone" 
@@ -289,6 +289,33 @@ export function FarmerAIAssistant() {
               </LineChart>
             </ResponsiveContainer>
           </div>
+
+          {/* Historical Price Table */}
+          {historyTableData.length > 0 && (
+            <div className="p-6 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
+              <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-4">Previous 10-Day Market History</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-white/10">
+                      <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date</th>
+                      <th className="text-right py-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Wholesale (per kg)</th>
+                      <th className="text-right py-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Est. Retail (per kg)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyTableData.map((row, i) => (
+                      <tr key={i} className="border-b border-slate-100 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300 font-medium">{row.date}</td>
+                        <td className="py-3 px-4 text-right text-slate-900 dark:text-white font-semibold">{RUPEE}{row.wholesale.toFixed(2)}</td>
+                        <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-400">{RUPEE}{row.retail.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Model Info */}
           <div className="p-4 rounded-xl bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-white/5 text-xs text-slate-600 dark:text-slate-400 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
@@ -307,4 +334,3 @@ export function FarmerAIAssistant() {
     </div>
   )
 }
-
