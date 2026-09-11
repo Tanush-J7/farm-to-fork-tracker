@@ -129,9 +129,7 @@ def fetch_from_vmp(commodity: str, market: str) -> list:
             retail_max = float(match.group(3))
             unit = match.group(4)
             
-            # Convert per-kg to per-quintal (x100) for ML consistency
-            modal_quintal = wholesale * 100
-            
+            # Store prices in per-kg (same unit the ML model uses after preprocessing)
             logger.info(f"  vegetablemarketprice.com: {commodity} = {wholesale}/kg (wholesale)")
             return [{
                 "date": datetime.now().strftime("%Y-%m-%d"),
@@ -139,9 +137,9 @@ def fetch_from_vmp(commodity: str, market: str) -> list:
                 "market": market,
                 "variety": "FAQ",
                 "grade": "FAQ",
-                "min_price": modal_quintal * 0.9,
-                "max_price": modal_quintal * 1.1,
-                "modal_price": modal_quintal,
+                "min_price": wholesale * 0.9,
+                "max_price": wholesale * 1.1,
+                "modal_price": wholesale,
                 "arrivals": 0.0,
                 "source": "VEGETABLE_MARKET_PRICE",
                 "data_as_of": datetime.now().strftime("%Y-%m-%d"),

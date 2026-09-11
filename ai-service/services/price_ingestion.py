@@ -188,9 +188,9 @@ class PriceDataSourceManager:
                     "district": "Unknown",
                     "variety": "FAQ",
                     "grade": "FAQ",
-                    "min_price": float(raw["wholesale_price"]) * 100,  # approximate to Quintal for ML consistency
-                    "max_price": float(raw["wholesale_price"]) * 100,
-                    "modal_price": float(raw["wholesale_price"]) * 100,
+                    "min_price": float(raw["wholesale_price"]) * 0.9,
+                    "max_price": float(raw["wholesale_price"]) * 1.1,
+                    "modal_price": float(raw["wholesale_price"]),
                     "arrivals": 0.0,
                     "source": source_name,
                     "data_as_of": raw["date"],
