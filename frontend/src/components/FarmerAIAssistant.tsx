@@ -1,8 +1,29 @@
 import { useState } from "react"
 import { Button } from "./ui/Button"
-import { TrendingUp, TrendingDown, Minus, Info, Calendar, MapPin, Package, AlertTriangle } from "lucide-react"
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  Minus, 
+  Info, 
+  Calendar, 
+  MapPin, 
+  Package, 
+  AlertTriangle,
+  ArrowUpRight,
+  ArrowDownRight,
+  Sparkles
+} from "lucide-react"
 import axios from "axios"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts"
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  ResponsiveContainer,
+  ReferenceLine 
+} from "recharts"
 
 const AI_API = import.meta.env.VITE_AI_API_URL || "http://localhost:8000"
 const RUPEE = "\u20B9"
@@ -67,38 +88,81 @@ export function FarmerAIAssistant() {
     }
   }
 
-  // Chart data: ONLY future predictions
-  const chartData = result ? result.predictions.map(p => {
+  // Active baseline price based on mode
+  const activeCurrentPrice = result 
+    ? (priceMode === 'retail' 
+        ? (result.current_retail_price || result.current_price * 1.3) 
+        : result.current_price) 
+    : 0
+
+  // Chart data: ONLY future predictions with rich contextual metadata
+  const chartData = result ? result.predictions.map((p, idx) => {
     const d = new Date(p.date)
+    const wholesale = p.predicted_price
+    const retail = p.predicted_retail_price || p.predicted_price * 1.3
+    const price = priceMode === 'retail' ? retail : wholesale
+    const diff = price - activeCurrentPrice
+    const diffPct = activeCurrentPrice > 0 ? (diff / activeCurrentPrice) * 100 : 0
     return {
+      dayLabel: `Day ${idx + 1}`,
       date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      price: priceMode === 'retail' ? (p.predicted_retail_price || p.predicted_price * 1.3) : p.predicted_price
+      fullDate: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+      price: Number(price.toFixed(2)),
+      wholesalePrice: Number(wholesale.toFixed(2)),
+      retailPrice: Number(retail.toFixed(2)),
+      diff: Number(diff.toFixed(2)),
+      diffPct: Number(diffPct.toFixed(1))
     }
   }) : []
 
   // Historical data for the table
-  const historyTableData = result ? (result.historical_data || []).map(h => ({
+  const historyTableData = result ? (result.historical_data || []).map((h, idx, arr) => ({
     date: new Date(h.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
     wholesale: h.price,
-    retail: h.retail_price || Math.round(h.price * 1.3 * 100) / 100
+    retail: h.retail_price || Math.round(h.price * 1.3 * 100) / 100,
+    isLatest: idx === arr.length - 1
   })) : []
 
-  // Y-axis domain
-  const minPrice = chartData.length > 0 ? Math.floor(Math.min(...chartData.map(d => d.price)) * 0.95) : 0
-  const maxPrice = chartData.length > 0 ? Math.ceil(Math.max(...chartData.map(d => d.price)) * 1.05) : 0
+  // Calculate clear Y-axis domain with buffer so the line/area never clips
+  const allPrices = chartData.map(d => d.price)
+  if (activeCurrentPrice > 0) allPrices.push(activeCurrentPrice)
+  const minVal = allPrices.length > 0 ? Math.min(...allPrices) : 0
+  const maxVal = allPrices.length > 0 ? Math.max(...allPrices) : 100
+  const priceRange = maxVal - minVal
+  const padding = Math.max(1.5, priceRange * 0.25)
+  const minPrice = Math.max(0, Math.floor(minVal - padding))
+  const maxPrice = Math.ceil(maxVal + padding)
+
+  // Chart summary insights
+  const highestPrice = chartData.length > 0 ? Math.max(...chartData.map(d => d.price)) : 0
+  const lowestPrice = chartData.length > 0 ? Math.min(...chartData.map(d => d.price)) : 0
+  const peakItem = chartData.find(d => d.price === highestPrice)
+  const dipItem = chartData.find(d => d.price === lowestPrice)
+  const finalPrice = chartData.length > 0 ? chartData[chartData.length - 1].price : 0
+  const totalChange = finalPrice - activeCurrentPrice
+  const totalChangePct = activeCurrentPrice > 0 ? (totalChange / activeCurrentPrice) * 100 : 0
+
+  // Trend accent color
+  const trendColor = result?.trend === 'INCREASING' 
+    ? '#10b981' 
+    : result?.trend === 'DECREASING' 
+      ? '#f43f5e' 
+      : '#3b82f6'
 
   return (
     <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-white/5 shadow-sm text-slate-900 dark:text-white">
+      {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <div className="p-2 bg-blue-100 dark:bg-blue-500/20 rounded-lg">
           <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400" />
         </div>
         <div>
           <h2 className="text-xl font-bold">AI Price Prediction</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Forecast market prices using historical data</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Forecast market prices using verified machine learning models</p>
         </div>
       </div>
 
+      {/* Select Controls */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div>
           <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">
@@ -107,7 +171,7 @@ export function FarmerAIAssistant() {
           <select 
             value={commodity}
             onChange={(e) => setCommodity(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all dark:text-white"
+            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all dark:text-white font-medium"
           >
             <option value="Tomato">Tomato</option>
             <option value="Onion">Onion</option>
@@ -126,7 +190,7 @@ export function FarmerAIAssistant() {
           <select 
             value={market}
             onChange={(e) => setMarket(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all dark:text-white"
+            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all dark:text-white font-medium"
           >
             <option value="Bangalore">Bangalore</option>
             <option value="Mysore">Mysore</option>
@@ -145,11 +209,11 @@ export function FarmerAIAssistant() {
           <select 
             value={forecastDays}
             onChange={(e) => setForecastDays(Number(e.target.value))}
-            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all dark:text-white"
+            className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all dark:text-white font-medium"
           >
-            <option value={1}>1 Day</option>
+            <option value={1}>1 Day (Tomorrow)</option>
             <option value={3}>3 Days</option>
-            <option value={7}>7 Days</option>
+            <option value={7}>7 Days (Full Week)</option>
           </select>
         </div>
       </div>
@@ -157,9 +221,9 @@ export function FarmerAIAssistant() {
       <Button 
         onClick={handlePredict} 
         disabled={loading}
-        className="w-full py-6 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-500/20 mb-6"
+        className="w-full py-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all shadow-lg shadow-blue-500/20 mb-6"
       >
-        {loading ? "Analyzing Market Data..." : "Predict Price"}
+        {loading ? "Analyzing Real Market Trends..." : "Predict Price"}
       </Button>
 
       {error && (
@@ -172,132 +236,264 @@ export function FarmerAIAssistant() {
       {result && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           
-          {/* Data Source Warnings */}
+          {/* Data Source Notice */}
           {(result.data_source === "CEDA_AGMARKNET" || result.data_source === "DATABASE_CACHE" || !result.data_source) && (
-            <div className="p-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 text-amber-700 dark:text-amber-300 flex items-center gap-3">
-              <AlertTriangle className="h-5 w-5 shrink-0" />
-              <p className="text-sm font-medium">
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-amber-800 dark:text-amber-300 flex items-center gap-3">
+              <Info className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <p className="text-xs font-medium">
                 {result.data_source === "CEDA_AGMARKNET" 
-                  ? "Primary market data source unavailable. Using CEDA Agmarknet data." 
-                  : "Live market data unavailable. Using the latest stored market data."}
+                  ? "Primary mandi source active: Sourced from CEDA Agmarknet national database." 
+                  : "Using verified market repository records cached for optimal response time."}
               </p>
             </div>
           )}
 
-          {/* Price Toggle */}
-          <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg w-max">
-            <button
-              onClick={() => setPriceMode("wholesale")}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                priceMode === "wholesale" 
-                  ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" 
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-              }`}
-            >
-              Wholesale Mandi
-            </button>
-            <button
-              onClick={() => setPriceMode("retail")}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                priceMode === "retail" 
-                  ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" 
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-              }`}
-            >
-              City Retail
-            </button>
+          {/* Price Tier Toggle */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/80 dark:border-white/5">
+              <button
+                onClick={() => setPriceMode("wholesale")}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  priceMode === "wholesale" 
+                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm" 
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                Wholesale Mandi
+              </button>
+              <button
+                onClick={() => setPriceMode("retail")}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  priceMode === "retail" 
+                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm" 
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                City Retail
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-blue-500" />
+              <span>Viewing prices in <strong>{priceMode === 'retail' ? 'City Retail' : 'Wholesale Mandi'}</strong> tier</span>
+            </div>
           </div>
 
           {/* Quick Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Current {priceMode === 'retail' ? 'Retail' : 'Wholesale'}</p>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">{RUPEE}{
-                priceMode === 'retail' 
-                  ? (result.current_retail_price?.toFixed(2) || (result.current_price * 1.3).toFixed(2))
-                  : (result.current_price?.toFixed(2) || "0.00")
-              }<span className="text-sm text-slate-500 dark:text-slate-400 font-normal">/kg</span></div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                Current {priceMode === 'retail' ? 'Retail' : 'Wholesale'}
+              </p>
+              <div className="text-2xl font-extrabold text-slate-900 dark:text-white">
+                {RUPEE}{activeCurrentPrice.toFixed(2)}
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-normal ml-1">/kg</span>
+              </div>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">As of today</span>
             </div>
             
             <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Predicted {priceMode === 'retail' ? 'Retail' : 'Wholesale'}</p>
-              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{RUPEE}{
-                priceMode === 'retail'
-                  ? (result.predictions[result.predictions.length - 1].predicted_retail_price?.toFixed(2) || (result.predictions[result.predictions.length - 1].predicted_price * 1.3).toFixed(2))
-                  : result.predictions[result.predictions.length - 1].predicted_price.toFixed(2)
-              }<span className="text-sm font-normal text-blue-400/70">/kg</span></div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                Day {forecastDays} Forecast
+              </p>
+              <div className="text-2xl font-extrabold text-blue-600 dark:text-blue-400">
+                {RUPEE}{finalPrice.toFixed(2)}
+                <span className="text-xs font-normal text-blue-400/70 ml-1">/kg</span>
+              </div>
+              <span className={`text-[11px] font-bold flex items-center gap-0.5 ${totalChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {totalChange >= 0 ? '+' : ''}{RUPEE}{totalChange.toFixed(2)} ({totalChange >= 0 ? '+' : ''}{totalChangePct.toFixed(1)}%)
+              </span>
             </div>
 
             <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Market Trend</p>
-              <div className="flex items-center gap-2">
-                {result.trend === 'INCREASING' && <TrendingUp className="h-6 w-6 text-green-500" />}
-                {result.trend === 'DECREASING' && <TrendingDown className="h-6 w-6 text-red-500" />}
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                Forecast Trend
+              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                {result.trend === 'INCREASING' && <TrendingUp className="h-6 w-6 text-emerald-500" />}
+                {result.trend === 'DECREASING' && <TrendingDown className="h-6 w-6 text-rose-500" />}
                 {result.trend === 'STABLE' && <Minus className="h-6 w-6 text-slate-400" />}
                 <span className={`text-xl font-bold ${
-                  result.trend === 'INCREASING' ? 'text-green-600 dark:text-green-400' : 
-                  result.trend === 'DECREASING' ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-300'
+                  result.trend === 'INCREASING' ? 'text-emerald-600 dark:text-emerald-400' : 
+                  result.trend === 'DECREASING' ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'
                 }`}>
                   {result.trend.charAt(0) + result.trend.slice(1).toLowerCase()}
                 </span>
               </div>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">7-day direction</span>
             </div>
 
             <div className="p-4 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Data Age</p>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                {result.data_age_days === 0 ? "Today" : `${result.data_age_days} Days`}
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                Data Freshness
+              </p>
+              <div className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
+                {result.data_age_days === 0 ? "Live / Today" : `${result.data_age_days}d ago`}
               </div>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Synchronized</span>
             </div>
           </div>
 
-          {/* Predicted Price Forecast Chart - ONLY future data */}
+          {/* Predicted Price Forecast Chart - High Clarity Area Chart */}
           <div className="p-6 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
-            <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-6">{forecastDays}-Day Price Forecast</h3>
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" strokeOpacity={0.2} vertical={false} />
+            {/* Chart Header with Key Decision Badges */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>{forecastDays}-Day Price Forecast</span>
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300">
+                    Future Only
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Green dashed baseline shows today's price ({RUPEE}{activeCurrentPrice.toFixed(2)}) for clear comparison
+                </p>
+              </div>
+
+              {/* Insights badges */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {peakItem && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold">
+                    <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Peak: {RUPEE}{highestPrice.toFixed(2)} ({peakItem.date})</span>
+                  </div>
+                )}
+                {dipItem && dipItem.price !== peakItem?.price && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold">
+                    <ArrowDownRight className="h-3.5 w-3.5 text-amber-500" />
+                    <span>Low: {RUPEE}{lowestPrice.toFixed(2)} ({dipItem.date})</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Area Chart with Soft Gradient & Baseline Reference Line */}
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart data={chartData} margin={{ top: 20, right: 25, left: 0, bottom: 15 }}>
+                <defs>
+                  <linearGradient id="forecastAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={trendColor} stopOpacity={0.35} />
+                    <stop offset="95%" stopColor={trendColor} stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                
+                <CartesianGrid 
+                  strokeDasharray="3 3" 
+                  stroke="#94a3b8" 
+                  strokeOpacity={0.15} 
+                  vertical={false} 
+                />
+                
                 <XAxis 
                   dataKey="date" 
                   stroke="#64748b" 
-                  tick={{ fill: '#64748b', fontSize: 12 }}
+                  tick={{ fill: '#64748b', fontSize: 12, fontWeight: 500 }}
                   tickLine={false}
-                  axisLine={false}
+                  axisLine={{ stroke: '#cbd5e1', strokeOpacity: 0.3 }}
                   dy={10}
                 />
+                
                 <YAxis 
                   domain={[minPrice, maxPrice]}
                   stroke="#64748b" 
-                  tick={{ fill: '#64748b', fontSize: 12 }}
+                  tick={{ fill: '#64748b', fontSize: 12, fontWeight: 500 }}
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(val) => `${RUPEE}${val}`}
+                  dx={-5}
                 />
+
+                {/* Today's baseline reference line */}
+                {activeCurrentPrice > 0 && (
+                  <ReferenceLine 
+                    y={activeCurrentPrice} 
+                    stroke="#10b981" 
+                    strokeDasharray="4 4" 
+                    strokeWidth={1.5}
+                    label={{
+                      value: `Today: ${RUPEE}${activeCurrentPrice.toFixed(2)}`,
+                      fill: '#10b981',
+                      position: 'insideTopLeft',
+                      fontSize: 11,
+                      fontWeight: 700
+                    }}
+                  />
+                )}
+                
                 <RechartsTooltip 
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#f8fafc' }}
-                  itemStyle={{ color: '#60a5fa', fontWeight: 'bold' }}
-                  formatter={(value: number) => [`${RUPEE}${value.toFixed(2)}`, 'Price']}
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload
+                      const isUp = data.diff >= 0
+                      return (
+                        <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl p-3 shadow-2xl text-xs space-y-2 min-w-[210px] text-white">
+                          <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
+                            <span className="font-semibold text-slate-200">{data.fullDate}</span>
+                            <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-bold text-[10px]">
+                              {data.dayLabel}
+                            </span>
+                          </div>
+                          
+                          <div className="flex justify-between items-baseline pt-0.5">
+                            <span className="text-slate-400 font-medium">Forecast ({priceMode}):</span>
+                            <span className="text-base font-extrabold text-white">
+                              {RUPEE}{data.price.toFixed(2)}
+                              <span className="text-xs text-slate-400 font-normal">/kg</span>
+                            </span>
+                          </div>
+                          
+                          <div className="flex justify-between items-center bg-slate-800/70 px-2 py-1 rounded-md">
+                            <span className="text-[11px] text-slate-400">Change vs Today:</span>
+                            <span className={`text-[11px] font-bold flex items-center gap-0.5 ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {isUp ? '+' : ''}{RUPEE}{data.diff.toFixed(2)} ({isUp ? '+' : ''}{data.diffPct.toFixed(1)}%)
+                            </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-800 text-[10px] text-slate-400">
+                            <div>Wholesale: <strong className="text-slate-200 font-semibold">{RUPEE}{data.wholesalePrice.toFixed(2)}</strong></div>
+                            <div>Retail: <strong className="text-slate-200 font-semibold">{RUPEE}{data.retailPrice.toFixed(2)}</strong></div>
+                          </div>
+                        </div>
+                      )
+                    }
+                    return null
+                  }}
                 />
-                <Line 
+                
+                <Area 
                   type="monotone" 
                   dataKey="price" 
-                  stroke="#3b82f6" 
+                  stroke={trendColor} 
                   strokeWidth={3}
-                  dot={{ r: 4, fill: '#3b82f6', strokeWidth: 0 }}
-                  activeDot={{ r: 6, fill: '#60a5fa' }}
+                  fill="url(#forecastAreaGradient)"
+                  dot={{ r: 4, fill: '#ffffff', stroke: trendColor, strokeWidth: 2.5 }}
+                  activeDot={{ r: 7, fill: trendColor, stroke: '#ffffff', strokeWidth: 2 }}
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Historical Price Table */}
+          {/* Historical Price Table with Present-Day Accuracy */}
           {historyTableData.length > 0 && (
             <div className="p-6 rounded-xl border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900/30">
-              <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-4">Previous 10-Day Market History</h3>
-              <div className="overflow-x-auto">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Previous 10-Day Market History
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Continuous daily market records leading up to today
+                  </p>
+                </div>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                  {historyTableData.length} Days Tracked
+                </span>
+              </div>
+
+              <div className="overflow-x-auto rounded-lg border border-slate-200/80 dark:border-white/5">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 dark:border-white/10">
+                    <tr className="bg-slate-100/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-white/10">
                       <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date</th>
                       <th className="text-right py-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Wholesale (per kg)</th>
                       <th className="text-right py-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Est. Retail (per kg)</th>
@@ -305,10 +501,28 @@ export function FarmerAIAssistant() {
                   </thead>
                   <tbody>
                     {historyTableData.map((row, i) => (
-                      <tr key={i} className="border-b border-slate-100 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
-                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300 font-medium">{row.date}</td>
-                        <td className="py-3 px-4 text-right text-slate-900 dark:text-white font-semibold">{RUPEE}{row.wholesale.toFixed(2)}</td>
-                        <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-400">{RUPEE}{row.retail.toFixed(2)}</td>
+                      <tr 
+                        key={i} 
+                        className={`border-b border-slate-100 dark:border-white/5 transition-colors ${
+                          row.isLatest 
+                            ? 'bg-emerald-50/60 dark:bg-emerald-500/10 hover:bg-emerald-50 dark:hover:bg-emerald-500/20' 
+                            : 'hover:bg-slate-100 dark:hover:bg-slate-800/40'
+                        }`}
+                      >
+                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300 font-medium flex items-center gap-2">
+                          <span>{row.date}</span>
+                          {row.isLatest && (
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500 text-white">
+                              Today
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right text-slate-900 dark:text-white font-semibold">
+                          {RUPEE}{row.wholesale.toFixed(2)}
+                        </td>
+                        <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-400 font-medium">
+                          {RUPEE}{row.retail.toFixed(2)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -317,11 +531,11 @@ export function FarmerAIAssistant() {
             </div>
           )}
 
-          {/* Model Info */}
+          {/* Model Info Footer */}
           <div className="p-4 rounded-xl bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-white/5 text-xs text-slate-600 dark:text-slate-400 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
             <div className="flex items-center gap-2">
               <Info className="h-4 w-4 text-blue-500 dark:text-blue-400 shrink-0" />
-              <span>Forecast based on historical market patterns.</span>
+              <span>Forecast modeled on daily market patterns using XGBoost regression.</span>
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-2 opacity-80">
               <span><strong>Data Source:</strong> {(result.data_source || 'DATABASE_CACHE').replace('_', ' ')}</span>

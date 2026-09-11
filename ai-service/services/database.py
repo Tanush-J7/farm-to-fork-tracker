@@ -35,14 +35,14 @@ def fetch_historical_prices(commodity: str, market: str, limit: int = 35) -> pd.
                 .execute()
                 
             data = response.data
-            if data and len(data) > 0:
+            if data and len(data) >= 30:
                 df = pd.DataFrame(data)
                 # Sort chronologically for the ML features
                 df = df.sort_values("date").reset_index(drop=True)
                 logger.info(f"Successfully retrieved {len(df)} records from Supabase.")
                 return df
             else:
-                logger.warning("No records found in database. Falling back to CSV.")
+                logger.warning(f"Insufficient records in Supabase ({len(data) if data else 0} < 30). Falling back to CSV.")
         except Exception as e:
             logger.error(f"Database connection failed: {e}. Falling back to CSV.")
     else:

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import axios from "axios"
 import { useAuth } from "../../context/AuthContext"
 import { Html5QrcodeScanner } from "html5-qrcode"
-import { QrCode, AlertCircle, CheckCircle2, Package, Search } from "lucide-react"
+import { QrCode, AlertCircle, CheckCircle2, Package, Search, Calendar } from "lucide-react"
 
 const API_URL = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 

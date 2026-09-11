@@ -111,20 +111,40 @@ class PricePredictionService:
         else:
             trend = "STABLE"
 
+        # Calculate retail ratio based on latest data or use 1.30 (30% markup) heuristic
+        last_row = df.iloc[-1]
+        if "retail_min" in df.columns and not pd.isna(last_row.get("retail_min")) and not pd.isna(last_row.get("retail_max")):
+            retail_current = (last_row["retail_min"] + last_row["retail_max"]) / 2
+        else:
+            retail_current = current_price * 1.30
+
+        retail_ratio = retail_current / current_price if current_price > 0 else 1.30
+
+        # Inject retail predictions
+        for p in predictions:
+            p["predicted_retail_price"] = round(p["predicted_price"] * retail_ratio, 2)
+
         # Get last 10 days of historical data for the frontend chart
         history_subset = df.tail(10)
-        historical_data = [
-            {
+        historical_data = []
+        for _, row in history_subset.iterrows():
+            w_price = round(float(row['modal_price']), 2)
+            if "retail_min" in df.columns and not pd.isna(row.get("retail_min")) and not pd.isna(row.get("retail_max")):
+                r_price = round(float(row["retail_min"] + row["retail_max"]) / 2, 2)
+            else:
+                r_price = round(w_price * retail_ratio, 2)
+                
+            historical_data.append({
                 "date": row['date'].strftime("%Y-%m-%d"),
-                "price": round(float(row['modal_price']), 2)
-            }
-            for _, row in history_subset.iterrows()
-        ]
+                "price": w_price,
+                "retail_price": r_price
+            })
 
         return {
             "commodity": commodity,
             "market": market,
             "current_price": round(current_price, 2),
+            "current_retail_price": round(retail_current, 2),
             "historical_data": historical_data,
             "predictions": predictions,
             "trend": trend,
