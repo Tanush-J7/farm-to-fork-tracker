@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import axios from 'axios';
 import { supabase } from '../config/supabase';
+import { generateNotification } from './notificationController';
 import { ethers } from 'ethers';
 
 // Render Blueprints provide service host/port values separately from a full URL.
@@ -19,6 +20,25 @@ export const registerProduct = async (req: Request, res: Response) => {
 
     // Safely get farmer ID from auth token (set by protect middleware)
     const farmerId = (req as any).user?.id || 'anonymous';
+    
+    // Validate required fields
+    if (!name || !category || !batchNumber || !quantity) {
+      res.status(400).json({ success: false, message: 'Please provide all required fields (name, category, batchNumber, quantity).' });
+      return;
+    }
+
+    // Check for duplicate batch number
+    const { data: existingBatch } = await supabase
+      .from('products')
+      .select('id')
+      .eq('batch_number', batchNumber)
+      .maybeSingle();
+      
+    if (existingBatch) {
+      res.status(400).json({ success: false, message: 'A product with this batch number already exists.' });
+      return;
+    }
+
     let productImageUrl: string | null = null;
 
     if (imageData) {
@@ -122,6 +142,17 @@ export const registerProduct = async (req: Request, res: Response) => {
       }
     });
 
+    if (product && product.farmer_id) {
+      await generateNotification(
+        product.farmer_id,
+        'product_created',
+        'Harvest Registered',
+        `Batch ${product.batch_number} (${product.name}) was successfully registered.`,
+        'product',
+        product.id
+      );
+    }
+
     res.status(201).json({
       success: true,
       data: product,
@@ -166,6 +197,37 @@ export const getMyProducts = async (req: Request, res: Response) => {
       return;
     }
 
+    // Generate Expiry Alerts safely
+    if (products) {
+      const now = new Date();
+      for (const p of products) {
+        if (p.expiry_date) {
+          const exp = new Date(p.expiry_date);
+          const diffDays = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          
+          if (diffDays < 0) {
+            await generateNotification(
+              farmerId,
+              'expiry_alert',
+              'Product Expired',
+              `Batch ${p.batch_number} (${p.name}) has expired.`,
+              'product',
+              p.id
+            );
+          } else if (diffDays <= 7) {
+            await generateNotification(
+              farmerId,
+              'expiry_alert',
+              'Product Expiring Soon',
+              `Batch ${p.batch_number} (${p.name}) will expire in ${diffDays} days.`,
+              'product',
+              p.id
+            );
+          }
+        }
+      }
+    }
+
     res.status(200).json({ success: true, data: products });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -181,7 +243,7 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
     // 1. Try matching product_id exact
     let { data: products } = await supabase
       .from('products')
-      .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id')
+      .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, farmer:farmer_id(name, email, address)')
       .eq('product_id', id);
 
     let product = products && products.length > 0 ? products[0] : null;
@@ -191,7 +253,7 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
       const originalSmallId = numId - 100000;
       const { data: offsetProds } = await supabase
         .from('products')
-        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id')
+        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, farmer:farmer_id(name, email, address)')
         .eq('product_id', originalSmallId);
       if (offsetProds && offsetProds.length > 0) {
         product = offsetProds[0];
@@ -202,7 +264,7 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
     if (!product) {
       const { data: batchProds } = await supabase
         .from('products')
-        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id')
+        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, farmer:farmer_id(name, email, address)')
         .or(`batch_number.eq.${id},id.eq.${id}`);
       if (batchProds && batchProds.length > 0) {
         product = batchProds[0];
@@ -213,7 +275,7 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
     if (!product) {
       const { data: allProds } = await supabase
         .from('products')
-        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id');
+        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, farmer:farmer_id(name, email, address)');
       if (allProds) {
         const found = allProds.find(p => {
           const pId = p.product_id;
@@ -234,6 +296,15 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
       res.status(404).json({ success: false, message: 'Product not found' });
       return;
     }
+
+    // Fetch actual traceability events for this product
+    const { data: events } = await supabase
+      .from('traceability_events')
+      .select('*')
+      .eq('product_id', product.id)
+      .order('created_at', { ascending: true });
+
+    (product as any).events = events || [];
 
     res.status(200).json({ success: true, data: product });
   } catch (error) {
@@ -260,6 +331,17 @@ export const updateProductStatus = async (req: Request, res: Response) => {
     if (error) {
       res.status(500).json({ success: false, message: 'Server Error', error });
       return;
+    }
+
+    if (product && product.farmer_id && status) {
+      await generateNotification(
+        product.farmer_id,
+        'product_status',
+        'Product Status Updated',
+        `Batch ${product.batch_number} has moved to ${status}.`,
+        'product',
+        product.id
+      );
     }
 
     res.status(200).json({ success: true, data: product });

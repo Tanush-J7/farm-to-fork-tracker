@@ -10,9 +10,11 @@ import { Dashboard } from "./pages/Dashboard"
 import { FarmerDashboard } from "./pages/FarmerDashboard"
 import { MyProductsPage } from "./pages/MyProductsPage"
 import { FarmerAIServices } from "./pages/FarmerAIServices"
+import { FarmerRequestsPage } from "./pages/FarmerRequestsPage"
+import { FarmerAnalyticsPage } from "./pages/FarmerAnalyticsPage"
+import { FarmerNotificationsPage } from "./pages/FarmerNotificationsPage"
 import { ProcessorDashboard } from "./pages/ProcessorDashboard"
 import { DistributorDashboard } from "./pages/DistributorDashboard"
-import { RetailerDashboard as OldRetailerDashboard } from "./pages/RetailerDashboard"
 import { AnalyticsDashboard } from "./pages/AnalyticsDashboard"
 import { Tracker } from "./pages/Tracker"
 import { AdminUsers } from "./pages/admin/AdminUsers"
@@ -62,6 +64,9 @@ function App() {
             <Route index element={<FarmerDashboard />} />
             <Route path="products" element={<MyProductsPage />} />
             <Route path="ai-services" element={<FarmerAIServices />} />
+            <Route path="requests" element={<FarmerRequestsPage />} />
+            <Route path="analytics" element={<FarmerAnalyticsPage />} />
+            <Route path="notifications" element={<FarmerNotificationsPage />} />
           </Route>
 
           <Route path="/processor" element={<DashboardLayout />}>

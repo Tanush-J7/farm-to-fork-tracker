@@ -4,13 +4,13 @@ import { ethers } from "ethers"
 import { Card } from "../components/ui/Card"
 import {
   CheckCircle2, Factory, Truck, Store, Search, AlertCircle, Loader2,
-  ShieldCheck, Clock, Leaf, Brain, QrCode, Upload, Hourglass
+  ShieldCheck, Clock, Leaf, Brain, QrCode, Upload
 } from "lucide-react"
 import { Button } from "../components/ui/Button"
 import axios from "axios"
 import { Html5Qrcode } from "html5-qrcode"
 import jsQR from "jsqr"
-import { getFarmerLocation, getProcessorLocation } from "../utils"
+import { getFarmerLocation } from "../utils"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 const RPC_URL = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545"
@@ -21,6 +21,7 @@ const FARMCHAIN_ABI = [
   "function getProductHistory(uint256 _productId) public view returns (tuple(string status, address owner, uint256 timestamp, string extraInfo)[])"
 ]
 
+// Safely map ID to 6 digits
 const format6DigitId = (id: number | string) => {
   const num = Number(id)
   if (num >= 100000 && num <= 999999) return String(num)
@@ -273,30 +274,9 @@ export function Tracker() {
   // Supply Chain Stage Verification Logic
   const currentStatus = dbProduct?.status || chainProduct?.status || "Harvested"
 
-  // Cross-reference with localStorage for real-time development inspection sync
-  let storedBatches: Record<string, any> = {}
-  let storedInspections: Record<string, any> = {}
-  try {
-    const b = localStorage.getItem("processor_batches")
-    if (b) storedBatches = JSON.parse(b)
-    const ins = localStorage.getItem("processor_inspections")
-    if (ins) storedInspections = JSON.parse(ins)
-  } catch (e) {}
+  const mappedDisplayId = dbProduct ? format6DigitId(dbProduct.product_id || dbProduct.id) : (productIdInput || "100000")
 
-  const pId = dbProduct ? String(dbProduct.id) : ""
-  const hasProcessorRecord = (
-    ["Processing", "In Transit", "Delivered", "Sold"].includes(currentStatus) ||
-    !!storedInspections[pId] ||
-    Object.values(storedBatches).some(b => b.productId === pId)
-  )
-
-  const hasDistributorRecord = (
-    ["In Transit", "Delivered", "Sold"].includes(currentStatus) ||
-    Object.values(storedBatches).some(b => b.productId === pId && (b.stage === "Transferred" || b.distributor))
-  )
-
-  const hasRetailerRecord = ["Delivered", "Sold"].includes(currentStatus)
-  const hasBlockchainRecord = !!(dbProduct?.blockchain_hash || dbProduct?.blockchainHash || chainProduct || true)
+  const hasBlockchainRecord = !!(dbProduct?.blockchain_hash || dbProduct?.blockchainHash || chainProduct)
 
   // Compute clean AI Quality Grade
   const qualityScore = dbProduct?.ai_quality_score || 92
@@ -304,20 +284,6 @@ export function Tracker() {
   if (!qualityGrade || qualityGrade === "Unknown" || qualityGrade === "N/A") {
     qualityGrade = qualityScore >= 90 ? "Grade A" : qualityScore >= 80 ? "Grade B" : "Standard Grade"
   }
-
-  const mappedDisplayId = dbProduct ? format6DigitId(dbProduct.product_id || dbProduct.id) : (productIdInput || "100000")
-
-  const pNumId = dbProduct ? String(dbProduct.product_id) : ""
-  const pBatch = dbProduct ? String(dbProduct.batch_number) : ""
-  const inspection = storedInspections[pId] || (pNumId ? storedInspections[pNumId] : null) || (pBatch ? storedInspections[pBatch] : null)
-  const matchingBatch = Object.values(storedBatches).find((b: any) => 
-    (pId && b.productId === pId) || 
-    (pNumId && b.productId === pNumId) || 
-    (pBatch && b.originalProduct?.batch_number === pBatch)
-  ) as any
-
-  const processorFacilityName = inspection?.inspectorName || matchingBatch?.processorName || "Processing Facility"
-  const processorFacilityLocation = inspection?.facilityLocation || matchingBatch?.facilityLocation || getProcessorLocation(processorFacilityName)
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-24 pt-8 px-4">
@@ -467,22 +433,38 @@ export function Tracker() {
               </div>
 
               {/* Blockchain Authenticity Seal */}
-              <div className="mt-6 p-4 rounded-2xl bg-zinc-950/80 border border-emerald-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    <ShieldCheck className="h-6 w-6" />
+              {hasBlockchainRecord ? (
+                <div className="mt-6 p-4 rounded-2xl bg-zinc-950/80 border border-emerald-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      <ShieldCheck className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider">🟢 Cryptographically Verified On-Chain</p>
+                      <p className="text-xs font-mono text-zinc-400 break-all">
+                        Hash: {dbProduct?.blockchain_hash || dbProduct?.blockchainHash}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider">🟢 Cryptographically Verified On-Chain</p>
-                    <p className="text-xs font-mono text-zinc-400 break-all">
-                      Hash: {dbProduct?.blockchain_hash || "0x6f3e5c9b74d28a10e75a3429bc0194857dfbc8e0d9b41a73cf82a0b12cd504fa"}
-                    </p>
+                  <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                    Ethereum Smart Contract
+                  </span>
+                </div>
+              ) : (
+                <div className="mt-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-amber-500/20 text-amber-500 border border-amber-500/30">
+                      <AlertCircle className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-amber-500 uppercase tracking-wider">Blockchain Verification Unavailable</p>
+                      <p className="text-xs font-mono text-amber-500/70">
+                        This batch has not yet been registered on the blockchain or verification is pending.
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-                  Ethereum Smart Contract
-                </span>
-              </div>
+              )}
             </div>
           </Card>
 
@@ -502,84 +484,26 @@ export function Tracker() {
             </div>
 
             <div className="grid gap-3">
-              {[
-                {
-                  title: "Product Registration",
-                  desc: `Registered with immutable Batch ID: ${dbProduct?.batch_number || "BCH-2026"}`,
-                  status: "verified",
-                  role: "Farmer"
-                },
-                {
-                  title: "Farmer Origin Record",
-                  desc: `Harvested by ${dbProduct?.farmer?.name || "Ravi"} • Location: ${getFarmerLocation(dbProduct)}`,
-                  status: "verified",
-                  role: "Farmer"
-                },
-                {
-                  title: "Processor Inspection Record",
-                  desc: hasProcessorRecord
-                    ? `Physical quality inspected and certified at ${processorFacilityName} • Location: ${processorFacilityLocation} • Certified: ${qualityGrade} (${qualityScore}%)`
-                    : "Awaiting batch arrival and physical quality inspection at processing facility",
-                  status: hasProcessorRecord ? "verified" : "pending",
-                  role: "Processor"
-                },
-                {
-                  title: "Distributor Logistics Record",
-                  desc: hasRetailerRecord
-                    ? "Completed cold-chain transport & verified delivery to retail partner"
-                    : hasDistributorRecord
-                    ? "Transferred to cold-chain logistics carrier (XYZ Logistics) for temperature-controlled transit"
-                    : "Pending transfer from processing facility to logistics carrier",
-                  status: hasRetailerRecord ? "verified" : hasDistributorRecord ? "in_transit" : "pending",
-                  role: "Distributor"
-                },
-                {
-                  title: "Retailer Delivery Record",
-                  desc: hasRetailerRecord
-                    ? "Received by verified retail partner and checked into store inventory"
-                    : "Pending final store delivery and shelf check-in",
-                  status: hasRetailerRecord ? "verified" : "pending",
-                  role: "Retailer"
-                },
-                {
-                  title: "Blockchain Smart Contract Record",
-                  desc: "Immutable ledger transaction confirmed on Ethereum smart contract",
-                  status: hasBlockchainRecord ? "verified" : "pending",
-                  role: "Blockchain"
-                }
-              ].map((item, index) => (
-                <div
-                  key={index}
-                  className={`p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all ${
-                    item.status === "verified"
-                      ? "bg-emerald-500/5 border-emerald-500/20"
-                      : item.status === "in_transit"
-                      ? "bg-amber-500/5 border-amber-500/20"
-                      : "bg-muted/30 border-muted/50 text-muted-foreground"
-                  }`}
-                >
-                  <div className="space-y-0.5">
-                    <p className={`font-bold text-sm ${item.status === "verified" || item.status === "in_transit" ? "text-foreground" : "text-muted-foreground"}`}>
-                      {item.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{item.desc}</p>
-                  </div>
-
-                  {item.status === "verified" ? (
-                    <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30 shrink-0">
-                      <CheckCircle2 className="h-4 w-4" /> Verified ✓
-                    </span>
-                  ) : item.status === "in_transit" ? (
-                    <span className="flex items-center gap-1.5 text-xs font-bold text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/30 shrink-0">
-                      <Truck className="h-4 w-4" /> In Transit
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground bg-muted/40 px-3 py-1 rounded-full border border-muted/50 shrink-0">
-                      <Hourglass className="h-3.5 w-3.5" /> Pending
-                    </span>
-                  )}
+              <div className="p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all bg-emerald-500/5 border-emerald-500/20">
+                <div className="space-y-0.5">
+                  <p className="font-bold text-sm text-foreground">Product Registration</p>
+                  <p className="text-xs text-muted-foreground">Registered with immutable Batch ID: {dbProduct?.batch_number}</p>
                 </div>
-              ))}
+                <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30 shrink-0">
+                  <CheckCircle2 className="h-4 w-4" /> Verified ✓
+                </span>
+              </div>
+              {hasBlockchainRecord && (
+                <div className="p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all bg-emerald-500/5 border-emerald-500/20">
+                  <div className="space-y-0.5">
+                    <p className="font-bold text-sm text-foreground">Blockchain Smart Contract Record</p>
+                    <p className="text-xs text-muted-foreground">Immutable ledger transaction confirmed on Ethereum smart contract</p>
+                  </div>
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30 shrink-0">
+                    <CheckCircle2 className="h-4 w-4" /> Verified ✓
+                  </span>
+                </div>
+              )}
             </div>
           </Card>
 
@@ -595,100 +519,42 @@ export function Tracker() {
 
             <div className="space-y-6 relative before:absolute before:inset-0 before:left-5 before:w-0.5 before:bg-gradient-to-b before:from-emerald-500 before:via-blue-500 before:to-muted-foreground/30">
               
-              {/* Step 1: Harvest */}
+              {/* Step 1: Harvest (Always exists if product is found) */}
               <div className="relative flex items-start gap-4 pl-12">
                 <div className="absolute left-3 -translate-x-1/2 p-2 rounded-full bg-emerald-500 text-white shadow-md ring-4 ring-background">
                   <Leaf className="h-4 w-4" />
                 </div>
-                <div className="p-4 rounded-2xl border bg-card/80 w-full space-y-1">
+                <div className="p-4 rounded-2xl border bg-card/80 w-full space-y-1 border-emerald-500/20">
                   <div className="flex justify-between items-center">
-                    <span className="font-bold text-sm text-foreground">1. Farm Harvest & Registration</span>
+                    <span className="font-bold text-sm text-foreground">Farm Harvest & Registration</span>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500">Completed</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Farmed by <strong>{dbProduct?.farmer?.name || "Ravi"}</strong> • Quantity: {dbProduct?.quantity || 10} kg • Harvest Date: {new Date(dbProduct?.created_at || Date.now()).toLocaleDateString("en-GB")}
+                    Farmed by <strong>{dbProduct?.farmer?.name || "Verified Farmer"}</strong> • Location: {getFarmerLocation(dbProduct)} • Harvest Date: {new Date(dbProduct?.created_at || Date.now()).toLocaleDateString("en-GB")}
                   </p>
                 </div>
               </div>
 
-              {/* Step 2: Processing & Quality Inspection */}
-              <div className="relative flex items-start gap-4 pl-12">
-                <div className={`absolute left-3 -translate-x-1/2 p-2 rounded-full ring-4 ring-background shadow-md ${
-                  hasProcessorRecord ? "bg-blue-500 text-white" : "bg-muted text-muted-foreground"
-                }`}>
-                  <Factory className="h-4 w-4" />
-                </div>
-                <div className={`p-4 rounded-2xl border w-full space-y-1 ${
-                  hasProcessorRecord ? "bg-card/80 border-blue-500/20" : "bg-muted/20 border-muted opacity-70"
-                }`}>
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-sm text-foreground">2. Physical Quality Inspection & Processing</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      hasProcessorRecord ? "bg-blue-500/10 text-blue-400" : "bg-muted text-muted-foreground"
-                    }`}>
-                      {hasProcessorRecord ? "Certified" : "Pending Arrival"}
-                    </span>
+              {/* Dynamic Real Events */}
+              {dbProduct?.events?.map((evt: any, i: number) => (
+                <div key={i} className="relative flex items-start gap-4 pl-12">
+                  <div className="absolute left-3 -translate-x-1/2 p-2 rounded-full bg-blue-500 text-white shadow-md ring-4 ring-background">
+                    {evt.event_type.toLowerCase().includes("processing") || evt.event_type.toLowerCase().includes("quality") ? <Factory className="h-4 w-4" /> :
+                     evt.event_type.toLowerCase().includes("transit") || evt.event_type.toLowerCase().includes("transfer") ? <Truck className="h-4 w-4" /> :
+                     evt.event_type.toLowerCase().includes("receive") || evt.event_type.toLowerCase().includes("retail") ? <Store className="h-4 w-4" /> :
+                     <CheckCircle2 className="h-4 w-4" />}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {hasProcessorRecord
-                      ? `In-hand inspection completed. Certified Quality: ${dbProduct?.ai_quality_label || "Grade A"} (${dbProduct?.ai_quality_score || 92}%)`
-                      : "Batch scheduled for gate receipt and physical quality grading."}
-                  </p>
-                </div>
-              </div>
-
-              {/* Step 3: Distributor Transit */}
-              <div className="relative flex items-start gap-4 pl-12">
-                <div className={`absolute left-3 -translate-x-1/2 p-2 rounded-full ring-4 ring-background shadow-md ${
-                  hasDistributorRecord ? "bg-amber-500 text-white" : "bg-muted text-muted-foreground"
-                }`}>
-                  <Truck className="h-4 w-4" />
-                </div>
-                <div className={`p-4 rounded-2xl border w-full space-y-1 ${
-                  hasDistributorRecord ? "bg-card/80 border-amber-500/20" : "bg-muted/20 border-muted opacity-70"
-                }`}>
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-sm text-foreground">3. Cold-Chain Logistics & Distribution</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      hasDistributorRecord ? "bg-amber-500/10 text-amber-500" : "bg-muted text-muted-foreground"
-                    }`}>
-                      {hasDistributorRecord ? "In Transit" : "Pending Transit"}
-                    </span>
+                  <div className="p-4 rounded-2xl border bg-card/80 w-full space-y-1 border-blue-500/20">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-sm text-foreground">{evt.event_type}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">Recorded</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {evt.description} • Location: {evt.location || "Supply Chain"} • Date: {new Date(evt.created_at).toLocaleString()}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {hasDistributorRecord
-                      ? "Assigned to cold-chain partner (XYZ Logistics) with temperature compliance monitoring."
-                      : "Awaiting transfer from processing facility to logistics provider."}
-                  </p>
                 </div>
-              </div>
-
-              {/* Step 4: Retailer */}
-              <div className="relative flex items-start gap-4 pl-12">
-                <div className={`absolute left-3 -translate-x-1/2 p-2 rounded-full ring-4 ring-background shadow-md ${
-                  hasRetailerRecord ? "bg-purple-500 text-white" : "bg-muted text-muted-foreground"
-                }`}>
-                  <Store className="h-4 w-4" />
-                </div>
-                <div className={`p-4 rounded-2xl border w-full space-y-1 ${
-                  hasRetailerRecord ? "bg-card/80 border-purple-500/20" : "bg-muted/20 border-muted opacity-70"
-                }`}>
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-sm text-foreground">4. Retail Store & Consumer Availability</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      hasRetailerRecord ? "bg-purple-500/10 text-purple-400" : "bg-muted text-muted-foreground"
-                    }`}>
-                      {hasRetailerRecord ? "Delivered" : "Pending Delivery"}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {hasRetailerRecord
-                      ? "Produce delivered to retail store shelf and ready for consumer purchase."
-                      : "Awaiting final arrival and inventory check-in at retail location."}
-                  </p>
-                </div>
-              </div>
-
+              ))}
             </div>
           </Card>
 

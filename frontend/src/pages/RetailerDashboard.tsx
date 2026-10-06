@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import axios from "axios"
 import { useAuth } from "../context/AuthContext"
-import { ShoppingBag, AlertTriangle, TrendingDown, TrendingUp, ShieldCheck, QrCode, Tag, Truck, RefreshCw, Star, BarChart3, Package, Store } from "lucide-react"
+import { ShoppingBag, TrendingDown, ShieldCheck, QrCode, Tag, Truck, RefreshCw, Star, BarChart3, Package, Store } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
 import { Button } from "../components/ui/Button"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts"
