@@ -1,0 +1,6 @@
+Price Date,Commodity,Market Name,Variety,Grade,Min Price (Rs./Quintal),Max Price (Rs./Quintal),Modal Price (Rs./Quintal),Arrivals (Tonnes)
+2023-01-01,Tomato,Bangalore,Local,FAQ,3000.0,3500.0,3200.0,120.0
+2023-01-01,Tomato,Bangalore,Local,FAQ,3000.0,3500.0,3200.0,120.0
+invalid_date,Tomato,Bangalore,Local,FAQ,3200.0,3600.0,3400.0,130.0
+2023-01-02,Tomato,Bangalore,Local,FAQ,3100.0,3500.0,0.0,
+2023-01-02,Tomato ,Bangalore,Local,FAQ,,,,140.0

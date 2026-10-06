@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+!frontend/.env
+*.log
+__pycache__/
+*.pyc
+.venv/
+.venv314/
+artifacts/
+cache/
+typechain-types/

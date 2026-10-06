@@ -1,0 +1,37 @@
+{
+    "timestamp": "2026-09-08T22:07:37.326299",
+    "total_rows_raw": 5,
+    "total_rows_clean": 1,
+    "removed_rows": 4,
+    "missing_values_raw": {
+        "date": 1,
+        "commodity": 0,
+        "market": 0,
+        "variety": 0,
+        "grade": 0,
+        "min_price": 1,
+        "max_price": 1,
+        "modal_price": 1,
+        "arrivals": 1
+    },
+    "missing_values_clean": {
+        "date": 0,
+        "commodity": 0,
+        "market": 0,
+        "variety": 0,
+        "grade": 0,
+        "min_price": 0,
+        "max_price": 0,
+        "modal_price": 0,
+        "arrivals": 0
+    },
+    "date_range": {
+        "start": "2023-01-01T00:00:00",
+        "end": "2023-01-01T00:00:00"
+    },
+    "num_commodities": 1,
+    "num_markets": 1,
+    "commodities_list": [
+        "TOMATO"
+    ]
+}

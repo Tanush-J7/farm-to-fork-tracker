@@ -1,0 +1,88 @@
+-- Farm-to-Fork Tracker: Supabase (Postgres) schema
+-- Run this in the Supabase SQL Editor (Project -> SQL Editor -> New query)
+
+-- Extension for UUID generation
+create extension if not exists "pgcrypto";
+
+-- =========================
+-- USERS
+-- =========================
+create table if not exists public.users (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  email text not null unique,
+  password text not null, -- bcrypt hash
+  role text not null default 'consumer'
+    check (role in ('admin', 'farmer', 'processor', 'distributor', 'retailer', 'consumer')),
+  wallet_address text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_users_email on public.users (email);
+
+-- =========================
+-- PRODUCTS
+-- =========================
+create table if not exists public.products (
+  id uuid primary key default gen_random_uuid(),
+  product_id integer default 0, -- mapping to blockchain ID
+  name text not null,
+  category text not null,
+  batch_number text not null,
+  quantity numeric not null,
+  farmer_id uuid not null references public.users(id),
+  current_owner_id uuid not null references public.users(id),
+  status text not null default 'Harvested',
+  organic_status boolean default false,
+  ai_quality_score numeric,
+  ai_quality_label text,
+  ai_shelf_life jsonb,
+  blockchain_hash text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_products_farmer_id on public.products (farmer_id);
+create index if not exists idx_products_created_at on public.products (created_at desc);
+
+-- Product photo and expiry metadata. These statements are safe for existing projects.
+alter table public.products add column if not exists expiry_date date;
+alter table public.products add column if not exists product_image_url text;
+
+-- Product images are uploaded by the Express backend using the Supabase service role.
+insert into storage.buckets (id, name, public)
+values ('product-images', 'product-images', true)
+on conflict (id) do nothing;
+
+-- Keep updated_at fresh on every update
+create or replace function public.set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_users_updated_at on public.users;
+create trigger trg_users_updated_at
+  before update on public.users
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists trg_products_updated_at on public.products;
+create trigger trg_products_updated_at
+  before update on public.products
+  for each row execute function public.set_updated_at();
+
+-- =========================
+-- ROW LEVEL SECURITY
+-- =========================
+-- The Express backend talks to Supabase using the SERVICE ROLE key,
+-- which bypasses RLS entirely — so the app keeps working exactly as before
+-- with no policy changes needed. RLS is enabled anyway as defense-in-depth
+-- in case the anon/public key is ever used directly from the frontend.
+alter table public.users enable row level security;
+alter table public.products enable row level security;
+
+-- No policies are defined for the anon/authenticated roles, so direct
+-- client access (anon key) is denied by default until you add policies.
