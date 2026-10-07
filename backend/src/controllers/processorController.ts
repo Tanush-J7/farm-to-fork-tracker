@@ -113,3 +113,215 @@ export const getProcessorBatches = async (req: Request, res: Response): Promise<
     res.status(500).json({ success: false, message: 'Server Error', error });
   }
 };
+
+// GET /api/processor/shipments/incoming
+export const getIncomingShipments = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const processor_id = (req as any).user?.id;
+
+    if (!processor_id) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const { data: shipments, error } = await supabase
+      .from('shipments')
+      .select('*, sender:sender_id(name, email), distributor:distributor_id(name, email), request:request_id(product_name, request_id)')
+      .eq('receiver_id', processor_id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      res.status(500).json({ success: false, message: 'Database error', error });
+      return;
+    }
+
+    res.status(200).json({ success: true, data: shipments });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error', error });
+  }
+};
+
+// POST /api/processor/shipments/:id/receive
+export const receiveShipment = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const processor_id = (req as any).user?.id;
+    const { id } = req.params;
+
+    if (!processor_id) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const { data: shipment, error: fetchErr } = await supabase
+      .from('shipments')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !shipment) {
+      res.status(404).json({ success: false, message: 'Shipment not found' });
+      return;
+    }
+
+    if (shipment.receiver_id !== processor_id) {
+      res.status(403).json({ success: false, message: 'This shipment does not belong to you' });
+      return;
+    }
+
+    if (shipment.status === 'RECEIVED' || shipment.status === 'DELIVERED') {
+      res.status(400).json({ success: false, message: 'Shipment has already been received' });
+      return;
+    }
+
+    const receivedQty = req.body.received_quantity ? Number(req.body.received_quantity) : shipment.quantity;
+    if (receivedQty < 0) {
+      res.status(400).json({ success: false, message: 'Invalid received quantity' });
+      return;
+    }
+
+    // Update shipment status
+    const { error: updateShipmentErr } = await supabase
+      .from('shipments')
+      .update({ status: 'RECEIVED' })
+      .eq('id', id);
+
+    if (updateShipmentErr) {
+      res.status(500).json({ success: false, message: 'Failed to update shipment status', error: updateShipmentErr });
+      return;
+    }
+
+    // Update product ownership
+    const { error: updateProductErr } = await supabase
+      .from('products')
+      .update({ current_owner_id: processor_id })
+      .eq('id', shipment.product_id);
+
+    if (updateProductErr) {
+      console.error("Failed to update product ownership", updateProductErr);
+    }
+
+    // Traceability event
+    await supabase.from('traceability_events').insert({
+      product_id: shipment.product_id,
+      batch_number: shipment.batch_number,
+      event_type: 'PROCESSOR_RECEIVED',
+      actor_id: processor_id,
+      location: 'Processing Facility',
+      metadata: {
+        shipment_id: id,
+        expected_quantity: shipment.quantity,
+        received_quantity: receivedQty,
+        unit: shipment.unit
+      }
+    });
+
+    res.status(200).json({ success: true, message: 'Shipment received successfully', data: { shipment_id: id } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error', error });
+  }
+};
+
+// POST /api/processor/batches/:id/process
+export const processBatch = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const processor_id = (req as any).user?.id;
+    const { id } = req.params;
+    const { quantity_used, new_product_name, new_category } = req.body;
+
+    if (!processor_id) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const qtyUsed = Number(quantity_used);
+    if (!qtyUsed || qtyUsed <= 0) {
+      res.status(400).json({ success: false, message: 'Quantity used must be greater than zero' });
+      return;
+    }
+
+    const { data: parentProduct, error: fetchErr } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !parentProduct) {
+      res.status(404).json({ success: false, message: 'Product not found' });
+      return;
+    }
+
+    if (parentProduct.current_owner_id !== processor_id) {
+      res.status(403).json({ success: false, message: 'You do not own this product' });
+      return;
+    }
+
+    if (parentProduct.quantity < qtyUsed) {
+      res.status(400).json({ success: false, message: `Cannot process more than available quantity (${parentProduct.quantity})` });
+      return;
+    }
+
+    // 1. Update parent quantity
+    const remainingQty = parentProduct.quantity - qtyUsed;
+    const newStatus = remainingQty <= 0 ? 'DEPLETED' : parentProduct.status;
+    const { error: updateParentErr } = await supabase
+      .from('products')
+      .update({ quantity: remainingQty, status: newStatus })
+      .eq('id', id);
+      
+    if (updateParentErr) {
+      res.status(500).json({ success: false, message: 'Failed to update parent product', error: updateParentErr });
+      return;
+    }
+
+    // 2. Create child product
+    const childBatchNumber = `PB-${Math.floor(10000 + Math.random() * 90000)}`;
+    const childProductId = Math.floor(100000 + Math.random() * 900000);
+
+    const { data: childProduct, error: childErr } = await supabase
+      .from('products')
+      .insert({
+        product_id: childProductId,
+        name: new_product_name || `Processed ${parentProduct.name}`,
+        category: new_category || 'Processed Food',
+        batch_number: childBatchNumber,
+        quantity: qtyUsed, // Initial child quantity
+        farmer_id: parentProduct.farmer_id,
+        current_owner_id: processor_id,
+        status: 'PROCESSED',
+        organic_status: parentProduct.organic_status
+      })
+      .select()
+      .single();
+
+    if (childErr) {
+      res.status(500).json({ success: false, message: 'Failed to create processed batch', error: childErr });
+      return;
+    }
+
+    // 3. Create batch_lineage
+    await supabase.from('batch_lineage').insert({
+      parent_product_id: parentProduct.id,
+      child_product_id: childProduct.id,
+      processing_action: 'Processing',
+      quantity_used: qtyUsed
+    });
+
+    // 4. Traceability event
+    await supabase.from('traceability_events').insert({
+      product_id: childProduct.id,
+      batch_number: childProduct.batch_number,
+      event_type: 'PROCESSED',
+      actor_id: processor_id,
+      location: 'Processing Facility',
+      metadata: {
+        parent_batch: parentProduct.batch_number,
+        parent_id: parentProduct.id,
+        quantity_processed: qtyUsed
+      }
+    });
+
+    res.status(201).json({ success: true, message: 'Batch processed successfully', data: childProduct });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error', error });
+  }
+};

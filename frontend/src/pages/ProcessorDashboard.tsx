@@ -128,7 +128,7 @@ export function ProcessorDashboard() {
     }
   }, [tabParam])
 
-  const [pipelineStep, setPipelineStep] = useState<"interested" | "received" | "inspecting" | "processing" | "completed">("interested")
+  const [pipelineStep, setPipelineStep] = useState<"incoming" | "interested" | "received" | "inspecting" | "processing" | "completed">("interested")
   const [historySubTab, setHistorySubTab] = useState<"audit" | "transferred">("audit")
 
   // API Products State
@@ -139,6 +139,23 @@ export function ProcessorDashboard() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterCategory, setFilterCategory] = useState("all")
   const [sortBy, setSortBy] = useState("newest")
+
+  const [apiShipments, setApiShipments] = useState<any[]>([])
+  // const [apiBatches, setApiBatches] = useState<any[]>([])
+
+  const fetchApiData = async () => {
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {}
+      const [shipmentsRes, batchesRes] = await Promise.all([
+        axios.get(`${API}/processor/shipments/incoming`, { headers }),
+        axios.get(`${API}/processor/batches`, { headers })
+      ])
+      if (shipmentsRes.data?.success) setApiShipments(shipmentsRes.data.data)
+      // if (batchesRes.data?.success) setApiBatches(batchesRes.data.data)
+    } catch (err) {
+      console.error('Failed to load API data', err)
+    }
+  }
 
   // Local storage states
   const [interests, setInterests] = useState<string[]>([])
@@ -152,8 +169,9 @@ export function ProcessorDashboard() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
 
   // Modal / Form states
+  // const [selectedShipment, setSelectedShipment] = useState<any | null>(null)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  
+
   // Receive Modal
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false)
   const [receivedQtyInput, setReceivedQtyInput] = useState("")
@@ -173,7 +191,7 @@ export function ProcessorDashboard() {
 
   // Batch QR View Modal
   const [qrViewBatch, setQrViewBatch] = useState<ProcessingBatch | null>(null)
-  
+
   // Verification Checks
   const [infoVerified, setInfoVerified] = useState<"Verified" | "Mismatch" | "">("")
   const [remarksInput, setRemarksInput] = useState("")
@@ -309,7 +327,8 @@ export function ProcessorDashboard() {
   // Load local storage keys
   useEffect(() => {
     fetchProducts()
-    
+    fetchApiData()
+
     // Interests
     const storedInterests = localStorage.getItem("processor_interests")
     if (storedInterests) setInterests(JSON.parse(storedInterests))
@@ -334,7 +353,7 @@ export function ProcessorDashboard() {
     const storedBatches = localStorage.getItem("processor_batches")
     if (storedBatches) setBatches(JSON.parse(storedBatches))
 
-  // Logs
+    // Logs
     const storedLogs = localStorage.getItem("processor_logs")
     if (storedLogs) setAuditLogs(JSON.parse(storedLogs))
 
@@ -484,10 +503,10 @@ export function ProcessorDashboard() {
       receivedBy: processorName
     }
 
-    const updatedReceipts = { 
-      ...receipts, 
+    const updatedReceipts = {
+      ...receipts,
       [selectedProduct.id]: receipt,
-      [String(selectedProduct.id)]: receipt 
+      [String(selectedProduct.id)]: receipt
     }
     setReceipts(updatedReceipts)
     localStorage.setItem("processor_receipts", JSON.stringify(updatedReceipts))
@@ -527,7 +546,7 @@ export function ProcessorDashboard() {
         (decodedText) => {
           handleQrSuccess(decodedText)
         },
-        () => {}
+        () => { }
       )
     } catch (err: any) {
       console.error("Camera error", err)
@@ -597,7 +616,7 @@ export function ProcessorDashboard() {
       setInfoVerified("Mismatch")
       // DO NOT advance on mismatch: keep user on the scanner view with clear error
       setQrScanned(false)
-      
+
       // Dynamic cross-catalog search across all products
       const otherProduct = products.find(p => {
         if (p.id === selectedProduct?.id) return false
@@ -755,21 +774,33 @@ export function ProcessorDashboard() {
       date: formattedDate,
       time: formattedTime
     }
-    const updatedDecisions = { 
-      ...decisions, 
-      [selectedProduct.id]: decisionRecord, 
-      [String(selectedProduct.id)]: decisionRecord 
+    const updatedDecisions = {
+      ...decisions,
+      [selectedProduct.id]: decisionRecord,
+      [String(selectedProduct.id)]: decisionRecord
     }
     setDecisions(updatedDecisions)
     localStorage.setItem("processor_decisions", JSON.stringify(updatedDecisions))
 
     if (decision === "Accepted") {
-      const verifiedQty = (receivedQtyInput && Number(receivedQtyInput) > 0) 
-        ? Number(receivedQtyInput) 
+      const verifiedQty = (receivedQtyInput && Number(receivedQtyInput) > 0)
+        ? Number(receivedQtyInput)
         : selectedProduct.quantity
       const hasShortage = verifiedQty < selectedProduct.quantity
       const shortageAmount = selectedProduct.quantity - verifiedQty
       const shortagePercent = selectedProduct.quantity > 0 ? ((shortageAmount / selectedProduct.quantity) * 100).toFixed(0) : "0"
+
+      // API Call for Phase 3B
+      const shipment = apiShipments.find(s => s.product_id === selectedProduct.id || s.batch_number === selectedProduct.batch_number);
+      if (shipment) {
+        try {
+          const headers = token ? { Authorization: `Bearer ${token}` } : {};
+          await axios.post(`${API}/processor/shipments/${shipment.id}/receive`, { received_quantity: verifiedQty }, { headers });
+          fetchApiData();
+        } catch (err) {
+          console.error("API Receive failed:", err);
+        }
+      }
 
       // Save/update receipt details with weighed scale quantity
       const receipt: ReceiptDetails = {
@@ -779,10 +810,10 @@ export function ProcessorDashboard() {
         arrivalTime: arrivalTimeInput,
         receivedBy: processorName
       }
-      const updatedReceipts = { 
-        ...receipts, 
-        [selectedProduct.id]: receipt, 
-        [String(selectedProduct.id)]: receipt 
+      const updatedReceipts = {
+        ...receipts,
+        [selectedProduct.id]: receipt,
+        [String(selectedProduct.id)]: receipt
       }
       setReceipts(updatedReceipts)
       localStorage.setItem("processor_receipts", JSON.stringify(updatedReceipts))
@@ -885,12 +916,25 @@ export function ProcessorDashboard() {
 
   // Complete Processing Action (Manual Processed Quantity + Manual Estimated Shelf Life Date + Auto Completion Date & Time)
   const handleCompleteProcessing = async (
-    batchId: string, 
+    batchId: string,
     processedQty: number,
     expiryDateInput: string
   ) => {
     const batch = batches[batchId]
     if (!batch) return
+
+    // API Call for Phase 3B
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      await axios.post(`${API}/processor/batches/${batch.originalProduct.id}/process`, {
+        quantity_used: processedQty,
+        new_product_name: `Processed ${batch.originalProduct.name}`,
+        new_category: 'Processed Food'
+      }, { headers });
+      fetchApiData();
+    } catch (err) {
+      console.error("API Processing failed:", err);
+    }
 
     const now = new Date()
     const formattedDate = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
@@ -900,17 +944,17 @@ export function ProcessorDashboard() {
 
     const updatedLogs = [
       ...batch.stageLogs,
-      { 
-        stage: "Processing Completed", 
-        date: formattedDate, 
-        time: formattedTime, 
-        remarks: `Processing completed. Processed Quantity: ${processedQty} kg. Estimated Shelf Life: ${formattedExpiry} (${shelfLifeDays} Days).` 
+      {
+        stage: "Processing Completed",
+        date: formattedDate,
+        time: formattedTime,
+        remarks: `Processing completed. Processed Quantity: ${processedQty} kg. Estimated Shelf Life: ${formattedExpiry} (${shelfLifeDays} Days).`
       },
-      { 
-        stage: "Transferred", 
-        date: formattedDate, 
-        time: formattedTime, 
-        remarks: `Certified batch ready and transferred to distribution pipeline.` 
+      {
+        stage: "Transferred",
+        date: formattedDate,
+        time: formattedTime,
+        remarks: `Certified batch ready and transferred to distribution pipeline.`
       }
     ]
 
@@ -968,7 +1012,7 @@ export function ProcessorDashboard() {
         farmerEmail.includes(term) ||
         categoryName.includes(term) ||
         batchNo.includes(term)
-      
+
       // 2. Category filter (case-insensitive & matches singular/plural roots)
       const matchesCategory = filterCategory === "all" || (() => {
         const cat = (p.category || "").toLowerCase().trim()
@@ -1026,7 +1070,7 @@ export function ProcessorDashboard() {
           <CardHeader className="bg-card border-b py-5">
             <CardTitle className="text-xl font-bold text-foreground">Available Farmer Products</CardTitle>
             <CardDescription>Browse, search and express interest in products registered by farmers.</CardDescription>
-            
+
             {/* Search, Filter, Sort Controls - Clean 3 Columns */}
             <div className="grid gap-4 md:grid-cols-3 mt-5">
               <div className="relative">
@@ -1086,7 +1130,7 @@ export function ProcessorDashboard() {
                   const mappedId = (p.product_id && p.product_id >= 100000 && p.product_id <= 999999)
                     ? p.product_id
                     : 100000 + (Math.abs(Number(p.product_id || 0)) % 899999)
-                  
+
                   return (
                     <div key={p.id} className="rounded-3xl border bg-card/40 hover:bg-card/90 transition-all p-6 space-y-4 shadow-sm hover:shadow-md flex flex-col justify-between">
                       <div className="space-y-3">
@@ -1100,7 +1144,7 @@ export function ProcessorDashboard() {
                             </span>
                           )}
                         </div>
-                        
+
                         <div>
                           <h3 className="font-bold text-xl text-foreground flex items-center gap-1.5">
                             {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : p.name.includes("Avocado") ? "🥑" : p.name.includes("Wheat") ? "🌾" : "🌱"}
@@ -1141,11 +1185,10 @@ export function ProcessorDashboard() {
                         <Button
                           size="sm"
                           disabled={isInterested}
-                          className={`flex-1 rounded-xl text-white ${
-                            isInterested
+                          className={`flex-1 rounded-xl text-white ${isInterested
                               ? "bg-amber-600/90 text-white cursor-not-allowed opacity-90 font-medium"
                               : "bg-primary hover:bg-primary/95 font-medium"
-                          }`}
+                            }`}
                           onClick={() => markInterest(p)}
                         >
                           {isInterested ? "Interested ✓" : "Express Interest"}
@@ -1166,6 +1209,7 @@ export function ProcessorDashboard() {
           <Card className="col-span-1 rounded-3xl border shadow-sm p-4 h-fit space-y-2">
             <h3 className="font-bold text-lg px-2 mb-3">Pipeline Status</h3>
             {[
+              { id: "incoming", label: "📦 Incoming Shipments", count: apiShipments.filter(s => s.status !== "RECEIVED" && s.status !== "DELIVERED").length },
               { id: "interested", label: "★ Interested Products", count: products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).length },
               { id: "received", label: "📥 Received / Verify QR", count: products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id]).length },
               { id: "processing", label: "🏭 Active Processing", count: Object.values(batches).filter(b => b.stage !== "Processing Completed" && b.stage !== "Transferred").length },
@@ -1174,22 +1218,64 @@ export function ProcessorDashboard() {
               <button
                 key={step.id}
                 onClick={() => setPipelineStep(step.id as any)}
-                className={`w-full text-left px-4 py-3 rounded-2xl flex items-center justify-between text-sm transition-all ${
-                  pipelineStep === step.id
+                className={`w-full text-left px-4 py-3 rounded-2xl flex items-center justify-between text-sm transition-all ${pipelineStep === step.id
                     ? "bg-primary text-white font-medium"
                     : "text-muted-foreground hover:bg-muted/50"
-                }`}
+                  }`}
               >
                 <span>{step.label}</span>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                  pipelineStep === step.id ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
-                }`}>{step.count}</span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${pipelineStep === step.id ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                  }`}>{step.count}</span>
               </button>
             ))}
           </Card>
 
           {/* Pipeline Main Window */}
           <Card className="col-span-3 rounded-3xl border shadow-sm p-6 min-h-[500px]">
+            {pipelineStep === "incoming" && (
+              <div className="space-y-4">
+                <div className="border-b pb-4">
+                  <h3 className="text-xl font-bold">Incoming Shipments</h3>
+                  <p className="text-muted-foreground text-sm">Real backend shipments assigned to your processing facility.</p>
+                </div>
+                {apiShipments.filter(s => s.status !== "RECEIVED" && s.status !== "DELIVERED").length === 0 ? (
+                  <div className="text-center py-20 text-muted-foreground">
+                    <Package className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                    <p className="font-semibold text-lg">No incoming shipments</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {apiShipments.filter(s => s.status !== "RECEIVED" && s.status !== "DELIVERED").map(s => (
+                      <div key={s.id} className="p-5 rounded-2xl border bg-muted/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                          <h4 className="font-bold text-lg text-foreground">Shipment {s.shipment_tracking_id}</h4>
+                          <p className="text-xs text-muted-foreground mt-1">From: {s.sender?.name} • Quantity: {s.quantity} {s.unit}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            // Find product matching this shipment in our API products to mock the flow
+                            const p = products.find(prod => prod.id === s.product_id || prod.batch_number === s.batch_number)
+                            if (p) {
+                              setSelectedProduct(p)
+                              setSelectedShipment(s)
+                              setReceivedQtyInput(String(s.quantity))
+                              setIsVerifyModalOpen(true)
+                            } else {
+                              alert('Product not synced to frontend mock state yet.')
+                            }
+                          }}
+                          className="rounded-xl text-white bg-primary hover:bg-primary/95 flex-1 md:flex-initial gap-1.5 font-semibold shadow-md cursor-pointer"
+                        >
+                          Scan QR & Verify
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {pipelineStep === "interested" && (
               <div className="space-y-4">
                 <div className="border-b pb-4">
@@ -1485,8 +1571,8 @@ export function ProcessorDashboard() {
                 ) : (
                   <div className="grid gap-6">
                     {Object.values(batches).filter(b => b.stage === "Transferred" || b.stageLogs.some(l => l.stage === "Transferred")).map(b => {
-                      const originalId = (b.originalProduct.product_id && b.originalProduct.product_id >= 100000 && b.originalProduct.product_id <= 999999) 
-                        ? b.originalProduct.product_id 
+                      const originalId = (b.originalProduct.product_id && b.originalProduct.product_id >= 100000 && b.originalProduct.product_id <= 999999)
+                        ? b.originalProduct.product_id
                         : 100000 + (Math.abs(Number(b.originalProduct.product_id || 0)) % 899999)
                       const receivedWeight = receipts[b.originalProduct.id]?.receivedQty || b.originalProduct.quantity
 
@@ -1611,7 +1697,7 @@ export function ProcessorDashboard() {
                   {historySubTab === "audit" ? "Chronological Audit Trail" : "Transfer & History Records"}
                 </h3>
                 <p className="text-muted-foreground text-sm">
-                  {historySubTab === "audit" 
+                  {historySubTab === "audit"
                     ? "Immutable operations trace recording Date, Time, User, Action and status updates."
                     : "Listing of all finalized agricultural batches transferred to cold chain distributors."}
                 </p>
@@ -1619,21 +1705,19 @@ export function ProcessorDashboard() {
               <div className="flex gap-1.5 bg-muted p-1 rounded-xl w-fit">
                 <button
                   onClick={() => setHistorySubTab("audit")}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                    historySubTab === "audit"
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${historySubTab === "audit"
                       ? "bg-white text-primary shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
-                  }`}
+                    }`}
                 >
                   Audit Trail
                 </button>
                 <button
                   onClick={() => setHistorySubTab("transferred")}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                    historySubTab === "transferred"
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${historySubTab === "transferred"
                       ? "bg-white text-primary shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
-                  }`}
+                    }`}
                 >
                   Transferred Batches
                 </button>
@@ -1688,8 +1772,8 @@ export function ProcessorDashboard() {
                     </thead>
                     <tbody className="divide-y divide-muted text-foreground">
                       {Object.values(batches).filter(b => b.stage === "Transferred").map(b => {
-                        const originalId = (b.originalProduct.product_id && b.originalProduct.product_id >= 100000 && b.originalProduct.product_id <= 999999) 
-                          ? b.originalProduct.product_id 
+                        const originalId = (b.originalProduct.product_id && b.originalProduct.product_id >= 100000 && b.originalProduct.product_id <= 999999)
+                          ? b.originalProduct.product_id
                           : 100000 + (Math.abs(Number(b.originalProduct.product_id || 0)) % 899999)
                         return (
                           <tr key={b.batchId} className="hover:bg-muted/10">
@@ -2045,232 +2129,228 @@ export function ProcessorDashboard() {
                     })()}
                   </div>
 
-                {/* 3. PHYSICAL QUALITY INSPECTION FORM */}
-                <div className="space-y-4 border-t border-zinc-800 pt-4">
-                  <h4 className="font-bold text-sm text-zinc-300">3. Physical Quality Inspection</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs text-zinc-400">Appearance</label>
-                      <select value={appearanceInput} onChange={(e) => handlePhysicalParamChange("appearance", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
-                        <option>Good</option>
-                        <option>Excellent</option>
-                        <option>Average</option>
-                        <option>Poor</option>
-                      </select>
+                  {/* 3. PHYSICAL QUALITY INSPECTION FORM */}
+                  <div className="space-y-4 border-t border-zinc-800 pt-4">
+                    <h4 className="font-bold text-sm text-zinc-300">3. Physical Quality Inspection</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs text-zinc-400">Appearance</label>
+                        <select value={appearanceInput} onChange={(e) => handlePhysicalParamChange("appearance", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
+                          <option>Good</option>
+                          <option>Excellent</option>
+                          <option>Average</option>
+                          <option>Poor</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-zinc-400">Freshness</label>
+                        <select value={freshnessInput} onChange={(e) => handlePhysicalParamChange("freshness", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
+                          <option>Excellent</option>
+                          <option>Good</option>
+                          <option>Average</option>
+                          <option>Stale</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-zinc-400">Damage</label>
+                        <select value={damageInput} onChange={(e) => handlePhysicalParamChange("damage", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
+                          <option>Low</option>
+                          <option>Medium</option>
+                          <option>High</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-zinc-400">Cleanliness</label>
+                        <select value={cleanlinessInput} onChange={(e) => handlePhysicalParamChange("cleanliness", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
+                          <option>Good</option>
+                          <option>Excellent</option>
+                          <option>Average</option>
+                          <option>Poor</option>
+                        </select>
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-xs text-zinc-400">Freshness</label>
-                      <select value={freshnessInput} onChange={(e) => handlePhysicalParamChange("freshness", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
-                        <option>Excellent</option>
-                        <option>Good</option>
-                        <option>Average</option>
-                        <option>Stale</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-zinc-400">Damage</label>
-                      <select value={damageInput} onChange={(e) => handlePhysicalParamChange("damage", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
-                        <option>Low</option>
-                        <option>Medium</option>
-                        <option>High</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-zinc-400">Cleanliness</label>
-                      <select value={cleanlinessInput} onChange={(e) => handlePhysicalParamChange("cleanliness", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
-                        <option>Good</option>
-                        <option>Excellent</option>
-                        <option>Average</option>
-                        <option>Poor</option>
-                      </select>
-                    </div>
-                  </div>
 
-                  {/* Live in-hand calculated score */}
-                  <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-zinc-400 font-medium">In-Hand Verified Quality Score</p>
-                      <p className="text-[11px] text-zinc-500">Calculated from physical appearance, freshness, damage & cleanliness</p>
+                    {/* Live in-hand calculated score */}
+                    <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-zinc-400 font-medium">In-Hand Verified Quality Score</p>
+                        <p className="text-[11px] text-zinc-500">Calculated from physical appearance, freshness, damage & cleanliness</p>
+                      </div>
+                      {(() => {
+                        const score = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
+                        const grade = score >= 85 ? "A" : score >= 60 ? "B" : "C"
+                        return (
+                          <span className={`text-base font-bold px-3 py-1 rounded-xl border ${grade === "C"
+                              ? "text-red-400 bg-red-500/10 border-red-500/30"
+                              : "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                            }`}>
+                            {score}% (Grade {grade})
+                          </span>
+                        )
+                      })()}
                     </div>
-                    {(() => {
-                      const score = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
-                      const grade = score >= 85 ? "A" : score >= 60 ? "B" : "C"
-                      return (
-                        <span className={`text-base font-bold px-3 py-1 rounded-xl border ${
-                          grade === "C"
-                            ? "text-red-400 bg-red-500/10 border-red-500/30"
-                            : "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
-                        }`}>
-                          {score}% (Grade {grade})
-                        </span>
-                      )
-                    })()}
-                  </div>
 
-                  {/* Quality Failure Alert Banner if Grade C (<60%) */}
-                  {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) < 60 && (
-                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-1.5 text-xs">
-                      <div className="flex items-start gap-2.5 text-red-400 font-semibold">
-                        <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-red-400" />
-                        <div>
-                          <p className="font-bold text-sm text-red-300">
-                            Quality Standards Failed (Grade C · {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)}%)
-                          </p>
-                          <p className="text-zinc-300 font-normal mt-0.5 text-[11px]">
-                            Physical quality parameters do not meet minimum processor intake specifications (60% / Grade B required). Accepting this batch on blockchain is restricted and produce delivery must be rejected.
-                          </p>
+                    {/* Quality Failure Alert Banner if Grade C (<60%) */}
+                    {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) < 60 && (
+                      <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-1.5 text-xs">
+                        <div className="flex items-start gap-2.5 text-red-400 font-semibold">
+                          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-red-400" />
+                          <div>
+                            <p className="font-bold text-sm text-red-300">
+                              Quality Standards Failed (Grade C · {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)}%)
+                            </p>
+                            <p className="text-zinc-300 font-normal mt-0.5 text-[11px]">
+                              Physical quality parameters do not meet minimum processor intake specifications (60% / Grade B required). Accepting this batch on blockchain is restricted and produce delivery must be rejected.
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs text-zinc-400">Certified Quality Grade</label>
-                      <div className="flex gap-2 mt-1">
-                        {(["A", "B", "C"] as const).map(g => {
-                          const computedScore = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
-                          const autoGrade = computedScore >= 85 ? "A" : computedScore >= 60 ? "B" : "C"
-                          const isCurrentGrade = autoGrade === g
-                          return (
-                            <button
-                              key={g}
-                              type="button"
-                              disabled={!isCurrentGrade}
-                              className={`flex-1 py-2 rounded-xl font-bold border transition-all ${
-                                isCurrentGrade
-                                  ? autoGrade === "C"
-                                    ? "bg-red-500 border-red-500 text-white shadow-md cursor-default ring-2 ring-red-400/50"
-                                    : "bg-emerald-500 border-emerald-500 text-white shadow-md cursor-default ring-2 ring-emerald-400/50"
-                                  : "border-zinc-800/50 text-zinc-600 opacity-40 cursor-not-allowed bg-zinc-900"
-                              }`}
-                            >
-                              Grade {g}
-                            </button>
-                          )
-                        })}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs text-zinc-400">Certified Quality Grade</label>
+                        <div className="flex gap-2 mt-1">
+                          {(["A", "B", "C"] as const).map(g => {
+                            const computedScore = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
+                            const autoGrade = computedScore >= 85 ? "A" : computedScore >= 60 ? "B" : "C"
+                            const isCurrentGrade = autoGrade === g
+                            return (
+                              <button
+                                key={g}
+                                type="button"
+                                disabled={!isCurrentGrade}
+                                className={`flex-1 py-2 rounded-xl font-bold border transition-all ${isCurrentGrade
+                                    ? autoGrade === "C"
+                                      ? "bg-red-500 border-red-500 text-white shadow-md cursor-default ring-2 ring-red-400/50"
+                                      : "bg-emerald-500 border-emerald-500 text-white shadow-md cursor-default ring-2 ring-emerald-400/50"
+                                    : "border-zinc-800/50 text-zinc-600 opacity-40 cursor-not-allowed bg-zinc-900"
+                                  }`}
+                              >
+                                Grade {g}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <p className="text-[10px] text-zinc-400 mt-1">
+                          Auto-locked: Grade A (85-100%), Grade B (60-84%), Grade C (&lt;60%)
+                        </p>
                       </div>
-                      <p className="text-[10px] text-zinc-400 mt-1">
-                        Auto-locked: Grade A (85-100%), Grade B (60-84%), Grade C (&lt;60%)
-                      </p>
+                      <div>
+                        <label className="text-xs text-zinc-400 font-medium">
+                          Remarks <span className="text-zinc-500 font-normal">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={remarksInput}
+                          onChange={(e) => setRemarksInput(e.target.value)}
+                          placeholder="Enter remarks (optional) e.g. Batch verified, produce in good condition"
+                          className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white focus:ring-1 focus:ring-emerald-400"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-xs text-zinc-400 font-medium">
-                        Remarks <span className="text-zinc-500 font-normal">(Optional)</span>
+
+                    {/* Physical Inspection Confirmation - Only displayed for Grade A or B (score >= 60) */}
+                    {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) >= 60 && (
+                      <label className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${isInspectionConfirmed
+                          ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
+                          : "bg-zinc-950 border-zinc-800 hover:border-zinc-700 text-zinc-400"
+                        }`}>
+                        <input
+                          type="checkbox"
+                          checked={isInspectionConfirmed}
+                          onChange={(e) => setIsInspectionConfirmed(e.target.checked)}
+                          className="h-4 w-4 rounded accent-primary cursor-pointer"
+                        />
+                        <span className="text-xs font-semibold">
+                          I have physically inspected this produce and certify the verified Quality Score & Grade.
+                        </span>
                       </label>
-                      <input
-                        type="text"
-                        value={remarksInput}
-                        onChange={(e) => setRemarksInput(e.target.value)}
-                        placeholder="Enter remarks (optional) e.g. Batch verified, produce in good condition"
-                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white focus:ring-1 focus:ring-emerald-400"
-                      />
-                    </div>
+                    )}
                   </div>
 
-                  {/* Physical Inspection Confirmation - Only displayed for Grade A or B (score >= 60) */}
-                  {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) >= 60 && (
-                    <label className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                      isInspectionConfirmed
-                        ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
-                        : "bg-zinc-950 border-zinc-800 hover:border-zinc-700 text-zinc-400"
-                    }`}>
-                      <input
-                        type="checkbox"
-                        checked={isInspectionConfirmed}
-                        onChange={(e) => setIsInspectionConfirmed(e.target.checked)}
-                        className="h-4 w-4 rounded accent-primary cursor-pointer"
-                      />
-                      <span className="text-xs font-semibold">
-                        I have physically inspected this produce and certify the verified Quality Score & Grade.
-                      </span>
-                    </label>
-                  )}
-                </div>
-
-                {/* DECISION ACTION SUBMIT */}
-                <div className="flex flex-col gap-3 border-t border-zinc-800 pt-4">
-                  {showRejectionForm ? (
-                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-3">
-                      <label className="text-xs text-red-400 font-bold uppercase">Rejection Reason</label>
-                      <select
-                        value={rejectionReasonInput}
-                        onChange={(e) => setRejectionReasonInput(e.target.value)}
-                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none text-white"
-                      >
-                        <option value="">Select reason</option>
-                        <option value="Quality Standards Failed (Grade C / Spoiled)">Quality Standards Failed (Grade C / Spoiled)</option>
-                        <option value="Severe Physical Damage">Severe Physical Damage</option>
-                        <option value="Information mismatch">Information Mismatch</option>
-                        <option value="Poor quality">Poor Quality</option>
-                        <option value="Product not suitable for processing">Product not suitable for processing</option>
-                      </select>
-                      <div className="flex gap-2">
-                        <Button
-                          disabled={!rejectionReasonInput}
-                          onClick={() => handleInspectionDecision("Rejected")}
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md cursor-pointer"
+                  {/* DECISION ACTION SUBMIT */}
+                  <div className="flex flex-col gap-3 border-t border-zinc-800 pt-4">
+                    {showRejectionForm ? (
+                      <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-3">
+                        <label className="text-xs text-red-400 font-bold uppercase">Rejection Reason</label>
+                        <select
+                          value={rejectionReasonInput}
+                          onChange={(e) => setRejectionReasonInput(e.target.value)}
+                          className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none text-white"
                         >
-                          Confirm Rejection on Chain
-                        </Button>
+                          <option value="">Select reason</option>
+                          <option value="Quality Standards Failed (Grade C / Spoiled)">Quality Standards Failed (Grade C / Spoiled)</option>
+                          <option value="Severe Physical Damage">Severe Physical Damage</option>
+                          <option value="Information mismatch">Information Mismatch</option>
+                          <option value="Poor quality">Poor Quality</option>
+                          <option value="Product not suitable for processing">Product not suitable for processing</option>
+                        </select>
+                        <div className="flex gap-2">
+                          <Button
+                            disabled={!rejectionReasonInput}
+                            onClick={() => handleInspectionDecision("Rejected")}
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md cursor-pointer"
+                          >
+                            Confirm Rejection on Chain
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            onClick={() => setShowRejectionForm(false)}
+                            className="rounded-xl text-zinc-400 cursor-pointer"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) < 60 ? (
+                      /* ONLY DISPLAY REJECT PRODUCT WHEN QUALITY STANDARDS FAIL (GRADE C) */
+                      <div className="space-y-2">
                         <Button
-                          variant="ghost"
-                          onClick={() => setShowRejectionForm(false)}
-                          className="rounded-xl text-zinc-400 cursor-pointer"
+                          onClick={() => {
+                            const score = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
+                            setRejectionReasonInput(`Quality Standards Failed: Grade C produce (${score}%) does not meet intake quality specifications`)
+                            setShowRejectionForm(true)
+                          }}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl py-3 text-sm shadow-lg gap-2 cursor-pointer"
                         >
-                          Cancel
+                          ❌ Reject Product (Quality Standards Failed)
                         </Button>
                       </div>
-                    </div>
-                  ) : computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) < 60 ? (
-                    /* ONLY DISPLAY REJECT PRODUCT WHEN QUALITY STANDARDS FAIL (GRADE C) */
-                    <div className="space-y-2">
-                      <Button
-                        onClick={() => {
-                          const score = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
-                          setRejectionReasonInput(`Quality Standards Failed: Grade C produce (${score}%) does not meet intake quality specifications`)
-                          setShowRejectionForm(true)
-                        }}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl py-3 text-sm shadow-lg gap-2 cursor-pointer"
-                      >
-                        ❌ Reject Product (Quality Standards Failed)
-                      </Button>
-                    </div>
-                  ) : (
-                    /* NORMAL VIEW: ACCEPT OR REJECT */
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowRejectionForm(true)}
-                        className="flex-1 rounded-xl border-red-500/30 text-red-500 hover:bg-red-500/10 hover:border-red-500 cursor-pointer"
-                      >
-                        ❌ Reject Product
-                      </Button>
-                      <Button
-                        disabled={infoVerified !== "Verified" || !isInspectionConfirmed}
-                        onClick={() => handleInspectionDecision("Accepted")}
-                        className={`flex-1 rounded-xl text-white ${
-                          infoVerified === "Verified" && isInspectionConfirmed
-                            ? "bg-emerald-600 hover:bg-emerald-700 font-bold shadow-md cursor-pointer"
-                            : "bg-zinc-800 text-zinc-500 cursor-not-allowed opacity-50 font-medium"
-                        }`}
-                      >
-                        ✅ Accept & Record on Chain
-                      </Button>
-                    </div>
-                  )}
+                    ) : (
+                      /* NORMAL VIEW: ACCEPT OR REJECT */
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowRejectionForm(true)}
+                          className="flex-1 rounded-xl border-red-500/30 text-red-500 hover:bg-red-500/10 hover:border-red-500 cursor-pointer"
+                        >
+                          ❌ Reject Product
+                        </Button>
+                        <Button
+                          disabled={infoVerified !== "Verified" || !isInspectionConfirmed}
+                          onClick={() => handleInspectionDecision("Accepted")}
+                          className={`flex-1 rounded-xl text-white ${infoVerified === "Verified" && isInspectionConfirmed
+                              ? "bg-emerald-600 hover:bg-emerald-700 font-bold shadow-md cursor-pointer"
+                              : "bg-zinc-800 text-zinc-500 cursor-not-allowed opacity-50 font-medium"
+                            }`}
+                        >
+                          ✅ Accept & Record on Chain
+                        </Button>
+                      </div>
+                    )}
 
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={closeVerifyModal}
-                    className="w-full text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl mt-1 cursor-pointer"
-                  >
-                    Cancel & Close Verification
-                  </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={closeVerifyModal}
+                      className="w-full text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl mt-1 cursor-pointer"
+                    >
+                      Cancel & Close Verification
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
             </div>
           </Card>
         </div>
@@ -2569,7 +2649,7 @@ export function ProcessorDashboard() {
                         disabled={!processedQtyInput || Number(processedQtyInput) <= 0 || !estimatedShelfLifeInput}
                         onClick={async () => {
                           await handleCompleteProcessing(
-                            processingModalBatch.batchId, 
+                            processingModalBatch.batchId,
                             Number(processedQtyInput),
                             estimatedShelfLifeInput
                           )
@@ -2590,4 +2670,3 @@ export function ProcessorDashboard() {
     </div>
   )
 }
-
