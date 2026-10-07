@@ -100,8 +100,8 @@ export const getRetailerShipments = async (req: Request, res: Response): Promise
 
     const { data: shipments, error } = await supabase
       .from('shipments')
-      .select('*, processor:processor_id(name, email, phone), distributor:distributor_id(name, email, phone), request:request_id(product_name, request_id)')
-      .eq('retailer_id', retailer_id)
+      .select('*, sender:sender_id(name, email, phone), distributor:distributor_id(name, email, phone), request:request_id(product_name, request_id)')
+      .eq('receiver_id', retailer_id)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -141,7 +141,7 @@ export const verifyBatch = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    if (shipment.retailer_id !== retailer_id) {
+    if (shipment.receiver_id !== retailer_id) {
       res.status(403).json({ success: false, message: 'This shipment does not belong to your store' });
       return;
     }
@@ -184,7 +184,7 @@ export const verifyBatch = async (req: Request, res: Response): Promise<void> =>
         batch_number: product.batch_number,
         quantity: shipment.quantity,
         unit: shipment.unit,
-        processor_id: shipment.processor_id,
+        sender_id: shipment.sender_id,
         expiry_date: product.expiry_date
       }
     });
@@ -221,7 +221,7 @@ export const receiveProduct = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    if (shipment.retailer_id !== retailer_id) {
+    if (shipment.receiver_id !== retailer_id) {
       res.status(403).json({ success: false, message: 'This shipment does not belong to your store' });
       return;
     }

@@ -127,6 +127,16 @@ export const registerProduct = async (req: Request, res: Response) => {
       return;
     }
 
+    // Insert Traceability Event: HARVEST_REGISTERED
+    await supabase.from('traceability_events').insert({
+      product_id: product.id,
+      batch_number: batchNumber,
+      event_type: 'HARVEST_REGISTERED',
+      actor_id: farmerId,
+      location: 'Farm',
+      metadata: { quantity, organic_status: organicStatus }
+    });
+
     // Add BATCH_CREATED outbox event for Kafka (Phase 9)
     const { randomUUID } = require('crypto');
     await supabase.from('event_outbox').insert({
@@ -297,14 +307,41 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
       return;
     }
 
-    // Fetch actual traceability events for this product
-    const { data: events } = await supabase
-      .from('traceability_events')
-      .select('*')
-      .eq('product_id', product.id)
-      .order('created_at', { ascending: true });
+    // Fetch actual traceability events for this product and all its parent batches recursively
+    let currentProductId = product.id;
+    let allEvents: any[] = [];
+    const maxDepth = 10;
+    let depth = 0;
 
-    (product as any).events = events || [];
+    while (currentProductId && depth < maxDepth) {
+      const { data: events } = await supabase
+        .from('traceability_events')
+        .select('*')
+        .eq('product_id', currentProductId)
+        .order('created_at', { ascending: true });
+        
+      if (events && events.length > 0) {
+        allEvents = [...events, ...allEvents]; // prepend parent events
+      }
+
+      // Find parent
+      const { data: lineage } = await supabase
+        .from('batch_lineage')
+        .select('parent_product_id')
+        .eq('child_product_id', currentProductId)
+        .maybeSingle();
+
+      if (lineage && lineage.parent_product_id) {
+        currentProductId = lineage.parent_product_id;
+      } else {
+        currentProductId = null;
+      }
+      depth++;
+    }
+
+    // Sort by chronological order
+    allEvents.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    (product as any).events = allEvents;
 
     res.status(200).json({ success: true, data: product });
   } catch (error) {

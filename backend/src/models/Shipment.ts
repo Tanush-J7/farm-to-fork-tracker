@@ -4,8 +4,8 @@ export interface IShipment {
   request_id?: string | null;
   batch_number: string;
   product_id: string;
-  retailer_id: string;
-  processor_id: string;
+  sender_id: string;
+  receiver_id: string;
   distributor_id?: string | null;
   quantity: number;
   unit: string;
