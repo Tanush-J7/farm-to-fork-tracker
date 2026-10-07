@@ -276,6 +276,17 @@ export const receiveProduct = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    // 3.1 Update Product Ownership
+    const { error: updateProductErr } = await supabase
+      .from('products')
+      .update({ current_owner_id: retailer_id })
+      .eq('id', shipment.product_id);
+
+    if (updateProductErr) {
+      res.status(500).json({ success: false, message: 'Failed to update product ownership', error: updateProductErr });
+      return;
+    }
+
     // 3.5 Create Kafka Outbox Event (Phase 7 - Event Streaming)
     const { randomUUID } = require('crypto');
     await supabase.from('event_outbox').insert({
