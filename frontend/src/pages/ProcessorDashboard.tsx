@@ -146,7 +146,7 @@ export function ProcessorDashboard() {
   const fetchApiData = async () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : {}
-      const [shipmentsRes, batchesRes] = await Promise.all([
+      const [shipmentsRes] = await Promise.all([
         axios.get(`${API}/processor/shipments/incoming`, { headers }),
         axios.get(`${API}/processor/batches`, { headers })
       ])
@@ -1258,7 +1258,7 @@ export function ProcessorDashboard() {
                             const p = products.find(prod => prod.id === s.product_id || prod.batch_number === s.batch_number)
                             if (p) {
                               setSelectedProduct(p)
-                              setSelectedShipment(s)
+                              // setSelectedShipment(s)
                               setReceivedQtyInput(String(s.quantity))
                               setIsVerifyModalOpen(true)
                             } else {

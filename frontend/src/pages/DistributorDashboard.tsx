@@ -21,6 +21,7 @@ export function DistributorDashboard() {
   const { user, token, updateUser } = useAuth()
   const [activeTab, setActiveTab] = useState("overview")
   const [inventory, setInventory] = useState<any[]>([])
+  const [incomingShipments, setIncomingShipments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   
   // Handoff state
@@ -31,10 +32,13 @@ export function DistributorDashboard() {
 
   const fetchInventory = async () => {
     try {
-      const res = await axios.get(`${API_URL}/products/my`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      setInventory(res.data.data || [])
+      const headers = { Authorization: `Bearer ${token}` }
+      const [invRes, shipRes] = await Promise.all([
+        axios.get(`${API_URL}/distributor/batches`, { headers }),
+        axios.get(`${API_URL}/distributor/shipments/incoming`, { headers })
+      ])
+      setInventory(invRes.data.data || [])
+      setIncomingShipments(shipRes.data.data || [])
     } catch (err) {
       console.error(err)
     } finally {
@@ -55,23 +59,26 @@ export function DistributorDashboard() {
     setHandoffSuccess("")
     
     try {
-      // 1. Get Product by Blockchain ID / Batch ID
-      const res = await axios.get(`${API_URL}/products/blockchain/${handoffId}`)
-      const product = res.data.data
+      // Find the shipment in incoming shipments
+      const shipment = incomingShipments.find(s => 
+        s.batch_number === handoffId || s.id === handoffId
+      )
       
-      // 2. Take custody (Update status and current_owner_id)
-      await axios.put(`${API_URL}/products/${product.id}/status`, {
-        status: 'In Transit',
-        current_owner_id: user?.id
-      }, {
+      if (!shipment) {
+        setHandoffError("Shipment not found in your incoming queue.")
+        setHandoffLoading(false)
+        return
+      }
+
+      await axios.post(`${API_URL}/distributor/shipments/${shipment.id}/receive`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       })
       
-      setHandoffSuccess(`Successfully took custody of ${product.name} (Batch: ${product.batch_number})`)
+      setHandoffSuccess(`Successfully received batch: ${shipment.batch_number}`)
       setHandoffId("")
       fetchInventory() // Refresh inventory
     } catch (err: any) {
-      setHandoffError(err.response?.data?.message || "Failed to verify ID or take custody.")
+      setHandoffError(err.response?.data?.message || "Failed to receive shipment.")
     } finally {
       setHandoffLoading(false)
     }
