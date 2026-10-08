@@ -635,14 +635,21 @@ export const reportWastage = async (req: Request, res: Response): Promise<void> 
     const newQuantity = inventory.quantity - quantity;
     const newStatus = newQuantity <= 0 ? 'DEPLETED' : 'AVAILABLE';
 
-    // 3. Update Inventory
-    const { error: updateErr } = await supabase
+    // 3. Update Inventory (with OCC)
+    const { data: updateData, error: updateErr } = await supabase
       .from('retailer_inventory')
       .update({ quantity: newQuantity, status: newStatus })
-      .eq('id', inventory_id);
+      .eq('id', inventory_id)
+      .eq('quantity', inventory.quantity)
+      .select();
 
     if (updateErr) {
       res.status(500).json({ success: false, message: 'Failed to update inventory', error: updateErr });
+      return;
+    }
+
+    if (!updateData || updateData.length === 0) {
+      res.status(409).json({ success: false, message: 'Inventory was modified concurrently. Please refresh and try again.' });
       return;
     }
 
@@ -659,6 +666,15 @@ export const reportWastage = async (req: Request, res: Response): Promise<void> 
 
     if (wastageErr) {
       console.error("Wastage record creation failed:", wastageErr);
+      
+      // Manual compensation rollback
+      await supabase
+        .from('retailer_inventory')
+        .update({ quantity: inventory.quantity, status: inventory.status })
+        .eq('id', inventory_id);
+        
+      res.status(500).json({ success: false, message: 'Failed to create wastage record. Inventory changes reverted.' });
+      return;
     } else {
       const { randomUUID } = require('crypto');
       await supabase.from('event_outbox').insert({
@@ -820,7 +836,28 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // 2. Create Return Record
+    // 2. Validate maximum allowable return (Cannot exceed what was sold minus already returned)
+    const { data: salesData } = await supabase
+      .from('retailer_sales')
+      .select('quantity_sold')
+      .eq('inventory_id', inventory_id);
+    
+    const totalSold = salesData?.reduce((sum, sale) => sum + (sale.quantity_sold || 0), 0) || 0;
+
+    const { data: returnsData } = await supabase
+      .from('retailer_returns')
+      .select('quantity')
+      .eq('inventory_id', inventory_id);
+
+    const totalReturned = returnsData?.reduce((sum, r) => sum + (r.quantity || 0), 0) || 0;
+
+    const eligibleForReturn = totalSold - totalReturned;
+    if (quantity > eligibleForReturn) {
+      res.status(400).json({ success: false, message: `Cannot return more than sold amount (${eligibleForReturn} eligible).` });
+      return;
+    }
+
+    // 3. Create Return Record
     const { error: returnErr } = await supabase
       .from('retailer_returns')
       .insert({
@@ -836,7 +873,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // 3. Handle Business Logic based on Condition
+    // 4. Handle Business Logic based on Condition
     let finalStatus = 'Recorded';
     
     if (condition === 'Good') {
@@ -844,12 +881,24 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       const newQuantity = inventory.quantity + quantity;
       const newStatus = 'AVAILABLE';
       
-      const { error: updateErr } = await supabase
+      const { data: updateData, error: updateErr } = await supabase
         .from('retailer_inventory')
         .update({ quantity: newQuantity, status: newStatus })
-        .eq('id', inventory_id);
+        .eq('id', inventory_id)
+        .eq('quantity', inventory.quantity) // OCC
+        .select();
 
-      if (!updateErr) finalStatus = 'Restocked';
+      if (updateErr || !updateData || updateData.length === 0) {
+        // Rollback return record
+        await supabase.from('retailer_returns').delete().match({ retailer_id, inventory_id, quantity, condition });
+        if (!updateData || updateData.length === 0) {
+          res.status(409).json({ success: false, message: 'Inventory was modified concurrently. Please try again.' });
+        } else {
+          res.status(500).json({ success: false, message: 'Failed to restock inventory', error: updateErr });
+        }
+        return;
+      }
+      finalStatus = 'Restocked';
     } else if (condition === 'Damaged') {
       // Send directly to Wastage
       const { error: wastageErr } = await supabase
@@ -862,7 +911,13 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
           notes: reason || null
         });
 
-      if (!wastageErr) finalStatus = 'Sent to Wastage';
+      if (wastageErr) {
+        // Rollback return record
+        await supabase.from('retailer_returns').delete().match({ retailer_id, inventory_id, quantity, condition });
+        res.status(500).json({ success: false, message: 'Failed to record damaged return as wastage', error: wastageErr });
+        return;
+      }
+      finalStatus = 'Sent to Wastage';
     }
 
     // 4. Create Traceability Event
