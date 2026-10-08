@@ -11,6 +11,7 @@ import notificationRoutes from './routes/notificationRoutes';
 import processorRoutes from './routes/processorRoutes';
 import distributorRoutes from './routes/distributorRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
+import anomalyRoutes from './routes/anomalyRoutes';
 
 dotenv.config();
 
@@ -50,6 +51,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/processor', processorRoutes);
 app.use('/api/distributor', distributorRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/analytics', anomalyRoutes);
 
 app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
