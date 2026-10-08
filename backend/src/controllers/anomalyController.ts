@@ -122,7 +122,8 @@ export const getSupplyChainAnomalies = async (req: Request, res: Response) => {
   try {
     const { data: events, error: eventError } = await supabase
       .from('traceability_events')
-      .select('*');
+      .select('*')
+      .limit(5000);
 
     if (eventError) throw eventError;
 

@@ -14,7 +14,8 @@ export const getFarmerDashboard = async (req: Request, res: Response): Promise<v
     const { data: products, error: productError } = await supabase
       .from('products')
       .select('id, status, batch_number, created_at')
-      .eq('farmer_id', farmerId);
+      .eq('farmer_id', farmerId)
+      .limit(1000);
 
     if (productError) {
       console.error('error occurred');
@@ -105,7 +106,8 @@ export const getFarmerAnalytics = async (req: Request, res: Response): Promise<v
     const { data: products, error: productError } = await supabase
       .from('products')
       .select('*')
-      .eq('farmer_id', farmerId);
+      .eq('farmer_id', farmerId)
+      .limit(5000);
 
     if (productError) {
       res.status(500).json({ success: false, message: 'Database error'});

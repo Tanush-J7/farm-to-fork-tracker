@@ -8,6 +8,7 @@ const generateRequestId = async () => {
     .from('product_requests')
     .select('request_id')
     .order('created_at', { ascending: false })
+    .limit(500)
     .limit(1);
 
   if (error || !data || data.length === 0) {
@@ -77,7 +78,8 @@ export const getMyRequests = async (req: Request, res: Response): Promise<void> 
       .from('product_requests')
       .select('*')
       .eq('retailer_id', retailer_id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(500);
 
     if (error) {
       res.status(500).json({ success: false, message: 'Database error' });
@@ -103,7 +105,8 @@ export const getRetailerShipments = async (req: Request, res: Response): Promise
       .from('shipments')
       .select('*, sender:sender_id(name, email, phone), distributor:distributor_id(name, email, phone), request:request_id(product_name, request_id)')
       .eq('receiver_id', retailer_id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(500);
 
     if (error) {
       res.status(500).json({ success: false, message: 'Database error' });
@@ -413,7 +416,8 @@ export const getRetailerInventory = async (req: Request, res: Response): Promise
       .from('retailer_inventory')
       .select('*, product:product_id(name, category, product_image_url)')
       .eq('retailer_id', retailer_id)
-      .order('expiry_date', { ascending: true });
+      .order('expiry_date', { ascending: true })
+      .limit(500);
 
     if (error) {
       res.status(500).json({ success: false, message: 'Database error' });
@@ -583,7 +587,8 @@ export const getSales = async (req: Request, res: Response): Promise<void> => {
       .from('retailer_sales')
       .select('*, inventory:inventory_id(batch_number, unit, product:product_id(name))')
       .eq('retailer_id', retailer_id)
-      .order('sale_date', { ascending: false });
+      .order('sale_date', { ascending: false })
+      .limit(500);
 
     if (error) {
       res.status(500).json({ success: false, message: 'Database error' });
@@ -748,7 +753,8 @@ export const getWastage = async (req: Request, res: Response): Promise<void> => 
       .from('retailer_wastage')
       .select('*, inventory:inventory_id(batch_number, unit, product:product_id(name))')
       .eq('retailer_id', retailer_id)
-      .order('report_date', { ascending: false });
+      .order('report_date', { ascending: false })
+      .limit(500);
 
     if (error) {
       res.status(500).json({ success: false, message: 'Database error' });
@@ -787,7 +793,8 @@ export const getBatchTraceability = async (req: Request, res: Response): Promise
       .from('traceability_events')
       .select('*, actor:actor_id(name, role)')
       .eq('batch_number', batch_number)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(500);
 
     if (eventsErr) {
       res.status(500).json({ success: false, message: 'Database error fetching events'});
@@ -976,7 +983,8 @@ export const getReturns = async (req: Request, res: Response): Promise<void> => 
       .from('retailer_returns')
       .select('*, inventory:inventory_id(batch_number, unit, product:product_id(name))')
       .eq('retailer_id', retailer_id)
-      .order('return_date', { ascending: false });
+      .order('return_date', { ascending: false })
+      .limit(500);
 
     if (error) {
       res.status(500).json({ success: false, message: 'Database error' });
@@ -1014,7 +1022,8 @@ export const getDashboardData = async (req: Request, res: Response): Promise<voi
       .from('retailer_sales')
       .select('quantity_sold, price_per_unit, sale_date')
       .eq('retailer_id', retailer_id)
-      .order('sale_date', { ascending: false });
+      .order('sale_date', { ascending: false })
+      .limit(500);
 
     // Calculate revenue
     const totalRevenue = sales?.reduce((sum, s) => sum + ((s.quantity_sold || 0) * (s.price_per_unit || 0)), 0) || 0;

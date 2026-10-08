@@ -17,7 +17,8 @@ export const getProcessorRequests = async (req: Request, res: Response): Promise
       .from('product_requests')
       .select('id, request_id, retailer_id, product_name, quantity, unit, required_date, priority, notes, status, processor_id, created_at, updated_at')
       .or(`processor_id.is.null,processor_id.eq.${processor_id}`)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(500);
 
     if (error) {
       console.error('error occurred');
@@ -103,7 +104,8 @@ export const getProcessorBatches = async (req: Request, res: Response): Promise<
       .from('products')
       .select('id, product_id, batch_number, quantity, category, name, status, current_owner_id, expiry_date, created_at, ai_quality_score, ai_quality_label')
       .eq('current_owner_id', processor_id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(500);
 
     if (error) {
       res.status(500).json({ success: false, message: 'Database error' });
@@ -130,7 +132,8 @@ export const getIncomingShipments = async (req: Request, res: Response): Promise
       .from('shipments')
       .select('*, sender:sender_id(name, email), distributor:distributor_id(name, email), request:request_id(product_name, request_id)')
       .eq('receiver_id', processor_id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(500);
 
     if (error) {
       res.status(500).json({ success: false, message: 'Database error' });

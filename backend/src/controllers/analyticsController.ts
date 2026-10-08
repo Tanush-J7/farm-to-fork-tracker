@@ -12,46 +12,54 @@ export const getSupplyChainAnalytics = async (req: Request, res: Response) => {
     const { data: events, error: eventError } = await supabase
       .from('traceability_events')
       .select('*')
-      .order('timestamp', { ascending: true });
+      .order('timestamp', { ascending: true })
+      .limit(5000);
 
     if (eventError) throw eventError;
 
     // 2. Fetch shipments
     const { data: shipments, error: shipmentError } = await supabase
       .from('shipments')
-      .select('*');
+      .select('*')
+      .limit(5000);
 
     if (shipmentError) throw shipmentError;
 
     // 3. Fetch retailer inventory & sales data
     const { data: inventory, error: invError } = await supabase
       .from('retailer_inventory')
-      .select('*');
+      .select('*')
+      .limit(5000);
     if (invError) throw invError;
 
     const { data: sales, error: salesError } = await supabase
       .from('retailer_sales')
-      .select('*');
+      .select('*')
+      .limit(5000);
     if (salesError) throw salesError;
 
     const { data: wastage, error: wasteError } = await supabase
       .from('retailer_wastage')
-      .select('*');
+      .select('*')
+      .limit(5000);
     if (wasteError) throw wasteError;
 
     const { data: returns, error: returnError } = await supabase
       .from('retailer_returns')
-      .select('*');
+      .select('*')
+      .limit(5000);
     if (returnError) throw returnError;
 
     const { data: batchLineage, error: lineageError } = await supabase
       .from('batch_lineage')
-      .select('*');
+      .select('*')
+      .limit(5000);
     if (lineageError) throw lineageError;
 
     const { data: products, error: prodError } = await supabase
       .from('products')
-      .select('id, created_at');
+      .select('id, created_at')
+      .limit(5000);
     if (prodError) throw prodError;
 
     // ---------------------------------------------------------

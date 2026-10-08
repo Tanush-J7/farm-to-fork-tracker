@@ -15,7 +15,8 @@ export const getIncomingShipments = async (req: Request, res: Response): Promise
       .from('shipments')
       .select('*, sender:sender_id(name, email), request:request_id(product_name, request_id)')
       .eq('receiver_id', distributor_id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(500);
 
     if (error) {
       console.error('error occurred');
@@ -125,7 +126,8 @@ export const getDistributorBatches = async (req: Request, res: Response): Promis
       .from('products')
       .select('*')
       .eq('current_owner_id', distributor_id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(500);
 
     if (error) {
       res.status(500).json({ success: false, message: 'Database error' });
