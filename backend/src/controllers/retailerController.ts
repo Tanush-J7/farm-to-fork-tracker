@@ -53,13 +53,14 @@ export const createProductRequest = async (req: Request, res: Response): Promise
       .single();
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Database error', error });
+      console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(201).json({ success: true, data: request });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -79,13 +80,13 @@ export const getMyRequests = async (req: Request, res: Response): Promise<void> 
       .order('created_at', { ascending: false });
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Database error', error });
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, data: requests });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -105,13 +106,13 @@ export const getRetailerShipments = async (req: Request, res: Response): Promise
       .order('created_at', { ascending: false });
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Database error', error });
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, data: shipments });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -190,7 +191,7 @@ export const verifyBatch = async (req: Request, res: Response): Promise<void> =>
     });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error during verification', error });
+    res.status(500).json({ success: false, message: 'Server Error during verification' });
   }
 };
 
@@ -258,9 +259,7 @@ export const receiveProduct = async (req: Request, res: Response): Promise<void>
       console.error("Blockchain transaction failed:", bcError);
       res.status(500).json({ 
         success: false, 
-        message: 'Blockchain recording failed. Transaction aborted for data integrity. Please retry.', 
-        error: bcError 
-      });
+        message: 'Blockchain recording failed. Transaction aborted for data integrity. Please retry.' });
       return;
     }
 
@@ -271,7 +270,7 @@ export const receiveProduct = async (req: Request, res: Response): Promise<void>
       .eq('id', shipment_id);
 
     if (updateShipmentErr) {
-      res.status(500).json({ success: false, message: 'Failed to update shipment status', error: updateShipmentErr });
+      res.status(500).json({ success: false, message: 'Failed to update shipment status'});
       return;
     }
 
@@ -282,7 +281,8 @@ export const receiveProduct = async (req: Request, res: Response): Promise<void>
       .eq('id', shipment.product_id);
 
     if (updateProductErr) {
-      res.status(500).json({ success: false, message: 'Failed to update product ownership', error: updateProductErr });
+      console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Failed to update product ownership'});
       return;
     }
 
@@ -396,7 +396,8 @@ export const receiveProduct = async (req: Request, res: Response): Promise<void>
     });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error during receiving', error });
+    console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Server Error during receiving' });
   }
 };
 export const getRetailerInventory = async (req: Request, res: Response): Promise<void> => {
@@ -415,13 +416,13 @@ export const getRetailerInventory = async (req: Request, res: Response): Promise
       .order('expiry_date', { ascending: true });
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Database error', error });
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, data: inventory });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -481,7 +482,7 @@ export const recordSale = async (req: Request, res: Response): Promise<void> => 
       .select();
 
     if (updateErr) {
-      res.status(500).json({ success: false, message: 'Failed to update inventory', error: updateErr });
+      res.status(500).json({ success: false, message: 'Failed to update inventory'});
       return;
     }
 
@@ -509,6 +510,7 @@ export const recordSale = async (req: Request, res: Response): Promise<void> => 
         .update({ quantity: inventory.quantity, status: inventory.status })
         .eq('id', inventory_id);
 
+      console.error('error occurred');
       res.status(500).json({ success: false, message: 'Failed to create sale record. Inventory changes reverted.' });
       return;
     }
@@ -564,7 +566,7 @@ export const recordSale = async (req: Request, res: Response): Promise<void> => 
     });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -584,13 +586,13 @@ export const getSales = async (req: Request, res: Response): Promise<void> => {
       .order('sale_date', { ascending: false });
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Database error', error });
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, data: sales });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -644,7 +646,7 @@ export const reportWastage = async (req: Request, res: Response): Promise<void> 
       .select();
 
     if (updateErr) {
-      res.status(500).json({ success: false, message: 'Failed to update inventory', error: updateErr });
+      res.status(500).json({ success: false, message: 'Failed to update inventory'});
       return;
     }
 
@@ -673,6 +675,7 @@ export const reportWastage = async (req: Request, res: Response): Promise<void> 
         .update({ quantity: inventory.quantity, status: inventory.status })
         .eq('id', inventory_id);
         
+      console.error('error occurred');
       res.status(500).json({ success: false, message: 'Failed to create wastage record. Inventory changes reverted.' });
       return;
     } else {
@@ -728,7 +731,7 @@ export const reportWastage = async (req: Request, res: Response): Promise<void> 
     });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -748,13 +751,13 @@ export const getWastage = async (req: Request, res: Response): Promise<void> => 
       .order('report_date', { ascending: false });
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Database error', error });
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, data: wastage });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -787,7 +790,7 @@ export const getBatchTraceability = async (req: Request, res: Response): Promise
       .order('created_at', { ascending: true });
 
     if (eventsErr) {
-      res.status(500).json({ success: false, message: 'Database error fetching events', error: eventsErr });
+      res.status(500).json({ success: false, message: 'Database error fetching events'});
       return;
     }
 
@@ -800,7 +803,8 @@ export const getBatchTraceability = async (req: Request, res: Response): Promise
     });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -869,7 +873,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       });
 
     if (returnErr) {
-      res.status(500).json({ success: false, message: 'Failed to create return record', error: returnErr });
+      res.status(500).json({ success: false, message: 'Failed to create return record'});
       return;
     }
 
@@ -898,7 +902,8 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         if (!updateData || updateData.length === 0) {
           res.status(409).json({ success: false, message: 'Inventory was modified concurrently. Please try again.' });
         } else {
-          res.status(500).json({ success: false, message: 'Failed to restock inventory', error: updateErr });
+          console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Failed to restock inventory'});
         }
         return;
       }
@@ -918,7 +923,8 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       if (wastageErr) {
         // Rollback return record
         await supabase.from('retailer_returns').delete().match({ retailer_id, inventory_id, quantity, condition });
-        res.status(500).json({ success: false, message: 'Failed to record damaged return as wastage', error: wastageErr });
+        console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Failed to record damaged return as wastage'});
         return;
       }
       finalStatus = 'Sent to Wastage';
@@ -953,7 +959,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
     });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -973,13 +979,13 @@ export const getReturns = async (req: Request, res: Response): Promise<void> => 
       .order('return_date', { ascending: false });
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Database error', error });
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, data: returns });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -1026,7 +1032,7 @@ export const getDashboardData = async (req: Request, res: Response): Promise<voi
     });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 

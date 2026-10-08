@@ -17,7 +17,8 @@ export const getFarmerDashboard = async (req: Request, res: Response): Promise<v
       .eq('farmer_id', farmerId);
 
     if (productError) {
-      res.status(500).json({ success: false, message: 'Database error', error: productError });
+      console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Database error'});
       return;
     }
 
@@ -88,7 +89,8 @@ export const getFarmerDashboard = async (req: Request, res: Response): Promise<v
     });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -106,7 +108,7 @@ export const getFarmerAnalytics = async (req: Request, res: Response): Promise<v
       .eq('farmer_id', farmerId);
 
     if (productError) {
-      res.status(500).json({ success: false, message: 'Database error', error: productError });
+      res.status(500).json({ success: false, message: 'Database error'});
       return;
     }
 
@@ -224,6 +226,6 @@ export const getFarmerAnalytics = async (req: Request, res: Response): Promise<v
     });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

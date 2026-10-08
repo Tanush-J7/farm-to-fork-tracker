@@ -23,8 +23,13 @@ export const registerProduct = async (req: Request, res: Response) => {
     const farmerId = (req as any).user?.id || 'anonymous';
     
     // Validate required fields
-    if (!name || !category || !batchNumber || !quantity) {
+    if (!name || !category || !batchNumber || quantity === undefined) {
       res.status(400).json({ success: false, message: 'Please provide all required fields (name, category, batchNumber, quantity).' });
+      return;
+    }
+
+    if (typeof quantity !== 'number' || quantity <= 0 || !isFinite(quantity)) {
+      res.status(400).json({ success: false, message: 'Quantity must be a valid positive number.' });
       return;
     }
 
@@ -63,7 +68,8 @@ export const registerProduct = async (req: Request, res: Response) => {
         .upload(imagePath, imageBuffer, { contentType, upsert: false });
 
       if (uploadError) {
-        res.status(500).json({ success: false, message: 'Could not upload product photo.', error: uploadError.message });
+        console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Could not upload product photo.'});
         return;
       }
 
@@ -159,7 +165,7 @@ export const registerProduct = async (req: Request, res: Response) => {
       .single();
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Server Error', error });
+      res.status(500).json({ success: false, message: 'Server Error' });
       return;
     }
 
@@ -205,7 +211,7 @@ export const registerProduct = async (req: Request, res: Response) => {
       message: 'Product registered successfully',
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -217,7 +223,7 @@ export const getProducts = async (req: Request, res: Response) => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Server Error', error });
+      res.status(500).json({ success: false, message: 'Server Error' });
       return;
     }
 
@@ -239,7 +245,7 @@ export const getMyProducts = async (req: Request, res: Response) => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Server Error', error });
+      res.status(500).json({ success: false, message: 'Server Error' });
       return;
     }
 
@@ -390,19 +396,29 @@ export const updateProductStatus = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { status, current_owner_id, blockchain_hash } = req.body;
 
+    const userId = (req as any).user?.id;
+    const role = (req as any).user?.role;
+
+    // First fetch the product
+    const { data: prod } = await supabase.from('products').select('current_owner_id').eq('id', id).single();
+    if (!prod) return res.status(404).json({ success: false, message: 'Product not found' }) as any;
+    
+    // Only current owner or admin/processor/retailer/distributor can update
+    // In a real strict environment, only the owner could update it, or the receiver. 
+    // To not break frontend simulations (Processor taking any product), we allow roles.
+    if (prod.current_owner_id !== userId && role === 'farmer') {
+      return res.status(403).json({ success: false, message: 'Not authorized to update this product' }) as any;
+    }
+
     const { data: product, error } = await supabase
       .from('products')
-      .update({
-        status,
-        current_owner_id: current_owner_id || undefined,
-        blockchain_hash: blockchain_hash || undefined,
-      })
+      .update({ status })
       .eq('id', id)
       .select('*, farmer:farmer_id(name, email)')
       .single();
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Server Error', error });
+      res.status(500).json({ success: false, message: 'Server Error' });
       return;
     }
 
@@ -426,13 +442,14 @@ export const updateProductStatus = async (req: Request, res: Response) => {
 export const deleteProduct = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
+    const userId = (req as any).user?.id;
+    const role = (req as any).user?.role;
 
     // 1. Try deleting directly by primary key 'id'
-    const { data: d1 } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', id)
-      .select();
+    let q1 = supabase.from('products').delete().eq('id', id);
+    if (role !== 'admin') q1 = q1.eq('farmer_id', userId);
+    
+    const { data: d1 } = await q1.select();
 
     if (d1 && d1.length > 0) {
       res.status(200).json({ success: true, message: 'Product deleted permanently from database' });
@@ -442,11 +459,10 @@ export const deleteProduct = async (req: Request, res: Response) => {
     // 2. If id is numeric, try deleting by product_id or integer id
     const numId = Number(id);
     if (!isNaN(numId) && numId > 0) {
-      const { data: d2 } = await supabase
-        .from('products')
-        .delete()
-        .or(`product_id.eq.${numId},id.eq.${numId}`)
-        .select();
+      let q2 = supabase.from('products').delete().or(`product_id.eq.${numId},id.eq.${numId}`);
+      if (role !== 'admin') q2 = q2.eq('farmer_id', userId);
+      
+      const { data: d2 } = await q2.select();
 
       if (d2 && d2.length > 0) {
         res.status(200).json({ success: true, message: 'Product deleted permanently from database' });
@@ -455,11 +471,13 @@ export const deleteProduct = async (req: Request, res: Response) => {
     }
 
     // 3. Fallback: try by batch_number
-    await supabase.from('products').delete().eq('batch_number', id);
+    let q3 = supabase.from('products').delete().eq('batch_number', id);
+    if (role !== 'admin') q3 = q3.eq('farmer_id', userId);
+    await q3;
 
     res.status(200).json({ success: true, message: 'Product deleted successfully' });
   } catch (error) {
     console.error('Delete product error:', error);
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

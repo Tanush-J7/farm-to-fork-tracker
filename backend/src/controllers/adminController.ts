@@ -54,7 +54,8 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -68,7 +69,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
     if (error) throw error;
     res.status(200).json({ success: true, data: users });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -92,7 +93,7 @@ export const updateUserRole = async (req: Request, res: Response) => {
     if (error) throw error;
     res.status(200).json({ success: true, data });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -104,7 +105,7 @@ export const deleteUser = async (req: Request, res: Response) => {
     if (error) throw error;
     res.status(200).json({ success: true, message: 'User deleted successfully', data });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -144,7 +145,7 @@ export const getBlockchainHealth = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Blockchain Connection Error', error });
+    res.status(500).json({ success: false, message: 'Blockchain Connection Error' });
   }
 };
 
@@ -263,7 +264,7 @@ export const getAnalytics = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -311,7 +312,7 @@ export const approveProduct = async (req: Request, res: Response) => {
         }
       } catch (err) {
         console.error("Wallet-less blockchain registration failed:", err);
-        res.status(500).json({ success: false, message: 'Blockchain registration failed', error: err });
+        res.status(500).json({ success: false, message: 'Blockchain registration failed'});
         return;
       }
     }
@@ -331,7 +332,7 @@ export const approveProduct = async (req: Request, res: Response) => {
 
     res.status(200).json({ success: true, message: 'Product approved and registered on blockchain', data: updated });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -401,7 +402,7 @@ export const getUserDetails = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -433,6 +434,6 @@ export const getProductDetails = async (req: Request, res: Response) => {
 
     res.status(200).json({ success: true, data: product });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

@@ -18,13 +18,14 @@ export const getIncomingShipments = async (req: Request, res: Response): Promise
       .order('created_at', { ascending: false });
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Database error', error });
+      console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, data: shipments });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -78,7 +79,7 @@ export const receiveShipment = async (req: Request, res: Response): Promise<void
       .eq('id', id);
 
     if (updateShipmentErr) {
-      res.status(500).json({ success: false, message: 'Database error', error: updateShipmentErr });
+      res.status(500).json({ success: false, message: 'Database error'});
       return;
     }
 
@@ -89,7 +90,8 @@ export const receiveShipment = async (req: Request, res: Response): Promise<void
       .eq('id', shipment.product_id);
 
     if (updateProdErr) {
-      res.status(500).json({ success: false, message: 'Database error updating ownership', error: updateProdErr });
+      console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Database error updating ownership'});
       return;
     }
 
@@ -105,7 +107,8 @@ export const receiveShipment = async (req: Request, res: Response): Promise<void
 
     res.status(200).json({ success: true, message: 'Shipment received' });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -125,13 +128,13 @@ export const getDistributorBatches = async (req: Request, res: Response): Promis
       .order('created_at', { ascending: false });
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Database error', error });
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, data: batches });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -240,7 +243,7 @@ export const createShipment = async (req: Request, res: Response): Promise<void>
       .single();
 
     if (shipErr) {
-      res.status(500).json({ success: false, message: 'Database error creating shipment', error: shipErr });
+      res.status(500).json({ success: false, message: 'Database error creating shipment'});
       return;
     }
 
@@ -256,6 +259,6 @@ export const createShipment = async (req: Request, res: Response): Promise<void>
 
     res.status(201).json({ success: true, data: shipment });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

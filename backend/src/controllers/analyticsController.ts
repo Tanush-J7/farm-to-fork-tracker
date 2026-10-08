@@ -296,6 +296,6 @@ export const getSupplyChainAnalytics = async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Supply Chain Analytics Error:', error);
-    res.status(500).json({ success: false, message: 'Failed to generate analytics', error });
+    res.status(500).json({ success: false, message: 'Failed to generate analytics' });
   }
 };

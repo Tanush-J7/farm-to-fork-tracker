@@ -145,6 +145,6 @@ export const getSupplyChainAnomalies = async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Anomaly Detection Error:', error);
-    res.status(500).json({ success: false, message: 'Failed to generate anomaly intelligence', error });
+    res.status(500).json({ success: false, message: 'Failed to generate anomaly intelligence' });
   }
 };

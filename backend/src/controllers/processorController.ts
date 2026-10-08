@@ -20,13 +20,14 @@ export const getProcessorRequests = async (req: Request, res: Response): Promise
       .order('created_at', { ascending: false });
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Database error', error });
+      console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, data: requests });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -83,7 +84,7 @@ export const claimProcessorRequest = async (req: Request, res: Response): Promis
 
     res.status(200).json({ success: true, message: 'Request claimed successfully', data: updatedRequest });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -105,13 +106,13 @@ export const getProcessorBatches = async (req: Request, res: Response): Promise<
       .order('created_at', { ascending: false });
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Database error', error });
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, data: batches });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -132,13 +133,13 @@ export const getIncomingShipments = async (req: Request, res: Response): Promise
       .order('created_at', { ascending: false });
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Database error', error });
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, data: shipments });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -187,7 +188,7 @@ export const receiveShipment = async (req: Request, res: Response): Promise<void
       .eq('id', id);
 
     if (updateShipmentErr) {
-      res.status(500).json({ success: false, message: 'Failed to update shipment status', error: updateShipmentErr });
+      res.status(500).json({ success: false, message: 'Failed to update shipment status'});
       return;
     }
 
@@ -218,7 +219,8 @@ export const receiveShipment = async (req: Request, res: Response): Promise<void
 
     res.status(200).json({ success: true, message: 'Shipment received successfully', data: { shipment_id: id } });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -270,7 +272,7 @@ export const processBatch = async (req: Request, res: Response): Promise<void> =
       .eq('id', id);
       
     if (updateParentErr) {
-      res.status(500).json({ success: false, message: 'Failed to update parent product', error: updateParentErr });
+      res.status(500).json({ success: false, message: 'Failed to update parent product'});
       return;
     }
 
@@ -295,7 +297,8 @@ export const processBatch = async (req: Request, res: Response): Promise<void> =
       .single();
 
     if (childErr) {
-      res.status(500).json({ success: false, message: 'Failed to create processed batch', error: childErr });
+      console.error('error occurred');
+      res.status(500).json({ success: false, message: 'Failed to create processed batch'});
       return;
     }
 
@@ -323,6 +326,6 @@ export const processBatch = async (req: Request, res: Response): Promise<void> =
 
     res.status(201).json({ success: true, message: 'Batch processed successfully', data: childProduct });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

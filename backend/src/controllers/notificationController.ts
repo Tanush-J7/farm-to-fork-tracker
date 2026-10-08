@@ -27,13 +27,13 @@ export const getNotifications = async (req: Request, res: Response): Promise<voi
         res.status(200).json({ success: true, data: [] });
         return;
       }
-      res.status(500).json({ success: false, message: 'Database error', error });
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, data: notifications });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -56,13 +56,13 @@ export const getUnreadCount = async (req: Request, res: Response): Promise<void>
         res.status(200).json({ success: true, count: 0 });
         return;
       }
-      res.status(500).json({ success: false, message: 'Database error', error });
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, count: count || 0 });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -83,13 +83,13 @@ export const markAsRead = async (req: Request, res: Response): Promise<void> => 
       .eq('user_id', userId); // Secure: ensure user owns the notification
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Database error', error });
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, message: 'Marked as read' });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
@@ -108,13 +108,13 @@ export const markAllAsRead = async (req: Request, res: Response): Promise<void> 
       .eq('is_read', false);
 
     if (error) {
-      res.status(500).json({ success: false, message: 'Database error', error });
+      res.status(500).json({ success: false, message: 'Database error' });
       return;
     }
 
     res.status(200).json({ success: true, message: 'All marked as read' });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 

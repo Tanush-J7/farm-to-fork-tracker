@@ -43,6 +43,6 @@ export const getDecisionSupport = async (req: Request, res: Response): Promise<v
     });
   } catch (error) {
     console.error('Decision Support Error:', error);
-    res.status(500).json({ success: false, message: 'Server Error', error });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
