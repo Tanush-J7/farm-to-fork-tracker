@@ -316,7 +316,7 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
     while (currentProductId && depth < maxDepth) {
       const { data: events } = await supabase
         .from('traceability_events')
-        .select('*, actor:actor_id(name, role)')
+        .select('id, product_id, batch_number, event_type, location, metadata, blockchain_hash, created_at, actor:actor_id(name, role)')
         .eq('product_id', currentProductId)
         .order('created_at', { ascending: true });
         
