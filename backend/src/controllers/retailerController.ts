@@ -876,7 +876,11 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
     // 4. Handle Business Logic based on Condition
     let finalStatus = 'Recorded';
     
-    if (condition === 'Good') {
+    // Safety hardening: if the item is expired, it cannot be restocked as sellable even if 'Good'.
+    const isExpired = inventory.expiry_date && new Date(inventory.expiry_date) < new Date();
+    const effectiveCondition = isExpired ? 'Expired' : condition;
+
+    if (effectiveCondition === 'Good') {
       // Add back to inventory
       const newQuantity = inventory.quantity + quantity;
       const newStatus = 'AVAILABLE';
@@ -899,7 +903,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         return;
       }
       finalStatus = 'Restocked';
-    } else if (condition === 'Damaged') {
+    } else if (effectiveCondition === 'Damaged' || effectiveCondition === 'Expired') {
       // Send directly to Wastage
       const { error: wastageErr } = await supabase
         .from('retailer_wastage')
@@ -907,7 +911,7 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
           retailer_id,
           inventory_id,
           quantity,
-          reason: 'Customer Return - Damaged',
+          reason: effectiveCondition === 'Expired' ? 'Customer Return - Expired' : 'Customer Return - Damaged',
           notes: reason || null
         });
 
