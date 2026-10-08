@@ -16,6 +16,7 @@ import { FarmerNotificationsPage } from "./pages/FarmerNotificationsPage"
 import { ProcessorDashboard } from "./pages/ProcessorDashboard"
 import { DistributorDashboard } from "./pages/DistributorDashboard"
 import { AnalyticsDashboard } from "./pages/AnalyticsDashboard"
+import SupplyChainAnalytics from "./pages/analytics/SupplyChainAnalytics"
 import { Tracker } from "./pages/Tracker"
 import { AdminUsers } from "./pages/admin/AdminUsers"
 import { AdminUserDetails } from "./pages/admin/AdminUserDetails"
@@ -54,6 +55,7 @@ function App() {
           <Route path="/admin" element={<DashboardLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="analytics" element={<AnalyticsDashboard />} />
+            <Route path="supply-chain-analytics" element={<SupplyChainAnalytics />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="users/:id" element={<AdminUserDetails />} />
             <Route path="products" element={<AdminProducts />} />

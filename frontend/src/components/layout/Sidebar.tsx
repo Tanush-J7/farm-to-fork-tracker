@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
   LayoutDashboard, Leaf, PackageSearch, Truck,
-  Factory, LogOut, BarChart3, Menu, X, Edit3, Camera, MapPin, Locate, Loader2, CheckCircle2, Clock, QrCode, Trash2, ShoppingCart, Package, DollarSign, RefreshCw, AlertTriangle, LinkIcon, Wand2, Bell
+  Factory, LogOut, BarChart3, Menu, X, Edit3, Camera, MapPin, Locate, Loader2, CheckCircle2, Clock, QrCode, Trash2, ShoppingCart, Package, DollarSign, RefreshCw, AlertTriangle, LinkIcon, Wand2, Bell, Activity
 } from "lucide-react"
 import { cn } from "../../utils"
 import { useAuth } from "../../context/AuthContext"
@@ -13,6 +13,7 @@ const roleNavMap: Record<string, { name: string; path: string; icon: React.Eleme
     { name: "User Directory", path: "/admin/users", icon: Edit3 },
     { name: "Supply Chain", path: "/admin/products", icon: Factory },
     { name: "Analytics", path: "/admin/analytics", icon: BarChart3 },
+    { name: "SC Intelligence", path: "/admin/supply-chain-analytics", icon: Activity },
     { name: "Track Product", path: "/track", icon: PackageSearch },
   ],
   farmer: [

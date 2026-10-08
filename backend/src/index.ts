@@ -10,6 +10,7 @@ import farmerRoutes from './routes/farmerRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import processorRoutes from './routes/processorRoutes';
 import distributorRoutes from './routes/distributorRoutes';
+import analyticsRoutes from './routes/analyticsRoutes';
 
 dotenv.config();
 
@@ -48,6 +49,7 @@ app.use('/api/farmer', farmerRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/processor', processorRoutes);
 app.use('/api/distributor', distributorRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
