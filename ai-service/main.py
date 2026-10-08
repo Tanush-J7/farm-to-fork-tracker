@@ -45,13 +45,10 @@ class SalesData(BaseModel):
 @app.post("/predict/quality")
 def predict_quality(data: ImageInput):
     """Classify crop quality from image URL (mocked)."""
-    qualities = ["Excellent", "Good", "Average", "Poor"]
-    weights = [0.45, 0.30, 0.18, 0.07]
-    quality = random.choices(qualities, weights=weights)[0]
     return {
-        "quality": quality,
-        "score": round(random.uniform(0.6, 0.99), 2),
-        "confidence": round(random.uniform(0.82, 0.99), 2),
+        "quality": "AI Inspection Unavailable",
+        "score": 0.0,
+        "confidence": 0.0,
         "analyzed_at": datetime.utcnow().isoformat()
     }
 
@@ -62,14 +59,12 @@ def predict_quality(data: ImageInput):
 @app.post("/predict/disease")
 def predict_disease(data: CropData):
     """Detect crop disease from crop data (mocked)."""
-    diseases = [None, "Leaf Blight", "Rust", "Powdery Mildew", "Fusarium Wilt"]
-    disease = random.choices(diseases, weights=[0.6, 0.1, 0.1, 0.1, 0.1])[0]
     return {
-        "disease_detected": disease is not None,
-        "disease_name": disease or "None",
-        "severity": random.choice(["Low", "Medium", "High"]) if disease else None,
-        "confidence": round(random.uniform(0.75, 0.99), 2),
-        "recommendation": "Apply fungicide" if disease else "No treatment needed"
+        "disease_detected": False,
+        "disease_name": "AI Service Unavailable",
+        "severity": None,
+        "confidence": 0.0,
+        "recommendation": "Manual inspection required"
     }
 
 
@@ -79,20 +74,11 @@ def predict_disease(data: CropData):
 @app.post("/predict/shelf-life")
 def predict_shelf_life(data: CropData):
     """Predict shelf life in days based on crop type and conditions (mocked)."""
-    base_days = {
-        "tomatoes": 7, "mangoes": 10, "avocados": 5, "apples": 30,
-        "wheat": 365, "rice": 730, "grapes": 14
-    }
-    days = base_days.get(data.crop_type.lower(), 10)
-    # Adjust for temperature and humidity
-    temp_factor = 1.0 - max(0, (data.temperature - 20) * 0.02)
-    days_adjusted = int(days * temp_factor * random.uniform(0.85, 1.15))
-    expiry = datetime.utcnow() + timedelta(days=days_adjusted)
     return {
-        "shelf_life_days": days_adjusted,
-        "expiry_date": expiry.strftime("%Y-%m-%d"),
-        "storage_recommendation": f"Store at {'<10°C' if days_adjusted < 14 else 'room temperature'}",
-        "freshness_score": round(random.uniform(0.75, 0.99), 2)
+        "shelf_life_days": 0,
+        "expiry_date": None,
+        "storage_recommendation": "AI Service Unavailable",
+        "freshness_score": 0.0
     }
 
 
@@ -164,16 +150,11 @@ def predict_price_real(data: PricePredictionRequest):
 @app.post("/predict/demand")
 def predict_demand(data: SalesData):
     """Forecast next-week demand from historical sales (mocked)."""
-    if data.historical_sales:
-        avg = sum(data.historical_sales) / len(data.historical_sales)
-        forecast = [round(avg * random.uniform(0.9, 1.2)) for _ in range(7)]
-    else:
-        forecast = [random.randint(40, 120) for _ in range(7)]
     return {
         "product": data.product,
-        "forecast_7_days": forecast,
-        "recommended_stock": max(forecast),
-        "confidence": round(random.uniform(0.80, 0.95), 2)
+        "forecast_7_days": [],
+        "recommended_stock": 0,
+        "confidence": 0.0
     }
 
 
@@ -183,12 +164,11 @@ def predict_demand(data: SalesData):
 @app.post("/predict/fraud")
 def detect_fraud(data: dict):
     """Detect duplicate or suspicious supply chain entries (mocked)."""
-    fraud_score = round(random.uniform(0.0, 0.3), 3)  # Generally low
     return {
-        "is_suspicious": fraud_score > 0.25,
-        "fraud_score": fraud_score,
-        "flags": [] if fraud_score < 0.15 else ["Duplicate batch number detected"],
-        "recommendation": "Approve" if fraud_score < 0.25 else "Manual Review Required"
+        "is_suspicious": False,
+        "fraud_score": 0.0,
+        "flags": [],
+        "recommendation": "AI Service Unavailable"
     }
 
 
