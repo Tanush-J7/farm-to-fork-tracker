@@ -472,14 +472,21 @@ export const recordSale = async (req: Request, res: Response): Promise<void> => 
     const newQuantity = inventory.quantity - quantity_sold;
     const newStatus = newQuantity <= 0 ? 'DEPLETED' : 'AVAILABLE';
 
-    // 4. Update Inventory
-    const { error: updateErr } = await supabase
+    // 4. Update Inventory (with Optimistic Concurrency Control)
+    const { data: updateData, error: updateErr } = await supabase
       .from('retailer_inventory')
       .update({ quantity: newQuantity, status: newStatus })
-      .eq('id', inventory_id);
+      .eq('id', inventory_id)
+      .eq('quantity', inventory.quantity) // Prevent race conditions
+      .select();
 
     if (updateErr) {
       res.status(500).json({ success: false, message: 'Failed to update inventory', error: updateErr });
+      return;
+    }
+
+    if (!updateData || updateData.length === 0) {
+      res.status(409).json({ success: false, message: 'Inventory was modified concurrently. Please refresh and try again.' });
       return;
     }
 
@@ -495,30 +502,40 @@ export const recordSale = async (req: Request, res: Response): Promise<void> => 
 
     if (saleErr) {
       console.error("Sale record creation failed:", saleErr);
-    } else {
-      const { randomUUID } = require('crypto');
-      await supabase.from('event_outbox').insert({
-        event_id: randomUUID(),
-        event_type: 'SALE_CREATED',
-        topic: 'inventory-events',
-        payload: {
-          batch_id: inventory.batch_number,
-          retailer_id: retailer_id,
-          quantity_sold: quantity_sold
-        }
-      });
-      // Also notify INVENTORY_UPDATED
-      await supabase.from('event_outbox').insert({
-        event_id: randomUUID(),
-        event_type: 'INVENTORY_UPDATED',
-        topic: 'inventory-events',
-        payload: {
-          batch_id: inventory.batch_number,
-          retailer_id: retailer_id,
-          new_quantity: newQuantity
-        }
-      });
+      
+      // Manual compensation rollback due to lack of RPC transaction
+      await supabase
+        .from('retailer_inventory')
+        .update({ quantity: inventory.quantity, status: inventory.status })
+        .eq('id', inventory_id);
+
+      res.status(500).json({ success: false, message: 'Failed to create sale record. Inventory changes reverted.' });
+      return;
     }
+
+    // Outbox events
+    const { randomUUID } = require('crypto');
+    await supabase.from('event_outbox').insert({
+      event_id: randomUUID(),
+      event_type: 'SALE_CREATED',
+      topic: 'inventory-events',
+      payload: {
+        batch_id: inventory.batch_number,
+        retailer_id: retailer_id,
+        quantity_sold: quantity_sold
+      }
+    });
+    // Also notify INVENTORY_UPDATED
+    await supabase.from('event_outbox').insert({
+      event_id: randomUUID(),
+      event_type: 'INVENTORY_UPDATED',
+      topic: 'inventory-events',
+      payload: {
+        batch_id: inventory.batch_number,
+        retailer_id: retailer_id,
+        new_quantity: newQuantity
+      }
+    });
 
     // 6. Create Traceability Event
     const { error: eventErr } = await supabase
