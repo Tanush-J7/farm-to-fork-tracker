@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { supabase } from './config/supabase';
+import { generalLimiter } from './middleware/rateLimit';
 import productRoutes from './routes/productRoutes';
 import authRoutes from './routes/authRoutes';
 import adminRoutes from './routes/adminRoutes';
@@ -35,6 +36,8 @@ app.use((req, res, next) => {
   next();
 });
 
+let isReady = false;
+
 // Verify Supabase connectivity on boot (throwing early is more useful than
 // discovering a bad URL/key on the first request)
 supabase
@@ -45,12 +48,23 @@ supabase
       console.error('Supabase connection error:', error.message);
     } else {
       console.log('Supabase connected');
+      isReady = true;
     }
   });
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
+
+app.get('/ready', (req, res) => {
+  if (isReady) {
+    res.status(200).json({ status: 'ready', dependencies: { supabase: 'healthy' } });
+  } else {
+    res.status(503).json({ status: 'unavailable', dependencies: { supabase: 'unavailable' } });
+  }
+});
+
+app.use('/api/', generalLimiter);
 
 app.use('/api/products', productRoutes);
 app.use('/api/auth', authRoutes);
@@ -65,6 +79,22 @@ app.use('/api/analytics', anomalyRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/decisions', decisionRoutes);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
 });
+
+const gracefulShutdown = () => {
+  console.log('Received kill signal, shutting down gracefully');
+  server.close(() => {
+    console.log('Closed out remaining connections');
+    process.exit(0);
+  });
+  
+  setTimeout(() => {
+    console.error('Could not close connections in time, forcefully shutting down');
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
