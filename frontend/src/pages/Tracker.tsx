@@ -303,12 +303,49 @@ export function Tracker() {
 
 
 
-  // Compute clean AI Quality Grade
-  const qualityScore = dbProduct?.ai_quality_score || 92
-  let qualityGrade = dbProduct?.ai_quality_label
-  if (!qualityGrade || qualityGrade === "Unknown" || qualityGrade === "N/A") {
-    qualityGrade = qualityScore >= 90 ? "Grade A" : qualityScore >= 80 ? "Grade B" : "Standard Grade"
+  // Only use existing quality data (do not generate fake data)
+  const qualityScore = dbProduct?.ai_quality_score
+  const qualityGrade = dbProduct?.ai_quality_label
+
+  // Compute Freshness if expiry date exists
+  let freshnessState = null
+  let freshnessColor = ""
+  if (dbProduct?.expiry_date) {
+    const today = new Date()
+    const expiry = new Date(dbProduct.expiry_date)
+    const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    
+    if (diffDays < 0) {
+      freshnessState = "Expired"
+      freshnessColor = "text-red-500 bg-red-500/10 border-red-500/20"
+    } else if (diffDays <= 3) {
+      freshnessState = "Expiring Soon"
+      freshnessColor = "text-orange-400 bg-orange-400/10 border-orange-400/20"
+    } else {
+      freshnessState = "Fresh"
+      freshnessColor = "text-emerald-500 bg-emerald-500/10 border-emerald-500/20"
+    }
   }
+
+  // Derive stage from events
+  let currentStageIndex = -1;
+  if (dbProduct?.events && dbProduct.events.length > 0) {
+    currentStageIndex = 0; // Farmer is baseline if events exist
+    dbProduct.events.forEach((evt: any) => {
+      if (!evt || !evt.event_type) return;
+      if (["PROCESSOR_RECEIVED", "PROCESSED"].includes(evt.event_type)) {
+        currentStageIndex = Math.max(currentStageIndex, 1);
+      }
+      if (["DISTRIBUTOR_RECEIVED", "DISTRIBUTOR_SHIPPED"].includes(evt.event_type)) {
+        currentStageIndex = Math.max(currentStageIndex, 2);
+      }
+      if (["RETAILER_RECEIVED", "RETAILER_SOLD", "RETAILER_WASTED", "RETAILER_RETURNED"].includes(evt.event_type)) {
+        currentStageIndex = Math.max(currentStageIndex, 3);
+      }
+    });
+  }
+
+  const stages = ["FARMER", "PROCESSOR", "DISTRIBUTOR", "RETAILER"];
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-24 pt-8 px-4">
@@ -415,6 +452,15 @@ export function Tracker() {
         </div>
       )}
 
+      {/* LOADING STATE */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground animate-in fade-in zoom-in duration-300">
+          <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+          <h3 className="text-lg font-bold text-foreground">Traceability</h3>
+          <p className="text-sm">Loading supply-chain history...</p>
+        </div>
+      )}
+
       {/* MAIN UNIFIED VERIFICATION & JOURNEY REPORT */}
       {(dbProduct || chainProduct) && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -448,9 +494,16 @@ export function Tracker() {
                       <Leaf className="h-3 w-3 mr-1" /> Certified Organic
                     </span>
                   )}
-                  <span className="inline-flex items-center rounded-full bg-blue-500/15 border border-blue-500/30 px-3 py-1 text-xs font-semibold text-blue-400">
-                    <Brain className="h-3 w-3 mr-1" /> Quality: {qualityGrade} ({qualityScore}%)
-                  </span>
+                  {qualityGrade && qualityGrade !== "Unknown" && qualityGrade !== "N/A" && (
+                    <span className="inline-flex items-center rounded-full bg-blue-500/15 border border-blue-500/30 px-3 py-1 text-xs font-semibold text-blue-400">
+                      <Brain className="h-3 w-3 mr-1" /> Quality: {qualityGrade} {qualityScore ? `(${qualityScore}%)` : ''}
+                    </span>
+                  )}
+                  {freshnessState && (
+                    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${freshnessColor}`}>
+                      <Clock className="h-3 w-3 mr-1" /> {freshnessState}
+                    </span>
+                  )}
                   <span className="inline-flex items-center rounded-full bg-primary/20 border border-primary/30 px-3 py-1 text-xs font-semibold text-primary">
                     Status: {currentStatus}
                   </span>
@@ -544,55 +597,78 @@ export function Tracker() {
 
           {/* SECTION 3: INTERACTIVE VISUAL TIMELINE JOURNEY */}
           <Card className="rounded-3xl border shadow-sm p-6 sm:p-8 space-y-6 bg-card/60">
-            <div className="border-b pb-3">
-              <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
+            <div className="border-b pb-6">
+              <h3 className="font-bold text-lg text-foreground flex items-center gap-2 mb-2">
                 <Clock className="h-5 w-5 text-primary" />
                 Farm-to-Fork Supply Chain Journey
               </h3>
-              <p className="text-xs text-muted-foreground">Chronological audit trail of physical handling and custody transfers.</p>
+              <p className="text-xs text-muted-foreground mb-6">Chronological audit trail of physical handling and custody transfers.</p>
+              
+              {/* Dynamic Stage Visualizer */}
+              <div className="flex items-center justify-between relative px-2">
+                <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-1 bg-muted/50 rounded-full z-0" />
+                {stages.map((stageName, idx) => {
+                  const isCompleted = currentStageIndex >= idx;
+                  const isCurrent = currentStageIndex === idx;
+                  return (
+                    <div key={stageName} className="relative z-10 flex flex-col items-center gap-2">
+                      <div className={`h-8 w-8 rounded-full border-2 flex items-center justify-center bg-card transition-colors ${isCompleted ? 'border-emerald-500 bg-emerald-500/10 text-emerald-500' : 'border-muted text-muted-foreground'}`}>
+                        {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />}
+                      </div>
+                      <span className={`text-[10px] sm:text-xs font-bold tracking-wider ${isCurrent ? 'text-foreground' : isCompleted ? 'text-muted-foreground' : 'text-muted-foreground/50'}`}>
+                        {stageName}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="space-y-6 relative before:absolute before:inset-0 before:left-5 before:w-0.5 before:bg-gradient-to-b before:from-emerald-500 before:via-blue-500 before:to-muted-foreground/30">
+            <div className="space-y-6 relative before:absolute before:inset-0 before:left-5 before:top-4 before:w-0.5 before:bg-gradient-to-b before:from-emerald-500 before:via-blue-500 before:to-muted-foreground/30">
               
               {/* Dynamic Real Events */}
-            {dbProduct?.events?.length > 0 ? dbProduct.events.map((evt: any, i: number) => (
-              <div key={i} className="relative flex items-start gap-4 pl-12">
-                <div className="absolute left-3 -translate-x-1/2 p-2 rounded-full bg-blue-500 text-white shadow-md ring-4 ring-background z-10">
-                  {evt.event_type.toLowerCase().includes("harvest") ? <Leaf className="h-4 w-4" /> :
-                   evt.event_type.toLowerCase().includes("processing") || evt.event_type.toLowerCase().includes("quality") ? <Factory className="h-4 w-4" /> :
-                   evt.event_type.toLowerCase().includes("shipped") || evt.event_type.toLowerCase().includes("transit") || evt.event_type.toLowerCase().includes("transfer") ? <Truck className="h-4 w-4" /> :
-                   evt.event_type.toLowerCase().includes("receive") || evt.event_type.toLowerCase().includes("retail") ? <Store className="h-4 w-4" /> :
-                   <CheckCircle2 className="h-4 w-4" />}
-                </div>
-                <div className="p-4 rounded-2xl border bg-card/80 w-full space-y-2 border-blue-500/20">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-sm text-foreground">{formatEventType(evt.event_type)}</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">Recorded</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Actor: <strong>{formatActor(evt.actor)}</strong> • Location: {evt.location || "Supply Chain"} • Date: {new Date(evt.created_at).toLocaleString()}
-                  </p>
-                  
-                  {evt.metadata && Object.keys(evt.metadata).length > 0 && (
-                    <div className="bg-muted/30 p-2.5 rounded-xl border mt-2 space-y-1">
-                      {Object.entries(evt.metadata).map(([k, v]: [string, any]) => (
-                        <p key={k} className="text-[11px] text-muted-foreground">
-                          <span className="font-semibold capitalize">{k.replace(/_/g, ' ')}:</span> {String(v)}
-                        </p>
-                      ))}
-                    </div>
-                  )}
+            {dbProduct?.events?.length > 0 ? dbProduct.events.map((evt: any, i: number) => {
+              return (
+              <div key={i}>
 
-                  {evt.blockchain_hash && (
-                    <div className="mt-2 text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 p-2 rounded-lg font-mono break-all flex items-center gap-1.5">
-                      <ShieldCheck className="h-3 w-3 shrink-0" />
-                      Tx: {evt.blockchain_hash}
+                <div className="relative flex items-start gap-4 pl-12 mb-6">
+                  <div className="absolute left-3 -translate-x-1/2 p-2 rounded-full bg-blue-500 text-white shadow-md ring-4 ring-background z-10">
+                    {evt.event_type.toLowerCase().includes("harvest") ? <Leaf className="h-4 w-4" /> :
+                     evt.event_type.toLowerCase().includes("processing") || evt.event_type.toLowerCase().includes("quality") ? <Factory className="h-4 w-4" /> :
+                     evt.event_type.toLowerCase().includes("shipped") || evt.event_type.toLowerCase().includes("transit") || evt.event_type.toLowerCase().includes("transfer") ? <Truck className="h-4 w-4" /> :
+                     evt.event_type.toLowerCase().includes("receive") || evt.event_type.toLowerCase().includes("retail") ? <Store className="h-4 w-4" /> :
+                     <CheckCircle2 className="h-4 w-4" />}
+                  </div>
+                  <div className="p-4 rounded-2xl border bg-card/80 w-full space-y-2 border-blue-500/20">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-sm text-foreground">{formatEventType(evt.event_type)}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">Recorded</span>
                     </div>
-                  )}
+                    <p className="text-xs text-muted-foreground">
+                      Actor: <strong>{formatActor(evt.actor)}</strong> • Location: {evt.location || "Supply Chain"} • Date: {new Date(evt.created_at).toLocaleString()}
+                    </p>
+                    
+                    {evt.metadata && Object.keys(evt.metadata).length > 0 && (
+                      <div className="bg-muted/30 p-2.5 rounded-xl border mt-2 space-y-1">
+                        {Object.entries(evt.metadata).map(([k, v]: [string, any]) => (
+                          <p key={k} className="text-[11px] text-muted-foreground">
+                            <span className="font-semibold capitalize">{k.replace(/_/g, ' ')}:</span> {String(v)}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+
+                    {evt.blockchain_hash && (
+                      <div className="mt-2 text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 p-2 rounded-lg font-mono break-all flex items-center gap-1.5">
+                        <ShieldCheck className="h-3 w-3 shrink-0" />
+                        Tx: {evt.blockchain_hash}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            )) : (
-              <div className="pl-12 text-sm text-muted-foreground italic">No historical events recorded yet.</div>
+            )}) : (
+              <div className="pl-12 text-sm text-muted-foreground italic font-medium">Traceability history is not available yet.</div>
             )}
           </div>
 </Card>
