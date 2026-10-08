@@ -9,6 +9,7 @@ import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
 import { useNavigate } from "react-router-dom"
 import axios from "axios"
 import { useAuth } from "../context/AuthContext"
+import { DecisionSupportPanel } from "../components/DecisionSupportPanel"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
@@ -272,6 +273,8 @@ export function FarmerDashboard() {
               </div>
             ))}
           </div>
+
+          <DecisionSupportPanel />
 
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Batch / Supply Status */}

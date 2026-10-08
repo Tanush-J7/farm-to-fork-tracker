@@ -12,6 +12,8 @@ import processorRoutes from './routes/processorRoutes';
 import distributorRoutes from './routes/distributorRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import anomalyRoutes from './routes/anomalyRoutes';
+import aiRoutes from './routes/aiRoutes';
+import decisionRoutes from './routes/decisionRoutes';
 
 dotenv.config();
 
@@ -52,6 +54,8 @@ app.use('/api/processor', processorRoutes);
 app.use('/api/distributor', distributorRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/analytics', anomalyRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/decisions', decisionRoutes);
 
 app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);

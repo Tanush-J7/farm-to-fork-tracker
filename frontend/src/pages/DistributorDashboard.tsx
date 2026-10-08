@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../co
 import { Button } from "../components/ui/Button"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { useAuth } from "../context/AuthContext"
+import { DecisionSupportPanel } from "../components/DecisionSupportPanel"
 
 const API_URL = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
@@ -428,6 +429,8 @@ export function DistributorDashboard() {
           {statusError && <span className="text-xs text-red-500 font-medium bg-red-50 p-1 rounded max-w-xs text-right">{statusError}</span>}
         </div>
       </div>
+
+      <DecisionSupportPanel />
 
       <div className="flex overflow-x-auto pb-2 -mb-2 scrollbar-none gap-2">
         <Button 

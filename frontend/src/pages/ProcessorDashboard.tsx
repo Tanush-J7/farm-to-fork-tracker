@@ -12,6 +12,7 @@ import { Html5Qrcode } from "html5-qrcode"
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
 import jsQR from "jsqr"
 import { getFarmerLocation } from "../utils"
+import { DecisionSupportPanel } from "../components/DecisionSupportPanel"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
@@ -1063,6 +1064,8 @@ export function ProcessorDashboard() {
           {activeTab === "history" && "Chronological audit logs and history of all processor facility events."}
         </p>
       </div>
+
+      <DecisionSupportPanel />
 
       {/* Tabs rendering */}
       {activeTab === "browse" && (

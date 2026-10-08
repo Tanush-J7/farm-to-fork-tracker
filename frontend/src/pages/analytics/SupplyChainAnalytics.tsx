@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Activity, Clock, Box, ShieldAlert, BarChart3, TrendingUp, Search } from 'lucide-react';
+import { DecisionSupportPanel } from '../../components/DecisionSupportPanel';
 
 interface SupplyChainAnalyticsData {
   journeyTimes: {
@@ -116,6 +117,8 @@ export default function SupplyChainAnalytics() {
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Intelligent Supply-Chain Analytics</h1>
           <p className="text-slate-500 mt-2 text-lg">Real-time operational intelligence derived purely from physical database records.</p>
         </header>
+
+        <DecisionSupportPanel />
 
         {/* 1. Overview KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
