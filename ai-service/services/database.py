@@ -18,8 +18,8 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 def fetch_historical_prices(commodity: str, market: str, limit: int = 35) -> pd.DataFrame:
     """
     Fetches historical market prices directly from the Supabase database.
-    If the database is unconfigured (missing credentials) or fails, 
-    safely falls back to the local CSV dataset.
+    If the database is unconfigured or fails, it throws an error.
+    It NEVER falls back to unverified local CSVs.
     """
     if SUPABASE_AVAILABLE and SUPABASE_URL and SUPABASE_KEY:
         try:
@@ -42,30 +42,11 @@ def fetch_historical_prices(commodity: str, market: str, limit: int = 35) -> pd.
                 logger.info(f"Successfully retrieved {len(df)} records from Supabase.")
                 return df
             else:
-                logger.warning(f"Insufficient records in Supabase ({len(data) if data else 0} < 30). Falling back to CSV.")
+                logger.warning(f"Insufficient records in Supabase ({len(data) if data else 0} < 30).")
+                raise ValueError("Insufficient verified historical data.")
         except Exception as e:
-            logger.error(f"Database connection failed: {e}. Falling back to CSV.")
+            logger.error(f"Database connection failed: {e}.")
+            raise RuntimeError("VERIFIED_DATA_UNAVAILABLE")
     else:
-        logger.info("Supabase credentials not found in env. Falling back to local CSV.")
-
-    return _fetch_from_csv(commodity, market, limit)
-
-def _fetch_from_csv(commodity: str, market: str, limit: int) -> pd.DataFrame:
-    """Fallback logic using the local CSV."""
-    history_path = "data/test_raw_feat.csv"
-    if not os.path.exists(history_path):
-        raise FileNotFoundError("Historical CSV data unavailable and Database unreachable.")
-        
-    preprocessor = DataPreprocessor()
-    df_all = preprocessor.process(history_path)
-    
-    # Ensure column types
-    df_all['commodity'] = df_all['commodity'].astype(str)
-    df_all['market'] = df_all['market'].astype(str)
-    
-    # Filter
-    mask = (df_all['commodity'].str.upper() == commodity.upper()) & \
-           (df_all['market'].str.upper() == market.upper())
-    df_history = df_all[mask].copy()
-    
-    return df_history.tail(limit)
+        logger.info("Supabase credentials not found in env. Cannot fetch verified data.")
+        raise RuntimeError("VERIFIED_DATA_UNAVAILABLE")

@@ -72,7 +72,7 @@ export function FarmerAIAssistant() {
         commodity,
         market,
         forecast_days: forecastDays
-      })
+      }, { timeout: 10000 })
       
       if (response.data.error) {
         setError(response.data.message || "Failed to fetch prediction")

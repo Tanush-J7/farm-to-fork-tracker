@@ -1,50 +1,93 @@
 #!/usr/bin/env python3
 """
-FarmChain AI - Expanded FastAPI Service
-Provides mock ML endpoints for all AI modules.
+FarmChain AI - Production Hardened FastAPI Service
 """
 
-import random
-from datetime import datetime, timedelta
-from fastapi import FastAPI
+import os
+import logging
+from datetime import datetime
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+# Setup basic logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("ai-service")
+
+# Services
 from services.price_prediction_service import PricePredictionService
-from services.kafka_client import check_kafka_health
+from services.kafka_client import check_kafka_health, KafkaEventProducer
 
 app = FastAPI(title="FarmChain AI Service", version="1.0.0")
 
+# ─────────────────────────────────────────────
+# CONFIGURATION & CORS
+# ─────────────────────────────────────────────
+ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[origin.strip() for origin in ALLOWED_ORIGINS if origin.strip()],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ─────────────────────────────────────────────
-# Request / Response Models
-# ─────────────────────────────────────────────
+# Load model strictly once at startup
+try:
+    price_service = PricePredictionService(model_dir="models/price_model")
+except Exception as e:
+    logger.error(f"Failed to initialize PricePredictionService: {e}")
+    price_service = None
 
+kafka_producer = KafkaEventProducer()
+
+# ─────────────────────────────────────────────
+# EXCEPTION HANDLING CONTRACT
+# ─────────────────────────────────────────────
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception on {request.url.path}: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "available": False,
+            "error_code": "INTERNAL_SERVER_ERROR",
+            "message": "AI Service experienced an internal error."
+        }
+    )
+
+# ─────────────────────────────────────────────
+# REQUEST SCHEMAS WITH VALIDATION
+# ─────────────────────────────────────────────
 class ImageInput(BaseModel):
-    image_url: str
+    image_url: str = Field(..., min_length=5, description="URL to the crop image")
 
 class CropData(BaseModel):
-    crop_type: str
-    temperature: float = 28.0
-    humidity: float = 65.0
-    quantity: float = 100.0
+    crop_type: str = Field(..., min_length=2, max_length=50)
+    temperature: float = Field(..., ge=-50.0, le=60.0)
+    humidity: float = Field(..., ge=0.0, le=100.0)
+    quantity: float = Field(..., ge=0.0, description="Quantity must be non-negative")
 
 class SalesData(BaseModel):
-    product: str
-    historical_sales: list[float] = [42.0, 58.0, 73.0, 61.0, 95.0, 112.0]
+    product: str = Field(..., min_length=2, max_length=100)
+    historical_sales: list[float] = Field(..., min_items=1)
+
+class PricePredictionRequest(BaseModel):
+    commodity: str = Field(..., min_length=2, max_length=100)
+    market: str = Field(..., min_length=2, max_length=100)
+    forecast_days: int = Field(default=7, ge=1, le=7)
 
 
 # ─────────────────────────────────────────────
-# 1. Crop Quality Classification
+# 1. Crop Quality Classification (Mock/Unavailable)
 # ─────────────────────────────────────────────
 @app.post("/predict/quality")
 def predict_quality(data: ImageInput):
-    """Classify crop quality from image URL (mocked)."""
+    """Classify crop quality from image URL (Deterministic Unavailable)."""
+    logger.info("Quality prediction requested.")
     return {
         "quality": "AI Inspection Unavailable",
         "score": 0.0,
@@ -54,11 +97,12 @@ def predict_quality(data: ImageInput):
 
 
 # ─────────────────────────────────────────────
-# 2. Disease Detection
+# 2. Disease Detection (Mock/Unavailable)
 # ─────────────────────────────────────────────
 @app.post("/predict/disease")
 def predict_disease(data: CropData):
-    """Detect crop disease from crop data (mocked)."""
+    """Detect crop disease from crop data (Deterministic Unavailable)."""
+    logger.info(f"Disease prediction requested for {data.crop_type}.")
     return {
         "disease_detected": False,
         "disease_name": "AI Service Unavailable",
@@ -69,11 +113,12 @@ def predict_disease(data: CropData):
 
 
 # ─────────────────────────────────────────────
-# 3. Shelf Life Prediction
+# 3. Shelf Life Prediction (Mock/Unavailable)
 # ─────────────────────────────────────────────
 @app.post("/predict/shelf-life")
 def predict_shelf_life(data: CropData):
-    """Predict shelf life in days based on crop type and conditions (mocked)."""
+    """Predict shelf life in days (Deterministic Unavailable)."""
+    logger.info(f"Shelf life prediction requested for {data.crop_type}.")
     return {
         "shelf_life_days": 0,
         "expiry_date": None,
@@ -85,34 +130,41 @@ def predict_shelf_life(data: CropData):
 # ─────────────────────────────────────────────
 # 4. Market Price Prediction (XGBoost Real Pipeline)
 # ─────────────────────────────────────────────
-from services.price_prediction_service import PricePredictionService
-from pydantic import Field
-import pandas as pd
-import os
-
-# Load service strictly once at startup
-price_service = PricePredictionService(model_dir="models/price_model")
-
-class PricePredictionRequest(BaseModel):
-    commodity: str
-    market: str
-    forecast_days: int = Field(default=7, ge=1, le=7)
-
 import uuid
-from services.kafka_client import KafkaEventProducer
-
-kafka_producer = KafkaEventProducer()
+from services.database import fetch_historical_prices
 
 @app.post("/api/farmer/price-prediction")
 def predict_price_real(data: PricePredictionRequest):
     """
     Real AI Endpoint predicting multi-day prices using XGBoost.
     """
-    from services.database import fetch_historical_prices
+    logger.info(f"Price prediction requested for {data.commodity} at {data.market}")
+    
+    if not price_service or price_service.model is None:
+        logger.warning("Price prediction failed: Model unavailable")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "available": False,
+                "error_code": "MODEL_UNAVAILABLE",
+                "message": "Price prediction model is currently unavailable."
+            }
+        )
+
     try:
         df_history = fetch_historical_prices(data.commodity, data.market, limit=40)
     except Exception as e:
-        return {"error": "DATABASE_ERROR", "message": f"Failed to retrieve history: {e}"}
+        logger.error(f"Failed to retrieve verified historical data: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "available": False,
+                "error_code": "VERIFIED_DATA_UNAVAILABLE",
+                "message": "Price prediction is unavailable because verified historical market data is unavailable."
+            }
+        )
 
     result = price_service.predict(
         commodity=data.commodity,
@@ -121,8 +173,20 @@ def predict_price_real(data: PricePredictionRequest):
         forecast_days=data.forecast_days
     )
     
+    if "error" in result:
+        logger.warning(f"Price service returned error: {result['error']}")
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "available": False,
+                "error_code": result["error"],
+                "message": result.get("message", "Prediction failed")
+            }
+        )
+    
     # Optionally publish to Kafka if successful
-    if "error" not in result:
+    try:
         event = {
             "event_id": str(uuid.uuid4()),
             "event_type": "PRICE_PREDICTION_CREATED",
@@ -140,16 +204,19 @@ def predict_price_real(data: PricePredictionRequest):
         }
         topic = os.getenv("KAFKA_PRICE_PREDICTION_TOPIC", "price-predictions")
         kafka_producer.publish_event(topic, event)
+    except Exception as e:
+        logger.error(f"Failed to publish prediction to Kafka: {e}")
     
     return result
 
 
 # ─────────────────────────────────────────────
-# 5. Demand Forecasting
+# 5. Demand Forecasting (Mock/Unavailable)
 # ─────────────────────────────────────────────
 @app.post("/predict/demand")
 def predict_demand(data: SalesData):
-    """Forecast next-week demand from historical sales (mocked)."""
+    """Forecast next-week demand (Deterministic Unavailable)."""
+    logger.info(f"Demand prediction requested for {data.product}.")
     return {
         "product": data.product,
         "forecast_7_days": [],
@@ -159,11 +226,12 @@ def predict_demand(data: SalesData):
 
 
 # ─────────────────────────────────────────────
-# 6. Fraud Detection
+# 6. Fraud Detection (Mock/Unavailable)
 # ─────────────────────────────────────────────
 @app.post("/predict/fraud")
 def detect_fraud(data: dict):
-    """Detect duplicate or suspicious supply chain entries (mocked)."""
+    """Detect duplicate or suspicious entries (Deterministic Unavailable)."""
+    logger.info("Fraud detection requested.")
     return {
         "is_suspicious": False,
         "fraud_score": 0.0,
@@ -177,7 +245,15 @@ def detect_fraud(data: dict):
 # ─────────────────────────────────────────────
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "FarmChain AI", "timestamp": datetime.utcnow().isoformat()}
+    price_model_status = "loaded" if (price_service and price_service.model) else "unavailable"
+    status = "ok" if price_model_status == "loaded" else "degraded"
+    
+    return {
+        "status": status,
+        "service": "FarmChain AI",
+        "price_model": price_model_status,
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
 @app.get("/api/kafka/health")
 def kafka_health():

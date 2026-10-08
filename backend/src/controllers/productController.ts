@@ -76,13 +76,13 @@ export const registerProduct = async (req: Request, res: Response) => {
 
     try {
       const [qualRes, shelfRes] = await Promise.all([
-        axios.post(`${AI_SERVICE_URL}/predict/quality`, { image_url: productImageUrl || 'dummy_url' }),
+        axios.post(`${AI_SERVICE_URL}/predict/quality`, { image_url: productImageUrl || 'dummy_url' }, { timeout: 3000 }),
         axios.post(`${AI_SERVICE_URL}/predict/shelf-life`, {
           crop_type: name,
           temperature: 28,
           humidity: 65,
           quantity,
-        }),
+        }, { timeout: 3000 }),
       ]);
       aiQualityScore = qualRes.data.score;
       aiQualityLabel = qualRes.data.quality;
