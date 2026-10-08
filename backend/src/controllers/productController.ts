@@ -3,6 +3,7 @@ import axios from 'axios';
 import { supabase } from '../config/supabase';
 import { generateNotification } from './notificationController';
 import { ethers } from 'ethers';
+import crypto from 'crypto';
 
 // Render Blueprints provide service host/port values separately from a full URL.
 // Prefer an explicitly configured URL for local development and other hosts.
@@ -75,26 +76,61 @@ export const registerProduct = async (req: Request, res: Response) => {
     let aiShelfLife = null as any;
 
     try {
-      const [qualRes, shelfRes] = await Promise.all([
-        axios.post(`${AI_SERVICE_URL}/predict/quality`, { image_url: productImageUrl || 'dummy_url' }, { timeout: 3000 }),
-        axios.post(`${AI_SERVICE_URL}/predict/shelf-life`, {
+      const startTimeQual = Date.now();
+      let qualRes: any;
+      let qualStatus = 'SUCCESS';
+      try {
+        qualRes = await axios.post(`${AI_SERVICE_URL}/predict/quality`, { image_url: productImageUrl || 'dummy_url' }, { timeout: 3000 });
+        if (qualRes.data.quality === 'AI Inspection Unavailable') { qualStatus = 'UNAVAILABLE'; }
+      } catch (err: any) {
+        qualStatus = err.code === 'ECONNABORTED' ? 'TIMEOUT' : 'INTERNAL_ERROR';
+        qualRes = { data: { score: 0, quality: 'Unknown' } };
+      }
+      const { recordAiAudit } = require('../services/aiAuditService');
+      await recordAiAudit({
+        user_id: farmerId,
+        capability: 'QUALITY_INSPECTION',
+        endpoint: '/predict/quality',
+        status: qualStatus as any,
+        latency_ms: Date.now() - startTimeQual,
+        model_version: qualStatus === 'SUCCESS' ? '1.0.0' : null
+      });
+
+      const startTimeShelf = Date.now();
+      let shelfRes: any;
+      let shelfStatus = 'SUCCESS';
+      try {
+        shelfRes = await axios.post(`${AI_SERVICE_URL}/predict/shelf-life`, {
           crop_type: name,
           temperature: 28,
           humidity: 65,
           quantity,
-        }, { timeout: 3000 }),
-      ]);
-      aiQualityScore = qualRes.data.score;
-      aiQualityLabel = qualRes.data.quality;
+        }, { timeout: 3000 });
+        if (shelfRes.data.storage_recommendation === 'AI Service Unavailable') { shelfStatus = 'UNAVAILABLE'; }
+      } catch (err: any) {
+        shelfStatus = err.code === 'ECONNABORTED' ? 'TIMEOUT' : 'INTERNAL_ERROR';
+        shelfRes = { data: null };
+      }
+      await recordAiAudit({
+        user_id: farmerId,
+        capability: 'SHELF_LIFE',
+        endpoint: '/predict/shelf-life',
+        status: shelfStatus as any,
+        latency_ms: Date.now() - startTimeShelf,
+        model_version: shelfStatus === 'SUCCESS' ? '1.0.0' : null
+      });
+
+      aiQualityScore = qualRes.data.score || 0;
+      aiQualityLabel = qualRes.data.quality || 'Unknown';
       aiShelfLife = shelfRes.data;
     } catch (err) {
-      console.error('AI Service unavailable, proceeding without AI score');
+      console.error('AI Service logic failed', err);
     }
 
     // Ensure product_id is a unique 6-digit number (100000 - 999999)
     let finalProductId = (product_id && Number(product_id) >= 100000 && Number(product_id) <= 999999)
       ? Number(product_id)
-      : Math.floor(100000 + Math.random() * 900000);
+      : crypto.randomInt(100000, 999999);
       
     // Product needs admin approval before hitting the blockchain
     const initialStatus = 'Pending Approval';

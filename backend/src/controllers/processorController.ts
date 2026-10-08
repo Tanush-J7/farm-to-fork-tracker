@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
+import crypto from 'crypto';
 
 // GET /api/processor/requests
 export const getProcessorRequests = async (req: Request, res: Response): Promise<void> => {
@@ -274,8 +275,8 @@ export const processBatch = async (req: Request, res: Response): Promise<void> =
     }
 
     // 2. Create child product
-    const childBatchNumber = `PB-${Math.floor(10000 + Math.random() * 90000)}`;
-    const childProductId = Math.floor(100000 + Math.random() * 900000);
+    const childBatchNumber = `PB-${crypto.randomUUID().split('-')[0].toUpperCase()}`;
+    const childProductId = crypto.randomInt(100000, 999999);
 
     const { data: childProduct, error: childErr } = await supabase
       .from('products')

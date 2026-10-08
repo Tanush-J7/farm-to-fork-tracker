@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
+import crypto from 'crypto';
 
 // GET /api/distributor/shipments/incoming
 export const getIncomingShipments = async (req: Request, res: Response): Promise<void> => {
@@ -221,7 +222,7 @@ export const createShipment = async (req: Request, res: Response): Promise<void>
     // If they ship part of it, the available quantity should probably drop, but we don't have an `available_quantity` column.
     // Let's just create the shipment.
 
-    const trackingId = `TRK-${Date.now()}`;
+    const trackingId = `TRK-${crypto.randomUUID().split('-')[0].toUpperCase()}`;
     const { data: shipment, error: shipErr } = await supabase
       .from('shipments')
       .insert({

@@ -387,7 +387,7 @@ export function ProcessorDashboard() {
   const addLog = (action: string, status: string, productId?: string, batchId?: string) => {
     const now = new Date()
     const newLog: AuditLog = {
-      id: Math.random().toString(36).substring(2, 9),
+      id: crypto.randomUUID(),
       date: now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
       time: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
       user: processorName,
@@ -439,7 +439,7 @@ export function ProcessorDashboard() {
     try {
       const now = new Date()
       const newNotif = {
-        id: "notif-" + Math.random().toString(36).substring(2, 9),
+        id: "notif-" + crypto.randomUUID(),
         type: "processor_interest",
         productId: prodId,
         batchNumber: product.batch_number || (product as any).batchNumber || "",
@@ -827,7 +827,7 @@ export function ProcessorDashboard() {
       }
 
       // Create batch ID: PB-XXXXXX mapped randomly
-      const randomBatchId = `PB-${Math.floor(10000 + Math.random() * 90000)}`
+      const randomBatchId = `PB-${crypto.randomUUID().split('-')[0].toUpperCase()}`
       const remarksText = hasShortage
         ? `Batch verified & accepted at gate. Scale Weight: ${verifiedQty} kg (${shortageAmount} kg Shortage [${shortagePercent}%], Reason: ${transitLossReasonInput}). Quality Score: ${computedScore}% (Grade ${autoGrade}). Remarks: ${remarksInput || "Standard Intake"}`
         : `Batch verified & accepted at gate. Scale Weight: ${verifiedQty} kg. Quality Score: ${computedScore}% (Grade ${autoGrade}). Remarks: ${remarksInput || "Standard Intake"}`
@@ -852,7 +852,7 @@ export function ProcessorDashboard() {
       // Notify Farmer of Acceptance
       try {
         const acceptNotif = {
-          id: "notif-" + Math.random().toString(36).substring(2, 9),
+          id: "notif-" + crypto.randomUUID(),
           type: "processor_accepted",
           productId: String(selectedProduct.id),
           batchNumber: selectedProduct.batch_number || (selectedProduct as any).batchNumber || "",
@@ -880,7 +880,7 @@ export function ProcessorDashboard() {
       // Notify Farmer of Rejection
       try {
         const rejectNotif = {
-          id: "notif-" + Math.random().toString(36).substring(2, 9),
+          id: "notif-" + crypto.randomUUID(),
           type: "processor_rejected",
           productId: String(selectedProduct.id),
           batchNumber: selectedProduct.batch_number || (selectedProduct as any).batchNumber || "",

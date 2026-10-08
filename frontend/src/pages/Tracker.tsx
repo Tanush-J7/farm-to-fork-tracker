@@ -562,11 +562,11 @@ export function Tracker() {
           </div>
           {chainProduct ? (
             <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              100% Tamper-Proof
+              Cryptographically Verified On-Chain (Testnet)
             </span>
           ) : (
             <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              Locally Verified
+              Verifiable Database Record
             </span>
           )}
         </div>
@@ -584,8 +584,8 @@ export function Tracker() {
           {chainProduct && (
             <div className="p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all bg-emerald-500/5 border-emerald-500/20">
               <div className="space-y-0.5">
-                <p className="font-bold text-sm text-foreground">Blockchain Smart Contract Record</p>
-                <p className="text-xs text-muted-foreground">Immutable ledger transaction confirmed on Ethereum smart contract</p>
+                <p className="font-bold text-sm text-foreground">Blockchain Testnet Record</p>
+                <p className="text-xs text-muted-foreground">Transaction confirmed on testnet contract</p>
               </div>
               <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30 shrink-0">
                 <CheckCircle2 className="h-4 w-4" /> Verified ✓

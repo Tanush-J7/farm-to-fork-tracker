@@ -15,7 +15,7 @@ const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrend
 const generateBatchNumber = () => {
   const date = new Date()
   const datePart = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`
-  const randomPart = Math.random().toString(36).slice(2, 6).toUpperCase()
+  const randomPart = crypto.randomUUID().split('-')[0].toUpperCase()
   return `BCH-${datePart}-${randomPart}`
 }
 
@@ -168,7 +168,9 @@ export function MyProductsPage() {
 
     setSubmitting(true)
     try {
-      const product_id = Math.floor(100000 + Math.random() * 900000)
+      const randomArr = new Uint32Array(1)
+      window.crypto.getRandomValues(randomArr)
+      const product_id = (randomArr[0] % 900000) + 100000
 
       await axios.post(
         `${API}/products`,
