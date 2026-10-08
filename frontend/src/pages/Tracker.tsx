@@ -4,14 +4,12 @@ import { ethers } from "ethers"
 import { Card } from "../components/ui/Card"
 import {
   CheckCircle2, Factory, Truck, Store, Search, AlertCircle, Loader2,
-  ShieldCheck, Clock, Leaf, Brain, QrCode, Upload
+  ShieldCheck, Clock, Leaf, Brain, QrCode, Upload, Database
 } from "lucide-react"
 import { Button } from "../components/ui/Button"
 import axios from "axios"
 import { Html5Qrcode } from "html5-qrcode"
 import jsQR from "jsqr"
-import { getFarmerLocation } from "../utils"
-
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 const RPC_URL = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545"
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || ""
@@ -28,6 +26,33 @@ const format6DigitId = (id: number | string) => {
   if (num > 0) return String(100000 + num)
   return "100000"
 }
+
+
+// Format event type names nicely
+const formatEventType = (type: string) => {
+  const map: Record<string, string> = {
+    "HARVEST_REGISTERED": "Harvest Registered",
+    "PROCESSOR_RECEIVED": "Received by Processor",
+    "PROCESSED": "Processing Completed",
+    "DISTRIBUTOR_RECEIVED": "Received by Distributor",
+    "DISTRIBUTOR_SHIPPED": "Shipped by Distributor",
+    "RETAILER_RECEIVED": "Received by Retailer",
+    "RETAILER_SOLD": "Sold by Retailer",
+    "RETAILER_WASTED": "Recorded as Wastage",
+    "RETAILER_RETURNED": "Product Returned",
+    "SHIPMENT_RECEIVED": "Shipment Received"
+  };
+  return map[type] || type.replace(/_/g, ' ');
+}
+
+// Format actor nicely
+const formatActor = (actor: any) => {
+  if (!actor) return "Verified System Actor";
+  const roleName = actor.role ? actor.role.charAt(0).toUpperCase() + actor.role.slice(1) : "";
+  return `${actor.name} ${roleName ? `(${roleName})` : ""}`;
+}
+
+
 
 export function Tracker() {
   const [searchParams] = useSearchParams()
@@ -276,7 +301,7 @@ export function Tracker() {
 
   const mappedDisplayId = dbProduct ? format6DigitId(dbProduct.product_id || dbProduct.id) : (productIdInput || "100000")
 
-  const hasBlockchainRecord = !!(dbProduct?.blockchain_hash || dbProduct?.blockchainHash || chainProduct)
+
 
   // Compute clean AI Quality Grade
   const qualityScore = dbProduct?.ai_quality_score || 92
@@ -432,80 +457,90 @@ export function Tracker() {
                 </div>
               </div>
 
-              {/* Blockchain Authenticity Seal */}
-              {hasBlockchainRecord ? (
-                <div className="mt-6 p-4 rounded-2xl bg-zinc-950/80 border border-emerald-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      <ShieldCheck className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider">🟢 Cryptographically Verified On-Chain</p>
-                      <p className="text-xs font-mono text-zinc-400 break-all">
-                        Hash: {dbProduct?.blockchain_hash || dbProduct?.blockchainHash}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-                    Ethereum Smart Contract
-                  </span>
-                </div>
-              ) : (
-                <div className="mt-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-amber-500/20 text-amber-500 border border-amber-500/30">
-                      <AlertCircle className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-amber-500 uppercase tracking-wider">Blockchain Verification Unavailable</p>
-                      <p className="text-xs font-mono text-amber-500/70">
-                        This batch has not yet been registered on the blockchain or verification is pending.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* Authenticity Seal */}
+          <div className="mt-6 p-4 rounded-2xl bg-zinc-950/80 border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-primary/20 text-primary border border-primary/30">
+                {chainProduct ? <ShieldCheck className="h-6 w-6" /> : <Database className="h-6 w-6 text-blue-400" />}
+              </div>
+              <div>
+                {chainProduct ? (
+                  <>
+                    <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider">🟢 Cryptographically Verified On-Chain</p>
+                    <p className="text-xs font-mono text-zinc-400 break-all">
+                      Hash: {dbProduct?.blockchain_hash || dbProduct?.blockchainHash || "Verified"}
+                    </p>
+                  </>
+                ) : dbProduct?.blockchain_hash ? (
+                  <>
+                    <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">⚪ Blockchain Transaction Reference</p>
+                    <p className="text-xs font-mono text-zinc-500 break-all">
+                      Hash: {dbProduct.blockchain_hash}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs font-bold text-blue-400 uppercase tracking-wider">Local Supply Chain Record</p>
+                    <p className="text-xs font-mono text-blue-400/70">
+                      Verified within the secure Farm-to-Fork tracking database.
+                    </p>
+                  </>
+                )}
+              </div>
             </div>
-          </Card>
+            {chainProduct && (
+              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                Ethereum Smart Contract
+              </span>
+            )}
+          </div>
+        </div>
+</Card>
 
           {/* SECTION 2: AUTHENTICITY VERIFICATION CHECKLIST */}
-          <Card className="rounded-3xl border shadow-sm p-6 sm:p-8 space-y-5 bg-card/60">
-            <div className="border-b pb-3 flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-emerald-500" />
-                  Authenticity Verification Checklist
-                </h3>
-                <p className="text-xs text-muted-foreground">Certified supply chain records validated across each lifecycle milestone.</p>
+      <Card className="rounded-3xl border shadow-sm p-6 sm:p-8 space-y-5 bg-card/60">
+        <div className="border-b pb-3 flex justify-between items-center">
+          <div>
+            <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
+              <ShieldCheck className={`h-5 w-5 ${chainProduct ? 'text-emerald-500' : 'text-blue-500'}`} />
+              Authenticity Verification Checklist
+            </h3>
+            <p className="text-xs text-muted-foreground">Certified supply chain records validated across each lifecycle milestone.</p>
+          </div>
+          {chainProduct ? (
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              100% Tamper-Proof
+            </span>
+          ) : (
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              Locally Verified
+            </span>
+          )}
+        </div>
+
+        <div className="grid gap-3">
+          <div className="p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all bg-emerald-500/5 border-emerald-500/20">
+            <div className="space-y-0.5">
+              <p className="font-bold text-sm text-foreground">Product Registration</p>
+              <p className="text-xs text-muted-foreground">Registered with immutable Batch ID: {dbProduct?.batch_number}</p>
+            </div>
+            <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30 shrink-0">
+              <CheckCircle2 className="h-4 w-4" /> Verified ✓
+            </span>
+          </div>
+          {chainProduct && (
+            <div className="p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all bg-emerald-500/5 border-emerald-500/20">
+              <div className="space-y-0.5">
+                <p className="font-bold text-sm text-foreground">Blockchain Smart Contract Record</p>
+                <p className="text-xs text-muted-foreground">Immutable ledger transaction confirmed on Ethereum smart contract</p>
               </div>
-              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                100% Tamper-Proof
+              <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30 shrink-0">
+                <CheckCircle2 className="h-4 w-4" /> Verified ✓
               </span>
             </div>
-
-            <div className="grid gap-3">
-              <div className="p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all bg-emerald-500/5 border-emerald-500/20">
-                <div className="space-y-0.5">
-                  <p className="font-bold text-sm text-foreground">Product Registration</p>
-                  <p className="text-xs text-muted-foreground">Registered with immutable Batch ID: {dbProduct?.batch_number}</p>
-                </div>
-                <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30 shrink-0">
-                  <CheckCircle2 className="h-4 w-4" /> Verified ✓
-                </span>
-              </div>
-              {hasBlockchainRecord && (
-                <div className="p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all bg-emerald-500/5 border-emerald-500/20">
-                  <div className="space-y-0.5">
-                    <p className="font-bold text-sm text-foreground">Blockchain Smart Contract Record</p>
-                    <p className="text-xs text-muted-foreground">Immutable ledger transaction confirmed on Ethereum smart contract</p>
-                  </div>
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30 shrink-0">
-                    <CheckCircle2 className="h-4 w-4" /> Verified ✓
-                  </span>
-                </div>
-              )}
-            </div>
-          </Card>
+          )}
+        </div>
+</Card>
 
           {/* SECTION 3: INTERACTIVE VISUAL TIMELINE JOURNEY */}
           <Card className="rounded-3xl border shadow-sm p-6 sm:p-8 space-y-6 bg-card/60">
@@ -519,44 +554,48 @@ export function Tracker() {
 
             <div className="space-y-6 relative before:absolute before:inset-0 before:left-5 before:w-0.5 before:bg-gradient-to-b before:from-emerald-500 before:via-blue-500 before:to-muted-foreground/30">
               
-              {/* Step 1: Harvest (Always exists if product is found) */}
-              <div className="relative flex items-start gap-4 pl-12">
-                <div className="absolute left-3 -translate-x-1/2 p-2 rounded-full bg-emerald-500 text-white shadow-md ring-4 ring-background">
-                  <Leaf className="h-4 w-4" />
+              {/* Dynamic Real Events */}
+            {dbProduct?.events?.length > 0 ? dbProduct.events.map((evt: any, i: number) => (
+              <div key={i} className="relative flex items-start gap-4 pl-12">
+                <div className="absolute left-3 -translate-x-1/2 p-2 rounded-full bg-blue-500 text-white shadow-md ring-4 ring-background z-10">
+                  {evt.event_type.toLowerCase().includes("harvest") ? <Leaf className="h-4 w-4" /> :
+                   evt.event_type.toLowerCase().includes("processing") || evt.event_type.toLowerCase().includes("quality") ? <Factory className="h-4 w-4" /> :
+                   evt.event_type.toLowerCase().includes("shipped") || evt.event_type.toLowerCase().includes("transit") || evt.event_type.toLowerCase().includes("transfer") ? <Truck className="h-4 w-4" /> :
+                   evt.event_type.toLowerCase().includes("receive") || evt.event_type.toLowerCase().includes("retail") ? <Store className="h-4 w-4" /> :
+                   <CheckCircle2 className="h-4 w-4" />}
                 </div>
-                <div className="p-4 rounded-2xl border bg-card/80 w-full space-y-1 border-emerald-500/20">
+                <div className="p-4 rounded-2xl border bg-card/80 w-full space-y-2 border-blue-500/20">
                   <div className="flex justify-between items-center">
-                    <span className="font-bold text-sm text-foreground">Farm Harvest & Registration</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500">Completed</span>
+                    <span className="font-bold text-sm text-foreground">{formatEventType(evt.event_type)}</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">Recorded</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Farmed by <strong>{dbProduct?.farmer?.name || "Verified Farmer"}</strong> • Location: {getFarmerLocation(dbProduct)} • Harvest Date: {new Date(dbProduct?.created_at || Date.now()).toLocaleDateString("en-GB")}
+                    Actor: <strong>{formatActor(evt.actor)}</strong> • Location: {evt.location || "Supply Chain"} • Date: {new Date(evt.created_at).toLocaleString()}
                   </p>
+                  
+                  {evt.metadata && Object.keys(evt.metadata).length > 0 && (
+                    <div className="bg-muted/30 p-2.5 rounded-xl border mt-2 space-y-1">
+                      {Object.entries(evt.metadata).map(([k, v]: [string, any]) => (
+                        <p key={k} className="text-[11px] text-muted-foreground">
+                          <span className="font-semibold capitalize">{k.replace(/_/g, ' ')}:</span> {String(v)}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+
+                  {evt.blockchain_hash && (
+                    <div className="mt-2 text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 p-2 rounded-lg font-mono break-all flex items-center gap-1.5">
+                      <ShieldCheck className="h-3 w-3 shrink-0" />
+                      Tx: {evt.blockchain_hash}
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {/* Dynamic Real Events */}
-              {dbProduct?.events?.map((evt: any, i: number) => (
-                <div key={i} className="relative flex items-start gap-4 pl-12">
-                  <div className="absolute left-3 -translate-x-1/2 p-2 rounded-full bg-blue-500 text-white shadow-md ring-4 ring-background">
-                    {evt.event_type.toLowerCase().includes("processing") || evt.event_type.toLowerCase().includes("quality") ? <Factory className="h-4 w-4" /> :
-                     evt.event_type.toLowerCase().includes("transit") || evt.event_type.toLowerCase().includes("transfer") ? <Truck className="h-4 w-4" /> :
-                     evt.event_type.toLowerCase().includes("receive") || evt.event_type.toLowerCase().includes("retail") ? <Store className="h-4 w-4" /> :
-                     <CheckCircle2 className="h-4 w-4" />}
-                  </div>
-                  <div className="p-4 rounded-2xl border bg-card/80 w-full space-y-1 border-blue-500/20">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-sm text-foreground">{evt.event_type}</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">Recorded</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {evt.description} • Location: {evt.location || "Supply Chain"} • Date: {new Date(evt.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+            )) : (
+              <div className="pl-12 text-sm text-muted-foreground italic">No historical events recorded yet.</div>
+            )}
+          </div>
+</Card>
 
         </div>
       )}

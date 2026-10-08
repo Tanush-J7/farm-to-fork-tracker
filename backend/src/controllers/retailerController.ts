@@ -252,8 +252,7 @@ export const receiveProduct = async (req: Request, res: Response): Promise<void>
         await tx.wait();
         txHash = tx.hash;
       } else {
-        const randomBytes = ethers.randomBytes(32);
-        txHash = ethers.hexlify(randomBytes);
+        txHash = null;
       }
     } catch (bcError) {
       console.error("Blockchain transaction failed:", bcError);

@@ -115,7 +115,7 @@ import { useSearchParams } from "react-router-dom"
 export function ProcessorDashboard() {
   const { token, user } = useAuth()
   const processorName = user?.name || "Processor Admin"
-  const processorAddress = user?.address || null || "Processing Facility"
+  const processorAddress = user?.address || localStorage.getItem("processor_address") || "Processing Facility"
 
   // Tabs state
   const [searchParams] = useSearchParams()
@@ -141,19 +141,17 @@ export function ProcessorDashboard() {
   const [sortBy, setSortBy] = useState("newest")
 
   const [apiShipments, setApiShipments] = useState<any[]>([])
-  const [apiBatches, setApiBatches] = useState<any[]>([])
-  const [apiRequests, setApiRequests] = useState<any[]>([])
+  // const [apiBatches, setApiBatches] = useState<any[]>([])
+
   const fetchApiData = async () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : {}
-      const [shipmentsRes, batchesRes, reqRes] = await Promise.all([
+      const [shipmentsRes] = await Promise.all([
         axios.get(`${API}/processor/shipments/incoming`, { headers }),
-        axios.get(`${API}/processor/batches`, { headers }),
-        axios.get(`${API}/processor/requests`, { headers })
+        axios.get(`${API}/processor/batches`, { headers })
       ])
       if (shipmentsRes.data?.success) setApiShipments(shipmentsRes.data.data)
-      if (batchesRes.data?.success) setApiBatches(batchesRes.data.data)
-      if (reqRes.data?.success) setApiRequests(reqRes.data.data)
+      // if (batchesRes.data?.success) setApiBatches(batchesRes.data.data)
     } catch (err) {
       console.error('Failed to load API data', err)
     }
@@ -171,930 +169,7 @@ export function ProcessorDashboard() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
 
   // Modal / Form states
-  const [selectedShipment, setSelectedShipment] = useState<any | null>(null)
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-
-  // Receive Modal
-  const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false)
-  const [receivedQtyInput, setReceivedQtyInput] = useState("")
-  const [arrivalDateInput, setArrivalDateInput] = useState(new Date().toISOString().split("T")[0])
-  const [arrivalTimeInput, setArrivalTimeInput] = useState(new Date().toTimeString().split(" ")[0].slice(0, 5))
-  const [transitLossReasonInput, setTransitLossReasonInput] = useState("Transit Spoilage / Physical Damage on Route")
-
-  // Inspect Modal / Form
-  const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false)
-  const [qrScanning, setQrScanning] = useState(false)
-  const [qrScanned, setQrScanned] = useState(false)
-  const [cameraActive, setCameraActive] = useState(false)
-  const [cameraError, setCameraError] = useState("")
-  const [scannedRawText, setScannedRawText] = useState("")
-  const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Batch QR View Modal
-  const [qrViewBatch, setQrViewBatch] = useState<ProcessingBatch | null>(null)
-
-  // Verification Checks
-  const [infoVerified, setInfoVerified] = useState<"Verified" | "Mismatch" | "">("")
-  const [remarksInput, setRemarksInput] = useState("")
-  const [isInspectionConfirmed, setIsInspectionConfirmed] = useState(false)
-
-  // Physical Inspection
-  const [appearanceInput, setAppearanceInput] = useState("Good")
-  const [freshnessInput, setFreshnessInput] = useState("Excellent")
-  const [damageInput, setDamageInput] = useState("Low")
-  const [cleanlinessInput, setCleanlinessInput] = useState("Good")
-  const [qualityGradeInput, setQualityGradeInput] = useState<"A" | "B" | "C">("A")
-
-  const computePhysicalQualityScore = (appearance: string, freshness: string, cleanliness: string, damage: string) => {
-    let score = 0
-    if (appearance === "Excellent") score += 25
-    else if (appearance === "Good") score += 20
-    else if (appearance === "Average") score += 15
-    else score += 8
-
-    if (freshness === "Excellent") score += 25
-    else if (freshness === "Good") score += 20
-    else if (freshness === "Average") score += 15
-    else score += 8
-
-    if (cleanliness === "Excellent") score += 25
-    else if (cleanliness === "Good") score += 20
-    else if (cleanliness === "Average") score += 15
-    else score += 8
-
-    if (damage === "Low") score += 25
-    else if (damage === "Medium") score += 15
-    else score += 5
-
-    return Math.min(100, Math.max(10, score))
-  }
-
-  const handlePhysicalParamChange = (type: "appearance" | "freshness" | "cleanliness" | "damage", value: string) => {
-    const nextApp = type === "appearance" ? value : appearanceInput
-    const nextFresh = type === "freshness" ? value : freshnessInput
-    const nextClean = type === "cleanliness" ? value : cleanlinessInput
-    const nextDam = type === "damage" ? value : damageInput
-
-    if (type === "appearance") setAppearanceInput(value)
-    if (type === "freshness") setFreshnessInput(value)
-    if (type === "cleanliness") setCleanlinessInput(value)
-    if (type === "damage") setDamageInput(value)
-
-    const score = computePhysicalQualityScore(nextApp, nextFresh, nextClean, nextDam)
-    if (score >= 85) setQualityGradeInput("A")
-    else if (score >= 60) setQualityGradeInput("B")
-    else setQualityGradeInput("C")
-  }
-
-  // Decision Reject Reason
-  const [rejectionReasonInput, setRejectionReasonInput] = useState("")
-  const [showRejectionForm, setShowRejectionForm] = useState(false)
-
-
-
-
-  // Processing Completion Modal state
-  const [processingModalBatch, setProcessingModalBatch] = useState<ProcessingBatch | null>(null)
-  const [processedQtyInput, setProcessedQtyInput] = useState("")
-  const [estimatedShelfLifeInput, setEstimatedShelfLifeInput] = useState("")
-
-  const formatToDdMmYyyy = (dateStr: string) => {
-    if (!dateStr) return ""
-    if (dateStr.includes("-") && dateStr.split("-")[0].length === 4) {
-      const [y, m, d] = dateStr.split("-")
-      return `${d}-${m}-${y}`
-    }
-    return dateStr
-  }
-
-  const computeShelfLifeDays = (dateStr: string) => {
-    if (!dateStr) return 14
-    const target = new Date(dateStr)
-    const now = new Date()
-    const diffTime = target.getTime() - new Date(now.toISOString().split("T")[0]).getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return Math.max(1, diffDays)
-  }
-
-  const openProcessingModal = (b: any) => {
-    setProcessingModalBatch(b)
-    setProcessedQtyInput(String(b.quantity))
-    const defaultExpiry = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
-    setEstimatedShelfLifeInput(defaultExpiry.toISOString().split("T")[0])
-  }
-
-  // Fetch Products
-  const fetchProducts = async () => {
-    setLoadingProducts(true)
-    try {
-      const headers = token ? { Authorization: `Bearer ${token}` } : {}
-      const res = await axios.get(`${API}/products`, { headers })
-      const raw: Product[] = res.data?.data || []
-
-      // Filter out permanently deleted products
-      let deletedIds: string[] = []
-      try {
-        deletedIds = null
-      } catch {
-        deletedIds = []
-      }
-      const deletedSet = new Set(deletedIds.map(String))
-
-      // Automatic Expiry Filter:
-      // If a product has no processor interest and its expiry date has passed,
-      // it should automatically disappear from the available browse catalog.
-      const isUnclaimedAndExpired = (p: Product) => {
-        const exp = p.expiry_date || (p as any).expiryDate
-        if (!exp) return false
-        if (p.status !== "Harvested" && p.status !== "Pending Approval") return false
-        const expiryTime = new Date(`${exp}T23:59:59`).getTime()
-        return !isNaN(expiryTime) && expiryTime < Date.now()
-      }
-
-      const active = raw.filter(p =>
-        !deletedSet.has(String(p.id)) &&
-        !deletedSet.has(String(p.batch_number)) &&
-        !isUnclaimedAndExpired(p)
-      )
-      setProducts(active)
-    } catch (err) {
-      console.error("Failed to load products", err)
-    } finally {
-      setLoadingProducts(false)
-    }
-  }
-
-  // Load local storage keys
-  useEffect(() => {
-    fetchProducts()
-    fetchApiData()
-
-    // Interests
-    const storedInterests = null
-    if (storedInterests) setInterests(JSON.parse(storedInterests))
-
-    // Receipts
-    const storedReceipts = null
-    if (storedReceipts) setReceipts(JSON.parse(storedReceipts))
-
-    // Verifications
-    const storedVerifications = null
-    if (storedVerifications) setVerifications(JSON.parse(storedVerifications))
-
-    // Inspections
-    const storedInspections = null
-    if (storedInspections) setInspections(JSON.parse(storedInspections))
-
-    // Decisions
-    const storedDecisions = null
-    if (storedDecisions) setDecisions(JSON.parse(storedDecisions))
-
-    // Batches
-    const storedBatches = null
-    if (storedBatches) setBatches(JSON.parse(storedBatches))
-
-    // Logs
-    const storedLogs = null
-    if (storedLogs) setAuditLogs(JSON.parse(storedLogs))
-
-    // Deals & Declined Status
-    const loadDealsAndDeclined = () => {
-      try {
-        const stored = null
-        setDeals(stored)
-      } catch {
-        setDeals({})
-      }
-      try {
-        const storedDeclined = null
-        setDeclinedProducts(storedDeclined)
-      } catch {
-        setDeclinedProducts({})
-      }
-    }
-    loadDealsAndDeclined()
-    window.addEventListener("farmer_deals_updated", loadDealsAndDeclined)
-    window.addEventListener("storage", loadDealsAndDeclined)
-
-    return () => {
-      window.removeEventListener("farmer_deals_updated", loadDealsAndDeclined)
-      window.removeEventListener("storage", loadDealsAndDeclined)
-    }
-  }, [token])
-
-  // Helper: Add log
-  const addLog = (action: string, status: string, productId?: string, batchId?: string) => {
-    const now = new Date()
-    const newLog: AuditLog = {
-      id: Math.random().toString(36).substring(2, 9),
-      date: now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-      time: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
-      user: processorName,
-      action,
-      status,
-      productId,
-      batchId
-    }
-    const updated = [newLog, ...auditLogs]
-    setAuditLogs(updated)
-    )
-  }
-
-  // DB update helper
-  const updateDbStatus = async (id: string, status: string) => {
-    try {
-      const headers = token ? { Authorization: `Bearer ${token}` } : {}
-      await axios.put(`${API}/products/${id}/status`, { status }, { headers })
-      // Update local products state
-      setProducts(prev => prev.map(p => p.id === id ? { ...p, status } : p))
-    } catch (err) {
-      console.error("Could not update product status in database", err)
-    }
-  }
-
-  // Action: Mark Interest (Permanent, cannot be undone)
-  const markInterest = async (product: Product) => {
-    const prodId = String(product.id)
-
-    // Clear any past test receipt/decision for this fresh product
-    const updatedReceipts = { ...receipts }
-    delete updatedReceipts[prodId]
-    delete updatedReceipts[product.id]
-    setReceipts(updatedReceipts)
-    )
-
-    const updatedDecisions = { ...decisions }
-    delete updatedDecisions[prodId]
-    delete updatedDecisions[product.id]
-    setDecisions(updatedDecisions)
-    )
-
-    const updated = Array.from(new Set([...interests, prodId, product.id]))
-    setInterests(updated)
-    )
-    addLog(`Marked interest in ${product.name}`, "Interested", prodId)
-
-    // Generate & save Farmer Notification and Deal State
-    try {
-      const now = new Date()
-      const newNotif = {
-        id: "notif-" + Math.random().toString(36).substring(2, 9),
-        type: "processor_interest",
-        productId: prodId,
-        batchNumber: product.batch_number || (product as any).batchNumber || "",
-        productName: product.name,
-        quantity: product.quantity,
-        processorName: processorName || "Processing Facility",
-        date: now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-        time: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
-        timestamp: Date.now(),
-        read: false,
-        message: `${processorName || "Processing Facility"} has expressed interest in your harvest batch "${product.name}" (${product.batch_number || (product as any).batchNumber || ""}).`
-      }
-      const existingNotifs = null
-      const filteredNotifs = existingNotifs.filter((n: any) => n.productId !== prodId && n.batchNumber !== (product.batch_number || (product as any).batchNumber))
-      const updatedNotifs = [newNotif, ...filteredNotifs]
-      )
-      window.dispatchEvent(new Event("farmer_notifications_updated"))
-
-      // Record requested status in farmer_deals
-      const storedDeals = null
-      storedDeals[prodId] = "requested"
-      if (product.batch_number) storedDeals[product.batch_number] = "requested"
-      if ((product as any).batchNumber) storedDeals[(product as any).batchNumber] = "requested"
-      )
-      setDeals(storedDeals)
-      window.dispatchEvent(new Event("farmer_deals_updated"))
-    } catch (e) {
-      console.warn("Could not save farmer notification/deal", e)
-    }
-
-    await updateDbStatus(product.id, "Processing")
-    if (prodId !== product.id) {
-      await updateDbStatus(prodId, "Processing")
-    }
-  }
-
-  // Action: Dismiss Declined Product from Pipeline
-  const handleDismissDeclined = (productId: string, batchNumber?: string) => {
-    const updated = interests.filter(
-      id => id !== productId && id !== String(productId) && (!batchNumber || id !== batchNumber)
-    )
-    setInterests(updated)
-    )
-    addLog(`Dismissed declined product from pipeline`, "Dismissed", productId)
-  }
-
-  // Action: Receive Product Form Submit
-  const handleReceiveProduct = async () => {
-    if (!selectedShipment || !receivedQtyInput) return
-
-    try {
-        const headers = token ? { Authorization: `Bearer ${token}` } : {}
-        await axios.post(`${API}/processor/shipments/${selectedShipment.id}/receive`, {
-            receivedQty: Number(receivedQtyInput),
-            transitLossReason: transitLossReasonInput
-        }, { headers })
-        
-        await fetchApiData()
-        setIsReceiveModalOpen(false)
-        setReceivedQtyInput("")
-        setSelectedShipment(null)
-        setPipelineStep("received")
-    } catch (e) {
-        alert("Failed to receive shipment")
-    }
-  }
-
-  // Live Camera QR Scanner Methods
-  const startLiveCamera = async () => {
-    setCameraError("")
-    setQrScanning(true)
-    setCameraActive(true)
-
-    try {
-      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        await html5QrCodeRef.current.stop()
-      }
-      const html5QrCode = new Html5Qrcode("live-qr-reader")
-      html5QrCodeRef.current = html5QrCode
-
-      await html5QrCode.start(
-        { facingMode: "environment" },
-        {
-          fps: 10,
-          qrbox: { width: 220, height: 220 }
-        },
-        (decodedText) => {
-          handleQrSuccess(decodedText)
-        },
-        () => { }
-      )
-    } catch (err: any) {
-      console.error("Camera error", err)
-      setCameraError(err?.message || "Could not access camera. Please allow camera permissions or upload a QR image.")
-      setCameraActive(false)
-      setQrScanning(false)
-    }
-  }
-
-  const stopLiveCamera = async () => {
-    if (html5QrCodeRef.current) {
-      try {
-        if (html5QrCodeRef.current.isScanning) {
-          await html5QrCodeRef.current.stop()
-        }
-        html5QrCodeRef.current.clear()
-      } catch (e) {
-        console.error("Error stopping scanner", e)
-      }
-    }
-    setCameraActive(false)
-    setQrScanning(false)
-  }
-
-  const format6DigitId = (id: number | string) => {
-    const num = Number(id)
-    if (num >= 100000 && num <= 999999) return String(num)
-    if (num > 0) return String(100000 + num)
-    return "100000"
-  }
-
-  const handleQrSuccess = async (decodedText: string) => {
-    await stopLiveCamera()
-    setScannedRawText(decodedText)
-
-    // Extract ID from scanned QR URL or raw payload
-    let scannedId = decodedText.trim()
-    if (scannedId.includes("?id=")) {
-      scannedId = scannedId.split("?id=")[1].split("&")[0].trim()
-    }
-    scannedId = scannedId.replace("FP-", "").trim().toLowerCase()
-
-    const pId = String(selectedProduct?.id || "").toLowerCase()
-    const pProdId = String(selectedProduct?.product_id || "").toLowerCase()
-    const pBatch = String(selectedProduct?.batch_number || "").toLowerCase()
-    const p6Digit = format6DigitId(selectedProduct?.product_id || selectedProduct?.id || 0).toLowerCase()
-    const cleanDecoded = decodedText.toLowerCase()
-
-    // Strict validation: Must match the selected product's ID, DB ID, 6-digit mapped ID, or Batch Number
-    const isMatch = Boolean(
-      (pId && scannedId === pId) ||
-      (pProdId && scannedId === pProdId) ||
-      (p6Digit && scannedId === p6Digit) ||
-      (pBatch && (scannedId === pBatch || cleanDecoded.includes(pBatch))) ||
-      (pId && cleanDecoded.includes(`id=${pId}`)) ||
-      (pProdId && cleanDecoded.includes(`id=${pProdId}`))
-    )
-
-    if (isMatch) {
-      setCameraError("")
-      setInfoVerified("Verified")
-      setRemarksInput("")
-      setIsInspectionConfirmed(false)
-      // ONLY advance to the physical inspection grading page on successful verification!
-      setQrScanned(true)
-    } else {
-      setInfoVerified("Mismatch")
-      // DO NOT advance on mismatch: keep user on the scanner view with clear error
-      setQrScanned(false)
-
-      // Dynamic cross-catalog search across all products
-      const otherProduct = products.find(p => {
-        if (p.id === selectedProduct?.id) return false
-        const otherId = String(p.id).toLowerCase()
-        const otherProdId = String(p.product_id || "").toLowerCase()
-        const otherBatch = String(p.batch_number || "").toLowerCase()
-        const other6Digit = format6DigitId(p.product_id || p.id).toLowerCase()
-        return (
-          (otherId && scannedId === otherId) ||
-          (otherProdId && scannedId === otherProdId) ||
-          (other6Digit && scannedId === other6Digit) ||
-          (otherBatch && (scannedId === otherBatch || cleanDecoded.includes(otherBatch))) ||
-          (otherId && cleanDecoded.includes(`id=${otherId}`)) ||
-          (otherProdId && cleanDecoded.includes(`id=${otherProdId}`))
-        )
-      })
-
-      if (otherProduct) {
-        setCameraError(`❌ QR Mismatch! You scanned the QR code for "${otherProduct.name}" (Batch: ${otherProduct.batch_number || format6DigitId(otherProduct.product_id || otherProduct.id)}), but this verification is for "${selectedProduct?.name}" (Batch: ${selectedProduct?.batch_number || p6Digit}). Please scan the correct QR code.`)
-      } else {
-        setCameraError(`❌ QR Mismatch / Unrecognized Code! Scanned payload does not match this batch (${selectedProduct?.batch_number || p6Digit}). Please scan the authentic QR code.`)
-      }
-    }
-  }
-
-  const handleQrFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setCameraError("")
-
-    // Helper: read file as Image
-    const img = new Image()
-    const objectUrl = URL.createObjectURL(file)
-
-    img.onload = async () => {
-      URL.revokeObjectURL(objectUrl)
-
-      // Layer 1: Native BarcodeDetector (Modern Hardware-Accelerated Detection)
-      if ("BarcodeDetector" in window) {
-        try {
-          const barcodeDetector = new (window as any).BarcodeDetector({ formats: ["qr_code"] })
-          const barcodes = await barcodeDetector.detect(img)
-          if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-            handleQrSuccess(barcodes[0].rawValue)
-            return
-          }
-        } catch (err) {
-          console.warn("BarcodeDetector fallback", err)
-        }
-      }
-
-      // Layer 2: jsQR Direct Pixel Decoding on Canvas
-      try {
-        const canvas = document.createElement("canvas")
-        canvas.width = img.naturalWidth || img.width
-        canvas.height = img.naturalHeight || img.height
-        const ctx = canvas.getContext("2d", { willReadFrequently: true })
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-          const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "dontInvert",
-          }) || jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "attemptBoth",
-          })
-
-          if (code && code.data) {
-            handleQrSuccess(code.data)
-            return
-          }
-        }
-      } catch (err) {
-        console.warn("jsQR canvas scan fallback", err)
-      }
-
-      // Layer 3: Html5Qrcode fallback
-      try {
-        const html5QrCode = new Html5Qrcode("live-qr-reader")
-        const result = await html5QrCode.scanFile(file, false)
-        if (result) {
-          handleQrSuccess(result)
-          return
-        }
-      } catch (err) {
-        console.warn("Html5Qrcode scanFile fallback", err)
-      }
-
-      setCameraError("Could not detect a valid QR code in this image. Please upload a clear QR photo or use the Camera Scanner.")
-    }
-
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl)
-      setCameraError("Invalid image file format. Please select a PNG or JPEG photo.")
-    }
-
-    img.src = objectUrl
-  }
-
-  const closeVerifyModal = async () => {
-    await stopLiveCamera()
-    setIsVerifyModalOpen(false)
-    setSelectedProduct(null)
-    setQrScanned(false)
-    setCameraError("")
-    setScannedRawText("")
-    setIsInspectionConfirmed(false)
-    setInfoVerified("")
-    setRemarksInput("")
-  }
-
-  // Submit Inspection and Accept/Reject Decision
-  const handleInspectionDecision = async (decision: "Accepted" | "Rejected") => {
-    if (!selectedProduct) return
-
-    const now = new Date()
-    const formattedDate = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-    const formattedTime = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-
-    // Save QR Verify info
-    const verification: VerificationDetails = {
-      productId: selectedProduct.id,
-      status: infoVerified === "Verified" ? "Verified" : "Mismatch",
-      remarks: remarksInput || "Blockchain batch cryptographic match confirmed",
-      date: formattedDate,
-      time: formattedTime
-    }
-    const updatedVerifications = { ...verifications, [selectedProduct.id]: verification }
-    setVerifications(updatedVerifications)
-    )
-
-    // Save Quality inspection details
-    const computedScore = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
-    const autoGrade: "A" | "B" | "C" = computedScore >= 85 ? "A" : computedScore >= 60 ? "B" : "C"
-    const inspection: InspectionDetails = {
-      productId: selectedProduct.id,
-      appearance: appearanceInput,
-      freshness: freshnessInput,
-      damage: damageInput,
-      cleanliness: cleanlinessInput,
-      grade: qualityGradeInput,
-      remarks: remarksInput || `Quality Score: ${computedScore}% (Grade ${autoGrade})`,
-      inspectorName: processorName,
-      facilityLocation: processorAddress,
-      date: formattedDate,
-      time: formattedTime
-    }
-    const updatedInspections = { ...inspections, [selectedProduct.id]: inspection }
-    setInspections(updatedInspections)
-    )
-
-    // Save Decision details
-    const decisionRecord = {
-      decision,
-      reason: decision === "Rejected" ? rejectionReasonInput : undefined,
-      date: formattedDate,
-      time: formattedTime
-    }
-    const updatedDecisions = {
-      ...decisions,
-      [selectedProduct.id]: decisionRecord,
-      [String(selectedProduct.id)]: decisionRecord
-    }
-    setDecisions(updatedDecisions)
-    )
-
-    if (decision === "Accepted") {
-      const verifiedQty = (receivedQtyInput && Number(receivedQtyInput) > 0)
-        ? Number(receivedQtyInput)
-        : selectedProduct.quantity
-      const hasShortage = verifiedQty < selectedProduct.quantity
-      const shortageAmount = selectedProduct.quantity - verifiedQty
-      const shortagePercent = selectedProduct.quantity > 0 ? ((shortageAmount / selectedProduct.quantity) * 100).toFixed(0) : "0"
-
-      // API Call for Phase 3B
-      const shipment = apiShipments.find(s => s.product_id === selectedProduct.id || s.batch_number === selectedProduct.batch_number);
-      if (shipment) {
-        try {
-          const headers = token ? { Authorization: `Bearer ${token}` } : {};
-          await axios.post(`${API}/processor/shipments/${shipment.id}/receive`, { received_quantity: verifiedQty }, { headers });
-          fetchApiData();
-        } catch (err) {
-          console.error("API Receive failed:", err);
-        }
-      }
-
-      // Save/update receipt details with weighed scale quantity
-      const receipt: ReceiptDetails = {
-        productId: selectedProduct.id,
-        receivedQty: verifiedQty,
-        arrivalDate: arrivalDateInput,
-        arrivalTime: arrivalTimeInput,
-        receivedBy: processorName
-      }
-      const updatedReceipts = {
-        ...receipts,
-        [selectedProduct.id]: receipt,
-        [String(selectedProduct.id)]: receipt
-      }
-      setReceipts(updatedReceipts)
-      )
-
-      const verifiedProduct: Product = {
-        ...selectedProduct,
-        quantity: verifiedQty,
-        ai_quality_score: computedScore,
-        ai_quality_label: `Grade ${autoGrade}`
-      }
-
-      // Create batch ID: PB-XXXXXX mapped randomly
-      const randomBatchId = `PB-${Math.floor(10000 + Math.random() * 90000)}`
-      const remarksText = hasShortage
-        ? `Batch verified & accepted at gate. Scale Weight: ${verifiedQty} kg (${shortageAmount} kg Shortage [${shortagePercent}%], Reason: ${transitLossReasonInput}). Quality Score: ${computedScore}% (Grade ${autoGrade}). Remarks: ${remarksInput || "Standard Intake"}`
-        : `Batch verified & accepted at gate. Scale Weight: ${verifiedQty} kg. Quality Score: ${computedScore}% (Grade ${autoGrade}). Remarks: ${remarksInput || "Standard Intake"}`
-
-      const newBatch: ProcessingBatch = {
-        batchId: randomBatchId,
-        productId: selectedProduct.id,
-        originalProduct: verifiedProduct,
-        processorName: processorName,
-        facilityLocation: processorAddress,
-        stage: "Accepted",
-        stageLogs: [{ stage: "Accepted", date: formattedDate, time: formattedTime, remarks: remarksText }],
-        createdDate: formattedDate,
-        createdTime: formattedTime
-      }
-      const updatedBatches = { ...batches, [randomBatchId]: newBatch }
-      setBatches(updatedBatches)
-      )
-
-      addLog(`Accepted product ${selectedProduct.name} (Batch: ${randomBatchId}) - Scale Weight: ${verifiedQty} kg, Quality: ${computedScore}% (Grade ${autoGrade})`, "Accepted - Ready for Processing", selectedProduct.id, randomBatchId)
-
-      // Notify Farmer of Acceptance
-      try {
-        const acceptNotif = {
-          id: "notif-" + Math.random().toString(36).substring(2, 9),
-          type: "processor_accepted",
-          productId: String(selectedProduct.id),
-          batchNumber: selectedProduct.batch_number || (selectedProduct as any).batchNumber || "",
-          productName: selectedProduct.name,
-          quantity: verifiedQty,
-          processorName: processorName || "Processing Facility",
-          date: formattedDate,
-          time: formattedTime,
-          timestamp: Date.now(),
-          read: false,
-          message: `${processorName || "Processing Facility"} has verified and accepted batch "${selectedProduct.name}" (${verifiedQty} kg, Grade ${autoGrade}) on blockchain.`
-        }
-        const existingNotifs = null
-        )
-        window.dispatchEvent(new Event("farmer_notifications_updated"))
-      } catch (e) {
-        console.warn("Could not save farmer notification", e)
-      }
-
-      await updateDbStatus(selectedProduct.id, "Processing")
-      setPipelineStep("processing")
-    } else {
-      addLog(`Rejected product ${selectedProduct.name}: ${rejectionReasonInput}`, "Rejected by Processor", selectedProduct.id)
-
-      // Notify Farmer of Rejection
-      try {
-        const rejectNotif = {
-          id: "notif-" + Math.random().toString(36).substring(2, 9),
-          type: "processor_rejected",
-          productId: String(selectedProduct.id),
-          batchNumber: selectedProduct.batch_number || (selectedProduct as any).batchNumber || "",
-          productName: selectedProduct.name,
-          quantity: selectedProduct.quantity,
-          processorName: processorName || "Processing Facility",
-          date: formattedDate,
-          time: formattedTime,
-          timestamp: Date.now(),
-          read: false,
-          message: `${processorName || "Processing Facility"} rejected batch "${selectedProduct.name}" (${selectedProduct.quantity} kg) — Reason: ${rejectionReasonInput || "Intake verification discrepancy"}.`
-        }
-        const existingNotifs = null
-        )
-        window.dispatchEvent(new Event("farmer_notifications_updated"))
-      } catch (e) {
-        console.warn("Could not save farmer notification", e)
-      }
-
-      await updateDbStatus(selectedProduct.id, "Rejected by Processor")
-      setPipelineStep("interested")
-    }
-
-    // Reset Form
-    setIsVerifyModalOpen(false)
-    setQrScanned(false)
-    setInfoVerified("")
-    setRemarksInput("")
-    setIsInspectionConfirmed(false)
-    setRejectionReasonInput("")
-    setShowRejectionForm(false)
-    setSelectedProduct(null)
-  }
-
-  // Complete Processing Action (Manual Processed Quantity + Manual Estimated Shelf Life Date + Auto Completion Date & Time)
-  const handleCompleteProcessing = async (
-    status: "Accepted" | "Processing Started" | "Processing In Progress" | "Quality Check" | "Processing Completed" | "Transferred"
-  ) => {
-    if (!processingModalBatch) return
-
-    if (status === "Processing Completed") {
-      try {
-        const headers = token ? { Authorization: `Bearer ${token}` } : {}
-        await axios.post(`${API}/processor/batches/${processingModalBatch.id}/process`, {
-          quantity_used: Number(processedQtyInput)
-        }, { headers })
-        await fetchApiData()
-        setProcessingModalBatch(null)
-        setPipelineStep("completed")
-      } catch (e) {
-        alert("Failed to process batch")
-      }
-    } else {
-      setProcessingModalBatch(null)
-      alert("Only full processing completion is mapped to the backend in this phase.")
-    }
-  }
-
-  import { useState, useEffect, useRef } from "react"
-import axios from "axios"
-import { useAuth } from "../context/AuthContext"
-import { Button } from "../components/ui/Button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
-import {
-  Factory, AlertCircle, Search, ShieldCheck, Camera, Brain, Clock, User, MapPin,
-  Star, Package, Truck, Loader2, QrCode, Upload, Printer, Video, VideoOff, Download, X,
-  Trash2, Scale, Lock, CheckCircle
-} from "lucide-react"
-import { Html5Qrcode } from "html5-qrcode"
-import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
-import jsQR from "jsqr"
-import { getFarmerLocation } from "../utils"
-
-const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
-
-interface Product {
-  id: string
-  product_id: number
-  name: string
-  category: string
-  batch_number: string
-  quantity: number
-  status: string
-  organic_status: boolean
-  ai_quality_score?: number
-  ai_quality_label?: string
-  ai_shelf_life?: any
-  expiry_date?: string
-  product_image_url?: string
-  created_at: string
-  blockchain_hash?: string
-  farm_location?: string
-  farmer?: {
-    name: string
-    email: string
-    address?: string
-    location?: string
-  }
-}
-
-interface ReceiptDetails {
-  productId: string
-  receivedQty: number
-  arrivalDate: string
-  arrivalTime: string
-  receivedBy: string
-}
-
-interface VerificationDetails {
-  productId: string
-  status: "Verified" | "Mismatch"
-  remarks: string
-  date: string
-  time: string
-}
-
-interface InspectionDetails {
-  productId: string
-  appearance: string
-  freshness: string
-  damage: string
-  cleanliness: string
-  grade: "A" | "B" | "C"
-  remarks: string
-  inspectorName: string
-  facilityLocation?: string
-  date: string
-  time: string
-}
-
-interface ProcessingBatch {
-  batchId: string
-  productId: string
-  originalProduct: Product
-  processorName?: string
-  facilityLocation?: string
-  stage: "Accepted" | "Processing Started" | "Processing In Progress" | "Quality Check" | "Processing Completed" | "Transferred"
-  stageLogs: {
-    stage: string
-    date: string
-    time: string
-    remarks: string
-  }[]
-  createdDate: string
-  createdTime: string
-  processedQuantity?: number
-  estimatedShelfLifeDays?: number
-  expiryDate?: string
-  completionDate?: string
-  completionTime?: string
-  distributor?: string
-  destinationHub?: string
-  packagingFormat?: string
-  storageTemp?: string
-  logisticsMode?: string
-  transferDate?: string
-  transferTime?: string
-}
-
-interface AuditLog {
-  id: string
-  date: string
-  time: string
-  user: string
-  action: string
-  status: string
-  productId?: string
-  batchId?: string
-}
-
-import { useSearchParams } from "react-router-dom"
-
-export function ProcessorDashboard() {
-  const { token, user } = useAuth()
-  const processorName = user?.name || "Processor Admin"
-  const processorAddress = user?.address || null || "Processing Facility"
-
-  // Tabs state
-  const [searchParams] = useSearchParams()
-  const tabParam = (searchParams.get("tab") as "browse" | "pipeline" | "history") || "browse"
-  const [activeTab, setActiveTab] = useState<"browse" | "pipeline" | "history">(tabParam)
-
-  useEffect(() => {
-    if (tabParam) {
-      setActiveTab(tabParam)
-    }
-  }, [tabParam])
-
-  const [pipelineStep, setPipelineStep] = useState<"incoming" | "interested" | "received" | "inspecting" | "processing" | "completed">("interested")
-  const [historySubTab, setHistorySubTab] = useState<"audit" | "transferred">("audit")
-
-  // API Products State
-  const [products, setProducts] = useState<Product[]>([])
-  const [loadingProducts, setLoadingProducts] = useState(false)
-
-  // Search/Filter/Sort state
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filterCategory, setFilterCategory] = useState("all")
-  const [sortBy, setSortBy] = useState("newest")
-
-  const [apiShipments, setApiShipments] = useState<any[]>([])
-  const [apiBatches, setApiBatches] = useState<any[]>([])
-  const [apiRequests, setApiRequests] = useState<any[]>([])
-  const fetchApiData = async () => {
-    try {
-      const headers = token ? { Authorization: `Bearer ${token}` } : {}
-      const [shipmentsRes, batchesRes, reqRes] = await Promise.all([
-        axios.get(`${API}/processor/shipments/incoming`, { headers }),
-        axios.get(`${API}/processor/batches`, { headers }),
-        axios.get(`${API}/processor/requests`, { headers })
-      ])
-      if (shipmentsRes.data?.success) setApiShipments(shipmentsRes.data.data)
-      if (batchesRes.data?.success) setApiBatches(batchesRes.data.data)
-      if (reqRes.data?.success) setApiRequests(reqRes.data.data)
-    } catch (err) {
-      console.error('Failed to load API data', err)
-    }
-  }
-
-  // Local storage states
-  const [interests, setInterests] = useState<string[]>([])
-  const [deals, setDeals] = useState<Record<string, "requested" | "accepted" | "dispatched" | "declined">>({})
-  const [declinedProducts, setDeclinedProducts] = useState<Record<string, boolean>>({})
-  const [receipts, setReceipts] = useState<Record<string, ReceiptDetails>>({})
-  const [verifications, setVerifications] = useState<Record<string, VerificationDetails>>({})
-  const [inspections, setInspections] = useState<Record<string, InspectionDetails>>({})
-  const [decisions, setDecisions] = useState<Record<string, { decision: "Accepted" | "Rejected"; reason?: string; date: string; time: string }>>({})
-  const [batches, setBatches] = useState<Record<string, ProcessingBatch>>({})
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
-
-  // Modal / Form states
-  const [selectedShipment, setSelectedShipment] = useState<any | null>(null)
+  // const [selectedShipment, setSelectedShipment] = useState<any | null>(null)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
   // Receive Modal
@@ -1219,7 +294,7 @@ export function ProcessorDashboard() {
       // Filter out permanently deleted products
       let deletedIds: string[] = []
       try {
-        deletedIds = null
+        deletedIds = JSON.parse(localStorage.getItem("farmer_deleted_products") || "[]")
       } catch {
         deletedIds = []
       }
@@ -1255,43 +330,43 @@ export function ProcessorDashboard() {
     fetchApiData()
 
     // Interests
-    const storedInterests = null
+    const storedInterests = localStorage.getItem("processor_interests")
     if (storedInterests) setInterests(JSON.parse(storedInterests))
 
     // Receipts
-    const storedReceipts = null
+    const storedReceipts = localStorage.getItem("processor_receipts")
     if (storedReceipts) setReceipts(JSON.parse(storedReceipts))
 
     // Verifications
-    const storedVerifications = null
+    const storedVerifications = localStorage.getItem("processor_verifications")
     if (storedVerifications) setVerifications(JSON.parse(storedVerifications))
 
     // Inspections
-    const storedInspections = null
+    const storedInspections = localStorage.getItem("processor_inspections")
     if (storedInspections) setInspections(JSON.parse(storedInspections))
 
     // Decisions
-    const storedDecisions = null
+    const storedDecisions = localStorage.getItem("processor_decisions")
     if (storedDecisions) setDecisions(JSON.parse(storedDecisions))
 
     // Batches
-    const storedBatches = null
+    const storedBatches = localStorage.getItem("processor_batches")
     if (storedBatches) setBatches(JSON.parse(storedBatches))
 
     // Logs
-    const storedLogs = null
+    const storedLogs = localStorage.getItem("processor_logs")
     if (storedLogs) setAuditLogs(JSON.parse(storedLogs))
 
     // Deals & Declined Status
     const loadDealsAndDeclined = () => {
       try {
-        const stored = null
+        const stored = JSON.parse(localStorage.getItem("farmer_deals") || "{}")
         setDeals(stored)
       } catch {
         setDeals({})
       }
       try {
-        const storedDeclined = null
+        const storedDeclined = JSON.parse(localStorage.getItem("processor_declined_products") || "{}")
         setDeclinedProducts(storedDeclined)
       } catch {
         setDeclinedProducts({})
@@ -1322,7 +397,7 @@ export function ProcessorDashboard() {
     }
     const updated = [newLog, ...auditLogs]
     setAuditLogs(updated)
-    )
+    localStorage.setItem("processor_logs", JSON.stringify(updated))
   }
 
   // DB update helper
@@ -1346,17 +421,17 @@ export function ProcessorDashboard() {
     delete updatedReceipts[prodId]
     delete updatedReceipts[product.id]
     setReceipts(updatedReceipts)
-    )
+    localStorage.setItem("processor_receipts", JSON.stringify(updatedReceipts))
 
     const updatedDecisions = { ...decisions }
     delete updatedDecisions[prodId]
     delete updatedDecisions[product.id]
     setDecisions(updatedDecisions)
-    )
+    localStorage.setItem("processor_decisions", JSON.stringify(updatedDecisions))
 
     const updated = Array.from(new Set([...interests, prodId, product.id]))
     setInterests(updated)
-    )
+    localStorage.setItem("processor_interests", JSON.stringify(updated))
     addLog(`Marked interest in ${product.name}`, "Interested", prodId)
 
     // Generate & save Farmer Notification and Deal State
@@ -1376,18 +451,18 @@ export function ProcessorDashboard() {
         read: false,
         message: `${processorName || "Processing Facility"} has expressed interest in your harvest batch "${product.name}" (${product.batch_number || (product as any).batchNumber || ""}).`
       }
-      const existingNotifs = null
+      const existingNotifs = JSON.parse(localStorage.getItem("farmer_notifications") || "[]")
       const filteredNotifs = existingNotifs.filter((n: any) => n.productId !== prodId && n.batchNumber !== (product.batch_number || (product as any).batchNumber))
       const updatedNotifs = [newNotif, ...filteredNotifs]
-      )
+      localStorage.setItem("farmer_notifications", JSON.stringify(updatedNotifs))
       window.dispatchEvent(new Event("farmer_notifications_updated"))
 
       // Record requested status in farmer_deals
-      const storedDeals = null
+      const storedDeals = JSON.parse(localStorage.getItem("farmer_deals") || "{}")
       storedDeals[prodId] = "requested"
       if (product.batch_number) storedDeals[product.batch_number] = "requested"
       if ((product as any).batchNumber) storedDeals[(product as any).batchNumber] = "requested"
-      )
+      localStorage.setItem("farmer_deals", JSON.stringify(storedDeals))
       setDeals(storedDeals)
       window.dispatchEvent(new Event("farmer_deals_updated"))
     } catch (e) {
@@ -1406,29 +481,47 @@ export function ProcessorDashboard() {
       id => id !== productId && id !== String(productId) && (!batchNumber || id !== batchNumber)
     )
     setInterests(updated)
-    )
+    localStorage.setItem("processor_interests", JSON.stringify(updated))
     addLog(`Dismissed declined product from pipeline`, "Dismissed", productId)
   }
 
   // Action: Receive Product Form Submit
   const handleReceiveProduct = async () => {
-    if (!selectedShipment || !receivedQtyInput) return
+    if (!selectedProduct || !receivedQtyInput) return
 
-    try {
-        const headers = token ? { Authorization: `Bearer ${token}` } : {}
-        await axios.post(`${API}/processor/shipments/${selectedShipment.id}/receive`, {
-            receivedQty: Number(receivedQtyInput),
-            transitLossReason: transitLossReasonInput
-        }, { headers })
-        
-        await fetchApiData()
-        setIsReceiveModalOpen(false)
-        setReceivedQtyInput("")
-        setSelectedShipment(null)
-        setPipelineStep("received")
-    } catch (e) {
-        alert("Failed to receive shipment")
+    const receivedQtyNum = Number(receivedQtyInput)
+    const registeredQty = selectedProduct.quantity
+    const hasShortage = receivedQtyNum < registeredQty
+    const shortageAmount = registeredQty - receivedQtyNum
+    const shortagePercent = registeredQty > 0 ? ((shortageAmount / registeredQty) * 100).toFixed(0) : "0"
+
+    const receipt: ReceiptDetails = {
+      productId: selectedProduct.id,
+      receivedQty: receivedQtyNum,
+      arrivalDate: arrivalDateInput,
+      arrivalTime: arrivalTimeInput,
+      receivedBy: processorName
     }
+
+    const updatedReceipts = {
+      ...receipts,
+      [selectedProduct.id]: receipt,
+      [String(selectedProduct.id)]: receipt
+    }
+    setReceipts(updatedReceipts)
+    localStorage.setItem("processor_receipts", JSON.stringify(updatedReceipts))
+
+    const logMessage = hasShortage
+      ? `Received product ${selectedProduct.name} (${receivedQtyNum} kg vs ${registeredQty} kg registered - ${shortageAmount} kg Shortage [${shortagePercent}%], Reason: ${transitLossReasonInput})`
+      : `Received product ${selectedProduct.name} (${receivedQtyNum} kg) at facility`
+
+    addLog(logMessage, "Received", selectedProduct.id)
+    await updateDbStatus(selectedProduct.id, "Processing")
+
+    setIsReceiveModalOpen(false)
+    setReceivedQtyInput("")
+    setSelectedProduct(null)
+    setPipelineStep("received")
   }
 
   // Live Camera QR Scanner Methods
@@ -1652,7 +745,7 @@ export function ProcessorDashboard() {
     }
     const updatedVerifications = { ...verifications, [selectedProduct.id]: verification }
     setVerifications(updatedVerifications)
-    )
+    localStorage.setItem("processor_verifications", JSON.stringify(updatedVerifications))
 
     // Save Quality inspection details
     const computedScore = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
@@ -1672,7 +765,7 @@ export function ProcessorDashboard() {
     }
     const updatedInspections = { ...inspections, [selectedProduct.id]: inspection }
     setInspections(updatedInspections)
-    )
+    localStorage.setItem("processor_inspections", JSON.stringify(updatedInspections))
 
     // Save Decision details
     const decisionRecord = {
@@ -1687,7 +780,7 @@ export function ProcessorDashboard() {
       [String(selectedProduct.id)]: decisionRecord
     }
     setDecisions(updatedDecisions)
-    )
+    localStorage.setItem("processor_decisions", JSON.stringify(updatedDecisions))
 
     if (decision === "Accepted") {
       const verifiedQty = (receivedQtyInput && Number(receivedQtyInput) > 0)
@@ -1723,7 +816,7 @@ export function ProcessorDashboard() {
         [String(selectedProduct.id)]: receipt
       }
       setReceipts(updatedReceipts)
-      )
+      localStorage.setItem("processor_receipts", JSON.stringify(updatedReceipts))
 
       const verifiedProduct: Product = {
         ...selectedProduct,
@@ -1751,7 +844,7 @@ export function ProcessorDashboard() {
       }
       const updatedBatches = { ...batches, [randomBatchId]: newBatch }
       setBatches(updatedBatches)
-      )
+      localStorage.setItem("processor_batches", JSON.stringify(updatedBatches))
 
       addLog(`Accepted product ${selectedProduct.name} (Batch: ${randomBatchId}) - Scale Weight: ${verifiedQty} kg, Quality: ${computedScore}% (Grade ${autoGrade})`, "Accepted - Ready for Processing", selectedProduct.id, randomBatchId)
 
@@ -1771,8 +864,8 @@ export function ProcessorDashboard() {
           read: false,
           message: `${processorName || "Processing Facility"} has verified and accepted batch "${selectedProduct.name}" (${verifiedQty} kg, Grade ${autoGrade}) on blockchain.`
         }
-        const existingNotifs = null
-        )
+        const existingNotifs = JSON.parse(localStorage.getItem("farmer_notifications") || "[]")
+        localStorage.setItem("farmer_notifications", JSON.stringify([acceptNotif, ...existingNotifs]))
         window.dispatchEvent(new Event("farmer_notifications_updated"))
       } catch (e) {
         console.warn("Could not save farmer notification", e)
@@ -1799,8 +892,8 @@ export function ProcessorDashboard() {
           read: false,
           message: `${processorName || "Processing Facility"} rejected batch "${selectedProduct.name}" (${selectedProduct.quantity} kg) — Reason: ${rejectionReasonInput || "Intake verification discrepancy"}.`
         }
-        const existingNotifs = null
-        )
+        const existingNotifs = JSON.parse(localStorage.getItem("farmer_notifications") || "[]")
+        localStorage.setItem("farmer_notifications", JSON.stringify([rejectNotif, ...existingNotifs]))
         window.dispatchEvent(new Event("farmer_notifications_updated"))
       } catch (e) {
         console.warn("Could not save farmer notification", e)
@@ -1880,7 +973,7 @@ export function ProcessorDashboard() {
 
     const updatedBatches = { ...batches, [batchId]: updatedBatch }
     setBatches(updatedBatches)
-    )
+    localStorage.setItem("processor_batches", JSON.stringify(updatedBatches))
 
     addLog(`Completed Processing for Batch ${batchId} (${processedQty} kg, Est. Shelf Life: ${formattedExpiry})`, "Processing Completed", batch.productId, batchId)
     await updateDbStatus(batch.productId, "In Transit")
@@ -1973,69 +1066,142 @@ export function ProcessorDashboard() {
 
       {/* Tabs rendering */}
       {activeTab === "browse" && (
-  <Card className="rounded-3xl border shadow-sm overflow-hidden">
-    <CardHeader className="bg-card border-b py-5">
-      <CardTitle className="text-xl font-bold text-foreground">Available Product Requests</CardTitle>
-      <CardDescription>Browse and claim requests created by retailers.</CardDescription>
-    </CardHeader>
-    <CardContent className="p-6">
-      {apiRequests.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground space-y-2">
-          <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto" />
-          <p className="text-lg font-semibold">No requests found</p>
-        </div>
-      ) : (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {apiRequests.map((r) => {
-            const isClaimed = r.status === "ACCEPTED" || r.processor_id;
-            return (
-              <div key={r.id} className="rounded-3xl border bg-card/40 hover:bg-card/90 transition-all p-6 space-y-4 shadow-sm flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-semibold">Request</span>
-                    {isClaimed && (
-                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20 font-semibold">
-                        ✓ Claimed
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-xl text-foreground">{r.product_name}</h3>
-                    <p className="text-xs text-muted-foreground font-mono mt-1">Req ID: {r.request_id}</p>
-                  </div>
-                  <div className="border-t pt-3 space-y-2 text-sm text-foreground">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4 text-muted-foreground" />
-                      <span>Qty: <strong>{r.quantity} {r.unit}</strong></span>
+        <Card className="rounded-3xl border shadow-sm overflow-hidden">
+          <CardHeader className="bg-card border-b py-5">
+            <CardTitle className="text-xl font-bold text-foreground">Available Farmer Products</CardTitle>
+            <CardDescription>Browse, search and express interest in products registered by farmers.</CardDescription>
+
+            {/* Search, Filter, Sort Controls - Clean 3 Columns */}
+            <div className="grid gap-4 md:grid-cols-3 mt-5">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search name, ID, farmer..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 h-10 w-full rounded-xl border bg-background/50 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                />
+              </div>
+
+              <div>
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="h-10 w-full rounded-xl border bg-background/50 text-sm px-3 focus-visible:outline-none"
+                >
+                  <option value="all">All Categories</option>
+                  <option value="Vegetables">Vegetables</option>
+                  <option value="Fruits">Fruits</option>
+                  <option value="Grains">Grains</option>
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="h-10 w-full rounded-xl border bg-background/50 text-sm px-3 focus-visible:outline-none"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="quantity">Largest Quantity</option>
+                </select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            {loadingProducts ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                <p className="text-muted-foreground text-sm font-medium">Fetching real farm data...</p>
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="text-center py-20 text-muted-foreground space-y-2">
+                <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto" />
+                <p className="text-lg font-semibold">No products found</p>
+                <p className="text-sm">Try broadening your search or check back later.</p>
+              </div>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredProducts.map((p) => {
+                  const prodId = String(p.id)
+                  const isInterested = interests.includes(prodId) || interests.includes(p.id)
+                  const mappedId = (p.product_id && p.product_id >= 100000 && p.product_id <= 999999)
+                    ? p.product_id
+                    : 100000 + (Math.abs(Number(p.product_id || 0)) % 899999)
+
+                  return (
+                    <div key={p.id} className="rounded-3xl border bg-card/40 hover:bg-card/90 transition-all p-6 space-y-4 shadow-sm hover:shadow-md flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-semibold">{p.category}</span>
+                          </div>
+                          {isInterested && (
+                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold flex items-center gap-1">
+                              <Star className="h-3 w-3 fill-amber-500" /> Interested
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          <h3 className="font-bold text-xl text-foreground flex items-center gap-1.5">
+                            {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : p.name.includes("Avocado") ? "🥑" : p.name.includes("Wheat") ? "🌾" : "🌱"}
+                            {p.name}
+                          </h3>
+                          <p className="text-xs text-muted-foreground font-mono mt-1">Product ID: FP-{mappedId}</p>
+                        </div>
+
+                        <div className="border-t pt-3 space-y-2 text-sm text-foreground">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <span>Farmer: <strong>{p.farmer?.name || "Ravi"}</strong></span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            <span>Location: <span className="text-muted-foreground">{getFarmerLocation(p)}</span></span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Package className="h-4 w-4 text-muted-foreground" />
+                            <span>Quantity: <strong>{p.quantity} kg</strong></span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span>Harvested: <span className="text-muted-foreground">{new Date(p.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span></span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-4 border-t">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 rounded-xl"
+                          onClick={() => setSelectedProduct(p)}
+                        >
+                          View Details
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={isInterested}
+                          className={`flex-1 rounded-xl text-white ${isInterested
+                              ? "bg-amber-600/90 text-white cursor-not-allowed opacity-90 font-medium"
+                              : "bg-primary hover:bg-primary/95 font-medium"
+                            }`}
+                          onClick={() => markInterest(p)}
+                        >
+                          {isInterested ? "Interested ✓" : "Express Interest"}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </div>
-                <div className="flex gap-2 pt-4 border-t">
-                  <Button
-                    size="sm"
-                    disabled={isClaimed}
-                    className="flex-1 rounded-xl text-white bg-primary font-medium"
-                    onClick={async () => {
-                       try {
-                         const headers = token ? { Authorization: `Bearer ${token}` } : {}
-                         await axios.post(`${API}/processor/requests/${r.id}/claim`, {}, { headers })
-                         fetchApiData()
-                       } catch (e) {
-                         alert("Failed to claim request")
-                       }
-                    }}
-                  >
-                    {isClaimed ? "Claimed ✓" : "Claim Request"}
-                  </Button>
-                </div>
+                  )
+                })}
               </div>
-            )
-          })}
-        </div>
+            )}
+          </CardContent>
+        </Card>
       )}
-    </CardContent>
-  </Card>
-)}
 
       {activeTab === "pipeline" && (
         <div className="grid gap-6 lg:grid-cols-4">
@@ -2092,7 +1258,7 @@ export function ProcessorDashboard() {
                             const p = products.find(prod => prod.id === s.product_id || prod.batch_number === s.batch_number)
                             if (p) {
                               setSelectedProduct(p)
-                              setSelectedShipment(s)
+                              // setSelectedShipment(s)
                               setReceivedQtyInput(String(s.quantity))
                               setIsVerifyModalOpen(true)
                             } else {
@@ -2253,217 +1419,40 @@ export function ProcessorDashboard() {
             )}
 
             {pipelineStep === "received" && (
-  <div className="space-y-4">
-    <div className="border-b pb-4">
-      <h3 className="text-xl font-bold">Received Batches</h3>
-      <p className="text-muted-foreground text-sm">Products successfully received and awaiting processing.</p>
-    </div>
-    {apiBatches.filter(b => b.status !== "PROCESSED" && b.status !== "IN_TRANSIT").length === 0 ? (
-      <div className="text-center py-20 text-muted-foreground">
-        <CheckCircle className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-        <p className="font-semibold text-lg">No batches awaiting processing</p>
-      </div>
-    ) : (
-      <div className="grid gap-4">
-        {apiBatches.filter(b => b.status !== "PROCESSED" && b.status !== "IN_TRANSIT").map(b => (
-          <div key={b.id} className="p-5 rounded-2xl border bg-card flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <h4 className="font-bold text-lg text-foreground">{b.name}</h4>
-              <p className="text-xs text-muted-foreground mt-1">Batch: {b.batch_number} • Qty: {b.quantity} {b.unit}</p>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => openProcessingModal(b)}
-              className="rounded-xl text-white bg-amber-500 hover:bg-amber-600 font-semibold"
-            >
-              Start Processing
-            </Button>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-)}
-{pipelineStep === "processing" && (
-              <div className="space-y-6">
-                <div className="border-b pb-4">
-                  <h3 className="text-xl font-bold">Active Processing Batches</h3>
-                  <p className="text-muted-foreground text-sm">Accepted batches currently undergoing sorting, processing, packaging or final verification.</p>
-                </div>
-
-                {Object.values(batches).filter(b => b.stage !== "Processing Completed" && b.stage !== "Transferred").length === 0 ? (
-                  <div className="text-center py-20 text-muted-foreground">
-                    <Factory className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                    <p className="font-semibold text-lg">No active batches in processing</p>
-                    <p className="text-sm">Accept a received product to create a processing batch.</p>
-                  </div>
-                ) : (
-                  <div className="grid gap-6">
-                    {Object.values(batches).filter(b => b.stage !== "Processing Completed" && b.stage !== "Transferred").map(b => (
-                      <div key={b.batchId} className="p-6 rounded-3xl border bg-card/50 space-y-5">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-                          <div>
-                            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400">
-                              Batch: {b.batchId}
-                            </span>
-                            <h4 className="font-bold text-xl mt-2 text-foreground">
-                              {b.originalProduct.name} Processing Pipeline
-                            </h4>
-                            <p className="text-xs text-muted-foreground">Original ID: FP-{(b.originalProduct.product_id && b.originalProduct.product_id >= 100000 && b.originalProduct.product_id <= 999999) ? b.originalProduct.product_id : 100000 + (Math.abs(Number(b.originalProduct.product_id || 0)) % 899999)} • Farmer: {b.originalProduct.farmer?.name || "Ravi"}</p>
-                          </div>
-                          <span className="text-xs font-medium px-3 py-1 rounded-full bg-primary/20 text-primary border border-primary/30">
-                            {b.stage}
-                          </span>
-                        </div>
-
-                        <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                          <div className="space-y-1">
-                            <span className="text-xs font-bold text-emerald-400 uppercase flex items-center gap-1.5">
-                              <Package className="h-4 w-4" />
-                              Batch Status: Intake Verified & Ready for Processing
-                            </span>
-                            <p className="text-xs text-zinc-300">
-                              Produce verified at scale with <strong className="text-emerald-400 font-semibold">{b.originalProduct.ai_quality_score || 90}% ({b.originalProduct.ai_quality_label || "Grade A"})</strong> quality score.
-                            </p>
-                          </div>
-                          <Button
-                            onClick={() => openProcessingModal(b)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs gap-2 shrink-0 shadow-md py-2.5 px-4 cursor-pointer"
-                          >
-                            <Package className="h-4 w-4" />
-                            📦 Complete Processing
-                          </Button>
-                        </div>
-
-                        {/* AI Quality & Intake Details */}
-                        <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl grid gap-4 md:grid-cols-2">
-                          <div className="flex items-center gap-2">
-                            <Brain className="h-5 w-5 text-blue-500" />
-                            <div>
-                              <p className="text-[10px] text-muted-foreground uppercase font-bold">AI Quality Score</p>
-                              <p className="text-sm font-semibold text-emerald-400">{b.originalProduct.ai_quality_score || 90}% ({b.originalProduct.ai_quality_label || "Grade A"})</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Scale className="h-5 w-5 text-emerald-500" />
-                            <div>
-                              <p className="text-[10px] text-muted-foreground uppercase font-bold">Intake Scale Weight</p>
-                              <p className="text-sm font-semibold text-white">{receipts[b.originalProduct.id]?.receivedQty || b.originalProduct.quantity} kg</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-end gap-2 flex-wrap">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setQrViewBatch(b)}
-                            className="rounded-xl text-xs gap-1.5 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500"
-                          >
-                            <QrCode className="h-3.5 w-3.5" />
-                            Batch QR Sticker
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {pipelineStep === "completed" && (
-  <div className="space-y-4">
-    <div className="border-b pb-4">
-      <h3 className="text-xl font-bold">Processed Batches</h3>
-      <p className="text-muted-foreground text-sm">Products that have completed processing.</p>
-    </div>
-    {apiBatches.filter(b => b.status === "PROCESSED").length === 0 ? (
-      <div className="text-center py-20 text-muted-foreground">
-        <Package className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-        <p className="font-semibold text-lg">No processed batches</p>
-      </div>
-    ) : (
-      <div className="grid gap-4">
-        {apiBatches.filter(b => b.status === "PROCESSED").map(b => (
-          <div key={b.id} className="p-5 rounded-2xl border bg-card flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <h4 className="font-bold text-lg text-foreground">{b.name}</h4>
-              <p className="text-xs text-muted-foreground mt-1">Batch: {b.batch_number} • Qty: {b.quantity} {b.unit}</p>
-            </div>
-            <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">PROCESSED</span>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-)}
-        </CardContent>
-  </Card>
-)}
-
-      {activeTab === "pipeline" && (
-        <div className="grid gap-6 lg:grid-cols-4">
-          {/* Pipeline Sidebar Step controls */}
-          <Card className="col-span-1 rounded-3xl border shadow-sm p-4 h-fit space-y-2">
-            <h3 className="font-bold text-lg px-2 mb-3">Pipeline Status</h3>
-            {[
-              { id: "incoming", label: "📦 Incoming Shipments", count: apiShipments.filter(s => s.status !== "RECEIVED" && s.status !== "DELIVERED").length },
-              { id: "interested", label: "★ Interested Products", count: products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).length },
-              { id: "received", label: "📥 Received / Verify QR", count: products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id]).length },
-              { id: "processing", label: "🏭 Active Processing", count: Object.values(batches).filter(b => b.stage !== "Processing Completed" && b.stage !== "Transferred").length },
-              { id: "completed", label: "🚚 Transferred to Distributor", count: Object.values(batches).filter(b => b.stage === "Transferred" || b.stageLogs.some(l => l.stage === "Transferred")).length }
-            ].map((step) => (
-              <button
-                key={step.id}
-                onClick={() => setPipelineStep(step.id as any)}
-                className={`w-full text-left px-4 py-3 rounded-2xl flex items-center justify-between text-sm transition-all ${pipelineStep === step.id
-                    ? "bg-primary text-white font-medium"
-                    : "text-muted-foreground hover:bg-muted/50"
-                  }`}
-              >
-                <span>{step.label}</span>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${pipelineStep === step.id ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
-                  }`}>{step.count}</span>
-              </button>
-            ))}
-          </Card>
-
-          {/* Pipeline Main Window */}
-          <Card className="col-span-3 rounded-3xl border shadow-sm p-6 min-h-[500px]">
-            {pipelineStep === "incoming" && (
               <div className="space-y-4">
                 <div className="border-b pb-4">
-                  <h3 className="text-xl font-bold">Incoming Shipments</h3>
-                  <p className="text-muted-foreground text-sm">Real backend shipments assigned to your processing facility.</p>
+                  <h3 className="text-xl font-bold">Received Products & Verification</h3>
+                  <p className="text-muted-foreground text-sm">Physically received products awaiting QR code authenticity verification and quality grading.</p>
                 </div>
-                {apiShipments.filter(s => s.status !== "RECEIVED" && s.status !== "DELIVERED").length === 0 ? (
+
+                {products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id]).length === 0 ? (
                   <div className="text-center py-20 text-muted-foreground">
                     <Package className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                    <p className="font-semibold text-lg">No incoming shipments</p>
+                    <p className="font-semibold text-lg">No received items awaiting check</p>
+                    <p className="text-sm">Receive a product from the "Interested" tab to start verification.</p>
                   </div>
                 ) : (
                   <div className="grid gap-4">
-                    {apiShipments.filter(s => s.status !== "RECEIVED" && s.status !== "DELIVERED").map(s => (
-                      <div key={s.id} className="p-5 rounded-2xl border bg-muted/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    {products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id]).map(p => (
+                      <div key={p.id} className="p-5 rounded-2xl border bg-muted/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
-                          <h4 className="font-bold text-lg text-foreground">Shipment {s.shipment_tracking_id}</h4>
-                          <p className="text-xs text-muted-foreground mt-1">From: {s.sender?.name} • Quantity: {s.quantity} {s.unit}</p>
+                          <h4 className="font-bold text-lg text-foreground flex items-center gap-1.5">
+                            {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : "🌱"}
+                            {p.name}
+                          </h4>
+                          <p className="text-xs text-muted-foreground">Registered: {p.quantity} kg • Received: {receipts[p.id]?.receivedQty} kg</p>
+                          <p className="text-xs text-muted-foreground mt-1">Arrival: {receipts[p.id]?.arrivalDate} • {receipts[p.id]?.arrivalTime}</p>
                         </div>
                         <Button
                           size="sm"
                           onClick={() => {
-                            // Find product matching this shipment in our API products to mock the flow
-                            const p = products.find(prod => prod.id === s.product_id || prod.batch_number === s.batch_number)
-                            if (p) {
-                              setSelectedProduct(p)
-                              setSelectedShipment(s)
-                              setReceivedQtyInput(String(s.quantity))
-                              setIsVerifyModalOpen(true)
-                            } else {
-                              alert('Product not synced to frontend mock state yet.')
-                            }
+                            setSelectedProduct(p)
+                            setReceivedQtyInput(String(receipts[p.id]?.receivedQty || p.quantity))
+                            setRemarksInput("")
+                            setIsInspectionConfirmed(false)
+                            setIsVerifyModalOpen(true)
                           }}
-                          className="rounded-xl text-white bg-primary hover:bg-primary/95 flex-1 md:flex-initial gap-1.5 font-semibold shadow-md cursor-pointer"
+                          className="rounded-xl text-white bg-primary hover:bg-primary/95 w-full md:w-auto cursor-pointer"
                         >
                           Scan QR & Verify
                         </Button>
@@ -2474,181 +1463,7 @@ export function ProcessorDashboard() {
               </div>
             )}
 
-            {pipelineStep === "interested" && (
-              <div className="space-y-4">
-                <div className="border-b pb-4">
-                  <h3 className="text-xl font-bold">Interested Farmer Yields</h3>
-                  <p className="text-muted-foreground text-sm">Farmer registered products you marked interest in. Once they arrive physically, record their receipt.</p>
-                </div>
-
-                {products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).length === 0 ? (
-                  <div className="text-center py-20 text-muted-foreground">
-                    <Star className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                    <p className="font-semibold text-lg">No interested products</p>
-                    <p className="text-sm">Browse available products and click "Express Interest" to add them here.</p>
-                  </div>
-                ) : (
-                  <div className="grid gap-4">
-                    {products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).map(p => {
-                      const isDeclined = Boolean(
-                        deals[String(p.id)] === "declined" ||
-                        deals[p.batch_number || ""] === "declined" ||
-                        deals[p.id] === "declined" ||
-                        declinedProducts[p.id] ||
-                        declinedProducts[String(p.id)] ||
-                        (p.batch_number && declinedProducts[p.batch_number]) ||
-                        ((p as any).batchNumber && declinedProducts[(p as any).batchNumber])
-                      )
-                      const dealStatus = isDeclined ? "declined" : (deals[String(p.id)] || deals[p.batch_number || ""] || deals[p.id] || "requested")
-                      const isDispatched = dealStatus === "dispatched"
-
-                      if (isDeclined || dealStatus === "declined") {
-                        return (
-                          <div key={p.id} className="p-5 rounded-2xl border border-red-500/30 bg-red-500/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h4 className="font-bold text-lg text-foreground flex items-center gap-1.5">
-                                  {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : "🌱"}
-                                  {p.name}
-                                </h4>
-                                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 flex items-center gap-1">
-                                  ❌ Declined by Farmer
-                                </span>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Farmer: {p.farmer?.name || "Ravi"} • Quantity: {p.quantity} kg • Batch: {p.batch_number || p.id}
-                              </p>
-                              <p className="text-xs text-red-400/90 mt-1">
-                                Farmer declined your procurement request. This yield has been released back to the open market.
-                              </p>
-                            </div>
-                            <div className="flex gap-2 w-full md:w-auto items-center">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setSelectedProduct(p)}
-                                className="rounded-xl flex-1 md:flex-initial"
-                              >
-                                Details
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDismissDeclined(String(p.id), p.batch_number)}
-                                className="rounded-xl border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500 flex-1 md:flex-initial gap-1.5 font-medium"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                Dismiss from Pipeline
-                              </Button>
-                            </div>
-                          </div>
-                        )
-                      }
-
-                      return (
-                        <div key={p.id} className="p-5 rounded-2xl border bg-muted/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="font-bold text-lg text-foreground flex items-center gap-1.5">
-                                {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : "🌱"}
-                                {p.name}
-                              </h4>
-                              {/* Dynamic Deal Progress Tag */}
-                              {dealStatus === "requested" && (
-                                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30 flex items-center gap-1">
-                                  ⏳ Awaiting Farmer Acceptance
-                                </span>
-                              )}
-                              {dealStatus === "accepted" && (
-                                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-1">
-                                  📦 Farmer Preparing Batch
-                                </span>
-                              )}
-                              {dealStatus === "dispatched" && (
-                                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                                  🚚 In Transit / Gate Intake Ready
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">Farmer: {p.farmer?.name || "Ravi"} • Quantity: {p.quantity} kg • Batch: {p.batch_number || p.id}</p>
-                          </div>
-                          <div className="flex gap-2 w-full md:w-auto items-center">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setSelectedProduct(p)}
-                              className="rounded-xl flex-1 md:flex-initial"
-                            >
-                              Details
-                            </Button>
-                            {isDispatched ? (
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedProduct(p)
-                                  setReceivedQtyInput(String(p.quantity))
-                                  setRemarksInput("")
-                                  setIsInspectionConfirmed(false)
-                                  setIsVerifyModalOpen(true)
-                                }}
-                                className="rounded-xl text-white bg-primary hover:bg-primary/95 flex-1 md:flex-initial gap-1.5 font-semibold shadow-md cursor-pointer"
-                              >
-                                <QrCode className="h-4 w-4" />
-                                Scan QR & Verify
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                disabled
-                                title={dealStatus === "requested" ? "Waiting for farmer to accept your interest request." : "Waiting for farmer to mark batch ready for dispatch."}
-                                className="rounded-xl text-slate-400 bg-slate-800/60 border border-slate-700/50 flex-1 md:flex-initial gap-1.5 font-medium cursor-not-allowed opacity-80"
-                              >
-                                <Lock className="h-3.5 w-3.5" />
-                                {dealStatus === "requested" ? "Awaiting Acceptance" : "Awaiting Dispatch"}
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {pipelineStep === "received" && (
-  <div className="space-y-4">
-    <div className="border-b pb-4">
-      <h3 className="text-xl font-bold">Received Batches</h3>
-      <p className="text-muted-foreground text-sm">Products successfully received and awaiting processing.</p>
-    </div>
-    {apiBatches.filter(b => b.status !== "PROCESSED" && b.status !== "IN_TRANSIT").length === 0 ? (
-      <div className="text-center py-20 text-muted-foreground">
-        <CheckCircle className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-        <p className="font-semibold text-lg">No batches awaiting processing</p>
-      </div>
-    ) : (
-      <div className="grid gap-4">
-        {apiBatches.filter(b => b.status !== "PROCESSED" && b.status !== "IN_TRANSIT").map(b => (
-          <div key={b.id} className="p-5 rounded-2xl border bg-card flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <h4 className="font-bold text-lg text-foreground">{b.name}</h4>
-              <p className="text-xs text-muted-foreground mt-1">Batch: {b.batch_number} • Qty: {b.quantity} {b.unit}</p>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => openProcessingModal(b)}
-              className="rounded-xl text-white bg-amber-500 hover:bg-amber-600 font-semibold"
-            >
-              Start Processing
-            </Button>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-)}
-{pipelineStep === "processing" && (
+            {pipelineStep === "processing" && (
               <div className="space-y-6">
                 <div className="border-b pb-4">
                   <h3 className="text-xl font-bold">Active Processing Batches</h3>

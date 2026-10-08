@@ -253,7 +253,7 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
     // 1. Try matching product_id exact
     let { data: products } = await supabase
       .from('products')
-      .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, farmer:farmer_id(name, email, address)')
+      .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, farmer:farmer_id(name)')
       .eq('product_id', id);
 
     let product = products && products.length > 0 ? products[0] : null;
@@ -263,7 +263,7 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
       const originalSmallId = numId - 100000;
       const { data: offsetProds } = await supabase
         .from('products')
-        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, farmer:farmer_id(name, email, address)')
+        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, farmer:farmer_id(name)')
         .eq('product_id', originalSmallId);
       if (offsetProds && offsetProds.length > 0) {
         product = offsetProds[0];
@@ -274,7 +274,7 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
     if (!product) {
       const { data: batchProds } = await supabase
         .from('products')
-        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, farmer:farmer_id(name, email, address)')
+        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, farmer:farmer_id(name)')
         .or(`batch_number.eq.${id},id.eq.${id}`);
       if (batchProds && batchProds.length > 0) {
         product = batchProds[0];
@@ -285,7 +285,7 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
     if (!product) {
       const { data: allProds } = await supabase
         .from('products')
-        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, farmer:farmer_id(name, email, address)');
+        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, farmer:farmer_id(name)');
       if (allProds) {
         const found = allProds.find(p => {
           const pId = p.product_id;
@@ -316,7 +316,7 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
     while (currentProductId && depth < maxDepth) {
       const { data: events } = await supabase
         .from('traceability_events')
-        .select('*')
+        .select('*, actor:actor_id(name, role)')
         .eq('product_id', currentProductId)
         .order('created_at', { ascending: true });
         
