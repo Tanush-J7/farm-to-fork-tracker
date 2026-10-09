@@ -244,24 +244,20 @@ export const receiveProduct = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // 2. Blockchain Transaction execution
+    // 2. Blockchain Transaction execution (Non-fatal)
     let txHash = null;
+    let blockchainError = null;
     try {
       const bcResult = await blockchainService.recordReceipt(shipment.product_id);
       if (bcResult.status === BlockchainStatus.ON_CHAIN_VERIFICATION_FAILED) {
-        console.error("Blockchain transaction failed");
-        res.status(500).json({ 
-          success: false, 
-          message: 'Blockchain recording failed. Transaction aborted for data integrity. Please retry.' });
-        return;
+        console.warn("Blockchain transaction failed. Continuing with database only.");
+        blockchainError = 'ON_CHAIN_VERIFICATION_FAILED';
+      } else {
+        txHash = bcResult.txHash;
       }
-      txHash = bcResult.txHash;
     } catch (bcError) {
-      console.error("Blockchain transaction failed:", bcError);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Blockchain recording failed. Transaction aborted for data integrity. Please retry.' });
-      return;
+      console.error("Blockchain transaction exception:", bcError);
+      blockchainError = 'EXCEPTION';
     }
 
     // 3. Mark Shipment RECEIVED

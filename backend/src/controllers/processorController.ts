@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
+import { blockchainService, BlockchainStatus } from '../services/blockchainService';
 import crypto from 'crypto';
 
 // GET /api/processor/requests
@@ -206,12 +207,28 @@ export const receiveShipment = async (req: Request, res: Response): Promise<void
     }
 
     // Traceability event
+    let txHash = null;
+    let blockchainError = null;
+    try {
+      const bcResult = await blockchainService.recordReceipt(shipment.product_id);
+      if (bcResult.status === BlockchainStatus.ON_CHAIN_VERIFICATION_FAILED) {
+        console.warn("Blockchain transaction failed. Continuing with database only.");
+        blockchainError = 'ON_CHAIN_VERIFICATION_FAILED';
+      } else {
+        txHash = bcResult.txHash;
+      }
+    } catch (bcError) {
+      console.error("Blockchain transaction exception:", bcError);
+      blockchainError = 'EXCEPTION';
+    }
+
     await supabase.from('traceability_events').insert({
       product_id: shipment.product_id,
       batch_number: shipment.batch_number,
       event_type: 'PROCESSOR_RECEIVED',
       actor_id: processor_id,
       location: 'Processing Facility',
+      blockchain_hash: txHash,
       metadata: {
         shipment_id: id,
         expected_quantity: shipment.quantity,
@@ -313,6 +330,22 @@ export const processBatch = async (req: Request, res: Response): Promise<void> =
       quantity_used: qtyUsed
     });
 
+    // Blockchain integration
+    let childTxHash = null;
+    try {
+      await blockchainService.updateStage(parentProduct.id, newStatus, `Processed ${qtyUsed} units`);
+      const bcChild = await blockchainService.registerProduct(childProduct.id, childProduct.name, childProduct.category, childProduct.batch_number, childProduct.quantity, childProduct.status);
+      if (bcChild.status === BlockchainStatus.ON_CHAIN_CONFIRMED) {
+        childTxHash = bcChild.txHash;
+        // Best effort hash update on the new product
+        await supabase.from('products').update({ blockchain_hash: childTxHash }).eq('id', childProduct.id);
+      } else {
+        console.warn("Blockchain registration failed. Continuing with DB only.");
+      }
+    } catch (err) {
+      console.error("Blockchain transaction exception:", err);
+    }
+
     // 4. Traceability event
     await supabase.from('traceability_events').insert({
       product_id: childProduct.id,
@@ -320,6 +353,7 @@ export const processBatch = async (req: Request, res: Response): Promise<void> =
       event_type: 'PROCESSED',
       actor_id: processor_id,
       location: 'Processing Facility',
+      blockchain_hash: childTxHash,
       metadata: {
         parent_batch: parentProduct.batch_number,
         parent_id: parentProduct.id,

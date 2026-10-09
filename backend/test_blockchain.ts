@@ -12,6 +12,23 @@ async function testBlockchainService() {
   // Re-initialize with new env vars
   blockchainService['initialize']();
 
+  console.log("=== Testing Blockchain Service (Phase 8C) ===");
+
+  // 1. Blockchain not configured
+  console.log("\n1. Testing Blockchain not configured...");
+  process.env.BLOCKCHAIN_RPC_URL = '';
+  blockchainService['initialize']();
+  const unconfResult = await blockchainService.registerProduct(crypto.randomUUID(), "Test", "Cat", "BATCH-X", 10, "Harvested");
+  console.log("Not Configured Result:", unconfResult);
+  if (unconfResult.status !== BlockchainStatus.NOT_CONFIGURED) {
+    console.error("Failed NOT_CONFIGURED test.");
+    process.exit(1);
+  }
+
+  // Restore env vars
+  process.env.BLOCKCHAIN_RPC_URL = 'http://127.0.0.1:8545';
+  blockchainService['initialize']();
+
   console.log("=== Testing Blockchain Service ===");
   const health = await blockchainService.getHealth();
   console.log("Health:", health);

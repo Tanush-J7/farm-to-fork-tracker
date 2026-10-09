@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
+import { blockchainService, BlockchainStatus } from '../services/blockchainService';
 import crypto from 'crypto';
 
 // GET /api/distributor/shipments/incoming
@@ -96,6 +97,22 @@ export const receiveShipment = async (req: Request, res: Response): Promise<void
       return;
     }
 
+    // Blockchain integration
+    let txHash = null;
+    let blockchainError = null;
+    try {
+      const bcResult = await blockchainService.recordReceipt(shipment.product_id);
+      if (bcResult.status === BlockchainStatus.ON_CHAIN_VERIFICATION_FAILED) {
+        console.warn("Blockchain transaction failed. Continuing with database only.");
+        blockchainError = 'ON_CHAIN_VERIFICATION_FAILED';
+      } else {
+        txHash = bcResult.txHash;
+      }
+    } catch (bcError) {
+      console.error("Blockchain transaction exception:", bcError);
+      blockchainError = 'EXCEPTION';
+    }
+
     // Traceability event
     await supabase.from('traceability_events').insert({
       product_id: shipment.product_id,
@@ -103,6 +120,7 @@ export const receiveShipment = async (req: Request, res: Response): Promise<void
       event_type: 'DISTRIBUTOR_RECEIVED',
       actor_id: distributor_id,
       location: 'Distributor Hub',
+      blockchain_hash: txHash,
       metadata: { shipment_id: shipment.id, quantity: shipment.quantity }
     });
 
@@ -249,6 +267,19 @@ export const createShipment = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    // Blockchain Integration
+    let txHash = null;
+    try {
+      const bcResult = await blockchainService.updateStage(product.id, 'IN_TRANSIT', `Shipped ${quantity} units`);
+      if (bcResult.status === BlockchainStatus.ON_CHAIN_CONFIRMED) {
+        txHash = bcResult.txHash;
+      } else {
+        console.warn("Blockchain update failed. Continuing with DB only.");
+      }
+    } catch (err) {
+      console.error("Blockchain transaction exception:", err);
+    }
+
     // Traceability event
     await supabase.from('traceability_events').insert({
       product_id: product.id,
@@ -256,6 +287,7 @@ export const createShipment = async (req: Request, res: Response): Promise<void>
       event_type: 'DISTRIBUTOR_SHIPPED',
       actor_id: distributor_id,
       location: 'In Transit',
+      blockchain_hash: txHash,
       metadata: { shipment_id: shipment.id, quantity: shipment.quantity, to_retailer_id: request.retailer_id }
     });
 
