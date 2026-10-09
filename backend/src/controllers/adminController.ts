@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
-import { ethers } from 'ethers';
+import { blockchainService, BlockchainStatus } from '../services/blockchainService';
 
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
@@ -111,11 +111,9 @@ export const deleteUser = async (req: Request, res: Response) => {
 
 export const getBlockchainHealth = async (req: Request, res: Response) => {
   try {
-    const rpcUrl = process.env.BLOCKCHAIN_RPC_URL;
-    const privateKey = process.env.BLOCKCHAIN_PRIVATE_KEY;
-    const contractAddress = process.env.CONTRACT_ADDRESS;
-
-    if (!rpcUrl || !privateKey || !contractAddress) {
+    const health = await blockchainService.getHealth();
+    
+    if (health.status === 'warning') {
        res.status(200).json({ 
           success: true, 
           data: { 
@@ -128,21 +126,9 @@ export const getBlockchainHealth = async (req: Request, res: Response) => {
        return;
     }
 
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const wallet = new ethers.Wallet(privateKey, provider);
-    const balance = await provider.getBalance(wallet.address);
-    const network = await provider.getNetwork();
-
     res.status(200).json({
       success: true,
-      data: {
-        status: 'healthy',
-        message: 'Connected to blockchain',
-        walletAddress: wallet.address,
-        walletBalance: ethers.formatEther(balance),
-        network: network.name || network.chainId.toString(),
-        contractAddress
-      }
+      data: health
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Blockchain Connection Error' });
@@ -268,11 +254,6 @@ export const getAnalytics = async (req: Request, res: Response) => {
   }
 };
 
-const CONTRACT_ABI = [
-  "function registerProduct(string memory _name, string memory _category, string memory _batchNumber, uint256 _quantity, string memory _initialStatus) public",
-  "event ProductRegistered(uint256 indexed productId, string name, address indexed farmer)"
-];
-
 export const approveProduct = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -291,30 +272,20 @@ export const approveProduct = async (req: Request, res: Response) => {
     let finalBlockchainHash = product.blockchain_hash;
     let finalProductId = product.product_id;
 
-    if (!finalBlockchainHash && process.env.BLOCKCHAIN_PRIVATE_KEY && process.env.CONTRACT_ADDRESS && process.env.BLOCKCHAIN_RPC_URL) {
-      try {
-        const provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
-        const wallet = new ethers.Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY, provider);
-        const contract = new ethers.Contract(process.env.CONTRACT_ADDRESS, CONTRACT_ABI, wallet);
-        
-        const tx = await contract.registerProduct(product.name, product.category, product.batch_number, product.quantity, 'Harvested');
-        const receipt = await tx.wait();
-        finalBlockchainHash = receipt.hash;
-        
-        for (const log of receipt.logs) {
-          try {
-            const parsed = contract.interface.parseLog(log);
-            if (parsed && parsed.name === 'ProductRegistered') {
-              finalProductId = Number(parsed.args.productId);
-              break;
-            }
-          } catch (e) {}
-        }
-      } catch (err) {
-        console.error("Wallet-less blockchain registration failed:", err);
+    if (!finalBlockchainHash) {
+      const bcResult = await blockchainService.registerProduct(
+        product.id,
+        product.name,
+        product.category,
+        product.batch_number,
+        product.quantity,
+        'Harvested'
+      );
+      if (bcResult.status === BlockchainStatus.ON_CHAIN_VERIFICATION_FAILED) {
         res.status(500).json({ success: false, message: 'Blockchain registration failed'});
         return;
       }
+      finalBlockchainHash = bcResult.txHash;
     }
 
     const { data: updated, error: updateErr } = await supabase

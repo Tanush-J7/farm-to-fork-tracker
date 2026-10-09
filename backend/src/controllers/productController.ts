@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import axios from 'axios';
 import { supabase } from '../config/supabase';
 import { generateNotification } from './notificationController';
-import { ethers } from 'ethers';
 import crypto from 'crypto';
 
 // Render Blueprints provide service host/port values separately from a full URL.

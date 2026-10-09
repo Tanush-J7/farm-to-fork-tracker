@@ -15,8 +15,8 @@ const RPC_URL = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545"
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || ""
 
 const FARMCHAIN_ABI = [
-  "function products(uint256) public view returns (uint256 id, string name, string category, string batchNumber, uint256 quantity, address farmer, address currentOwner, string status, uint256 timestamp)",
-  "function getProductHistory(uint256 _productId) public view returns (tuple(string status, address owner, uint256 timestamp, string extraInfo)[])"
+  "function products(string) public view returns (string id, string name, string category, string batchNumber, uint256 quantity, address farmer, address currentOwner, string status, uint256 timestamp, bool exists)",
+  "function getProductHistory(string _productId) public view returns (tuple(string status, address owner, uint256 timestamp, string extraInfo)[])"
 ]
 
 // Safely map ID to 6 digits
@@ -145,9 +145,9 @@ export function Tracker() {
         const provider = new ethers.JsonRpcProvider(RPC_URL)
         const contract = new ethers.Contract(CONTRACT_ADDRESS, FARMCHAIN_ABI, provider)
 
-        const searchIdOnChain = (foundDb?.product_id) ? foundDb.product_id : cleanId
+        const searchIdOnChain = (foundDb?.id) ? foundDb.id : cleanId
         const productData = await contract.products(searchIdOnChain)
-        if (productData && productData.id !== 0n) {
+        if (productData && productData.exists) {
           foundChain = {
             name: productData.name,
             batchNumber: productData.batchNumber,

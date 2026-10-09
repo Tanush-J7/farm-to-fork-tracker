@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
-import { ethers } from 'ethers';
+import { blockchainService, BlockchainStatus } from '../services/blockchainService';
 
 // Generate a unique Request ID (e.g., REQ-1023)
 const generateRequestId = async () => {
@@ -244,20 +244,18 @@ export const receiveProduct = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // 2. Blockchain Transaction simulation / execution
+    // 2. Blockchain Transaction execution
     let txHash = null;
     try {
-      if (process.env.BLOCKCHAIN_RPC_URL && process.env.BLOCKCHAIN_PRIVATE_KEY && process.env.CONTRACT_ADDRESS) {
-        const provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
-        const wallet = new ethers.Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY, provider);
-        const CONTRACT_ABI = ["function recordReceipt(string memory _batchNumber) public"];
-        const contract = new ethers.Contract(process.env.CONTRACT_ADDRESS, CONTRACT_ABI, wallet);
-        const tx = await contract.recordReceipt(shipment.batch_number);
-        await tx.wait();
-        txHash = tx.hash;
-      } else {
-        txHash = null;
+      const bcResult = await blockchainService.recordReceipt(shipment.product_id);
+      if (bcResult.status === BlockchainStatus.ON_CHAIN_VERIFICATION_FAILED) {
+        console.error("Blockchain transaction failed");
+        res.status(500).json({ 
+          success: false, 
+          message: 'Blockchain recording failed. Transaction aborted for data integrity. Please retry.' });
+        return;
       }
+      txHash = bcResult.txHash;
     } catch (bcError) {
       console.error("Blockchain transaction failed:", bcError);
       res.status(500).json({ 
