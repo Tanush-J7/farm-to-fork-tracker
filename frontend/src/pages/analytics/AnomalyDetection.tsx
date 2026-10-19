@@ -3,6 +3,7 @@ import axios from 'axios';
 import { AlertTriangle, AlertOctagon, Info, AlertCircle, Search, Box } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
+import { getApiBaseUrl, getAuthToken } from '../../utils';
 
 interface Anomaly {
   id: string;
@@ -39,8 +40,10 @@ export default function AnomalyDetection() {
   useEffect(() => {
     const fetchAnomalies = async () => {
       try {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/analytics/anomalies`, {
-          headers: { Authorization: `Bearer ${token}` }
+        const apiBase = getApiBaseUrl();
+        const effectiveToken = token || getAuthToken();
+        const res = await axios.get(`${apiBase}/analytics/anomalies`, {
+          headers: effectiveToken ? { Authorization: `Bearer ${effectiveToken}` } : {}
         });
         if (res.data.success) {
           setData(res.data.data);

@@ -1,6 +1,16 @@
 import express from 'express';
 import { protect, authorize } from '../middleware/auth';
-import { getProcessorRequests, claimProcessorRequest, getProcessorBatches, getIncomingShipments, receiveShipment, processBatch } from '../controllers/processorController';
+import {
+  getProcessorRequests,
+  claimProcessorRequest,
+  getProcessorBatches,
+  getIncomingShipments,
+  receiveShipment,
+  processBatch,
+  intakeProduct,
+  transferBatch,
+  getProcessorEvents
+} from '../controllers/processorController';
 
 const router = express.Router();
 
@@ -14,5 +24,8 @@ router.get('/batches', getProcessorBatches);
 router.get('/shipments/incoming', getIncomingShipments);
 router.post('/shipments/:id/receive', receiveShipment);
 router.post('/batches/:id/process', processBatch);
+router.post('/intake', intakeProduct);
+router.post('/batches/:id/transfer', transferBatch);
+router.get('/events', getProcessorEvents);
 
 export default router;

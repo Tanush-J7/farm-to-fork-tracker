@@ -6,6 +6,15 @@ FarmChain AI - Production Hardened FastAPI Service
 import os
 import logging
 from datetime import datetime
+from services.local_database_guard import (
+    load_approved_local_env,
+    LocalDatabaseGuardError,
+    assert_approved_local_environment,
+)
+
+# Ensure local environment variables are loaded with backend/.env.local precedence
+load_approved_local_env()
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,7 +45,11 @@ app.add_middleware(
 
 # Load model strictly once at startup
 try:
-    price_service = PricePredictionService(model_dir="models/price_model")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    model_dir = os.path.join(base_dir, "models", "price_model")
+    if not os.path.isdir(model_dir):
+        model_dir = "models/price_model"
+    price_service = PricePredictionService(model_dir=model_dir)
 except Exception as e:
     logger.error(f"Failed to initialize PricePredictionService: {e}")
     price_service = None
@@ -154,6 +167,28 @@ def predict_price_real(data: PricePredictionRequest):
 
     try:
         df_history = fetch_historical_prices(data.commodity, data.market, limit=40)
+    except LocalDatabaseGuardError as ldge:
+        logger.error(f"Local database guard blocked request: {ldge}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "available": False,
+                "error_code": "LOCAL_DATABASE_GUARD_FAILED",
+                "message": "Price prediction is unavailable because database target violates local-only policy."
+            }
+        )
+    except ValueError as ve:
+        logger.warning(f"Insufficient verified historical data: {ve}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "available": False,
+                "error_code": "INSUFFICIENT_HISTORICAL_DATA",
+                "message": f"Price prediction is unavailable: {ve}"
+            }
+        )
     except Exception as e:
         logger.error(f"Failed to retrieve verified historical data: {e}")
         return JSONResponse(

@@ -1,7 +1,13 @@
+import './test_preload';
+import { assertApprovedLocalEnvironment } from './utils/localDatabaseGuard';
+
+assertApprovedLocalEnvironment('TestDecisions');
+
 import axios from 'axios';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 dotenv.config();
+assertApprovedLocalEnvironment('TestDecisions');
 
 const API_URL = 'http://localhost:5000';
 const JWT_SECRET = process.env.JWT_SECRET || 'farmchain_super_secret_key';

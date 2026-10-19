@@ -282,7 +282,10 @@ export const approveProduct = async (req: Request, res: Response) => {
         'Harvested'
       );
       if (bcResult.status === BlockchainStatus.ON_CHAIN_VERIFICATION_FAILED) {
-        res.status(500).json({ success: false, message: 'Blockchain registration failed'});
+        res.status(500).json({
+          success: false,
+          message: (bcResult as any).error ? `Blockchain registration failed: ${(bcResult as any).error}` : 'Blockchain registration failed'
+        });
         return;
       }
       finalBlockchainHash = bcResult.txHash;
@@ -301,7 +304,11 @@ export const approveProduct = async (req: Request, res: Response) => {
 
     if (updateErr) throw updateErr;
 
-    res.status(200).json({ success: true, message: 'Product approved and registered on blockchain', data: updated });
+    const successMessage = finalBlockchainHash
+      ? 'Product approved and registered on blockchain'
+      : 'Product approved (database only - blockchain not configured)';
+
+    res.status(200).json({ success: true, message: successMessage, data: updated });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
   }

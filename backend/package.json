@@ -7,7 +7,12 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "outbox": "tsx src/scripts/outboxPublisher.ts"
+    "outbox": "tsx src/scripts/outboxPublisher.ts",
+    "test:smoke": "tsx test_kafka_smoke.ts",
+    "test:consumer:traceability": "tsx test_traceability_consumer_suite.ts",
+    "test:consumer:shipment": "tsx test_shipment_consumer_suite.ts",
+    "test:consumer:inventory": "tsx test_inventory_consumer_suite.ts",
+    "test:outbox:atomicity": "tsx test_outbox_atomicity_suite.ts"
   },
   "keywords": [],
   "author": "",

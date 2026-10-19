@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Activity, Clock, Box, ShieldAlert, BarChart3, TrendingUp, Search } from 'lucide-react';
 import { DecisionSupportPanel } from '../../components/DecisionSupportPanel';
+import { getApiBaseUrl, getAuthToken } from '../../utils';
 
 interface SupplyChainAnalyticsData {
   journeyTimes: {
@@ -64,10 +65,10 @@ export default function SupplyChainAnalytics() {
 
   const fetchAnalytics = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const response = await axios.get(`${API_URL}/analytics/supply-chain`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const token = getAuthToken();
+      const apiBase = getApiBaseUrl();
+      const response = await axios.get(`${apiBase}/analytics/supply-chain`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (response.data.success) {
         setData(response.data.data);

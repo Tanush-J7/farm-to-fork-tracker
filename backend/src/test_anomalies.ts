@@ -1,3 +1,8 @@
+import './test_preload';
+import { assertApprovedLocalEnvironment } from './utils/localDatabaseGuard';
+
+assertApprovedLocalEnvironment('TestAnomalies');
+
 import { analyzeAnomalies } from './controllers/anomalyController';
 
 const runTests = () => {

@@ -1,5 +1,11 @@
+import './src/test_preload';
+import { assertApprovedLocalEnvironment } from './src/utils/localDatabaseGuard';
+
+assertApprovedLocalEnvironment('TestBlockchain');
+
 import dotenv from 'dotenv';
 dotenv.config();
+assertApprovedLocalEnvironment('TestBlockchain');
 
 import { blockchainService, BlockchainStatus } from './src/services/blockchainService';
 import crypto from 'crypto';

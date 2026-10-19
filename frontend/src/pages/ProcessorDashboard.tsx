@@ -24,6 +24,8 @@ interface Product {
   batch_number: string
   quantity: number
   status: string
+  current_owner_id?: string
+  farmer_id?: string
   organic_status: boolean
   ai_quality_score?: number
   ai_quality_label?: string
@@ -142,23 +144,9 @@ export function ProcessorDashboard() {
   const [sortBy, setSortBy] = useState("newest")
 
   const [apiShipments, setApiShipments] = useState<any[]>([])
-  // const [apiBatches, setApiBatches] = useState<any[]>([])
+  const [, setApiBatches] = useState<any[]>([])
 
-  const fetchApiData = async () => {
-    try {
-      const headers = token ? { Authorization: `Bearer ${token}` } : {}
-      const [shipmentsRes] = await Promise.all([
-        axios.get(`${API}/processor/shipments/incoming`, { headers }),
-        axios.get(`${API}/processor/batches`, { headers })
-      ])
-      if (shipmentsRes.data?.success) setApiShipments(shipmentsRes.data.data)
-      // if (batchesRes.data?.success) setApiBatches(batchesRes.data.data)
-    } catch (err) {
-      console.error('Failed to load API data', err)
-    }
-  }
-
-  // Local storage states
+  // Local storage / synchronized workflow states
   const [interests, setInterests] = useState<string[]>([])
   const [deals, setDeals] = useState<Record<string, "requested" | "accepted" | "dispatched" | "declined">>({})
   const [declinedProducts, setDeclinedProducts] = useState<Record<string, boolean>>({})
@@ -168,6 +156,219 @@ export function ProcessorDashboard() {
   const [decisions, setDecisions] = useState<Record<string, { decision: "Accepted" | "Rejected"; reason?: string; date: string; time: string }>>({})
   const [batches, setBatches] = useState<Record<string, ProcessingBatch>>({})
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
+
+  const syncBackendBatches = (backendBatches: any[], incomingShipments: any[]) => {
+    if (!backendBatches) return
+
+    setBatches(prev => {
+      const nextBatches: Record<string, ProcessingBatch> = { ...prev }
+
+      for (const b of backendBatches) {
+        const isProcessed = b.status === "PROCESSED" || b.status === "Transferred" || b.status === "In Transit"
+        const isTransferred = b.status === "Transferred" || b.status === "In Transit"
+        const createdDateStr = b.created_at
+          ? new Date(b.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+          : new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+        const createdTimeStr = b.created_at
+          ? new Date(b.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+          : new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+
+        if (isProcessed) {
+          const parent = b.parent_lineage?.[0]?.parent || b
+          const batchKey = b.batch_number || `PB-${String(b.product_id || b.id).substring(0, 8).toUpperCase()}`
+          const stage: ProcessingBatch["stage"] = isTransferred ? "Transferred" : "Processing Completed"
+
+          const logs = [
+            {
+              stage: "Accepted",
+              date: createdDateStr,
+              time: createdTimeStr,
+              remarks: `Intake verified and accepted at facility`
+            },
+            {
+              stage: "Processing Completed",
+              date: createdDateStr,
+              time: createdTimeStr,
+              remarks: `Processing completed. Processed Quantity: ${b.quantity} kg.`
+            },
+            ...(isTransferred ? [{
+              stage: "Transferred",
+              date: createdDateStr,
+              time: createdTimeStr,
+              remarks: `Certified batch transferred to distribution pipeline.`
+            }] : [])
+          ]
+
+          nextBatches[batchKey] = {
+            batchId: batchKey,
+            productId: b.id,
+            originalProduct: {
+              ...parent,
+              farmer: parent.farmer || b.farmer
+            },
+            processorName: processorName,
+            facilityLocation: processorAddress,
+            stage,
+            stageLogs: logs,
+            createdDate: createdDateStr,
+            createdTime: createdTimeStr,
+            processedQuantity: b.quantity,
+            completionDate: createdDateStr,
+            completionTime: createdTimeStr,
+            transferDate: isTransferred ? createdDateStr : undefined,
+            transferTime: isTransferred ? createdTimeStr : undefined,
+            distributor: "XYZ Logistics Partner"
+          }
+        } else if (b.status !== "DEPLETED") {
+          const batchKey = b.batch_number || `PB-${String(b.product_id || b.id).substring(0, 8).toUpperCase()}`
+          if (!nextBatches[batchKey] || nextBatches[batchKey].stage === "Accepted") {
+            nextBatches[batchKey] = {
+              batchId: batchKey,
+              productId: b.id,
+              originalProduct: b,
+              processorName: processorName,
+              facilityLocation: processorAddress,
+              stage: "Accepted",
+              stageLogs: [{
+                stage: "Accepted",
+                date: createdDateStr,
+                time: createdTimeStr,
+                remarks: `Batch verified & accepted at gate. Scale Weight: ${b.quantity} kg. Quality: ${b.ai_quality_score || 90}% (${b.ai_quality_label || "Grade A"})`
+              }],
+              createdDate: createdDateStr,
+              createdTime: createdTimeStr
+            }
+          }
+        }
+      }
+
+      return nextBatches
+    })
+
+    setReceipts(prev => {
+      const nextReceipts = { ...prev }
+      for (const b of backendBatches) {
+        const dateStr = b.created_at ? new Date(b.created_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]
+        const timeStr = b.created_at ? new Date(b.created_at).toTimeString().split(" ")[0].slice(0, 5) : "12:00"
+        nextReceipts[b.id] = nextReceipts[b.id] || {
+          productId: b.id,
+          receivedQty: Number(b.quantity),
+          arrivalDate: dateStr,
+          arrivalTime: timeStr,
+          receivedBy: processorName
+        }
+        nextReceipts[String(b.id)] = nextReceipts[b.id]
+      }
+      for (const s of (incomingShipments || [])) {
+        if (s.status === "RECEIVED") {
+          const dateStr = s.created_at ? new Date(s.created_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]
+          const timeStr = s.created_at ? new Date(s.created_at).toTimeString().split(" ")[0].slice(0, 5) : "12:00"
+          nextReceipts[s.product_id] = nextReceipts[s.product_id] || {
+            productId: s.product_id,
+            receivedQty: Number(s.quantity),
+            arrivalDate: dateStr,
+            arrivalTime: timeStr,
+            receivedBy: processorName
+          }
+          nextReceipts[String(s.product_id)] = nextReceipts[s.product_id]
+        }
+      }
+      return nextReceipts
+    })
+
+    setDecisions(prev => {
+      const nextDecisions = { ...prev }
+      for (const b of backendBatches) {
+        const dateStr = b.created_at ? new Date(b.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+        const timeStr = b.created_at ? new Date(b.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+        nextDecisions[b.id] = nextDecisions[b.id] || {
+          decision: "Accepted",
+          date: dateStr,
+          time: timeStr
+        }
+        nextDecisions[String(b.id)] = nextDecisions[b.id]
+      }
+      for (const s of (incomingShipments || [])) {
+        if (s.status === "RECEIVED") {
+          const dateStr = s.created_at ? new Date(s.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+          const timeStr = s.created_at ? new Date(s.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+          nextDecisions[s.product_id] = nextDecisions[s.product_id] || {
+            decision: "Accepted",
+            date: dateStr,
+            time: timeStr
+          }
+          nextDecisions[String(s.product_id)] = nextDecisions[s.product_id]
+        }
+      }
+      return nextDecisions
+    })
+  }
+
+  const syncBackendAuditLogs = (events: any[]) => {
+    if (!events || events.length === 0) return
+
+    const logs: AuditLog[] = events.map(ev => {
+      const dateObj = new Date(ev.created_at)
+      const dateStr = dateObj.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+      const timeStr = dateObj.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+      let action = `${ev.event_type} on batch ${ev.batch_number}`
+      let status = ev.event_type
+
+      if (ev.event_type === "PROCESSOR_RECEIVED") {
+        action = `Accepted product (Batch: ${ev.batch_number}) - Scale Weight: ${ev.metadata?.received_quantity || ''} kg`
+        status = "Accepted - Ready for Processing"
+      } else if (ev.event_type === "PROCESSED") {
+        action = `Completed Processing for Batch ${ev.batch_number} (${ev.metadata?.quantity_processed || ''} kg)`
+        status = "Processing Completed"
+      } else if (ev.event_type === "DISPATCHED_TO_DISTRIBUTOR") {
+        action = `Transferred batch ${ev.batch_number} to distributor (${ev.metadata?.distributor || 'Logistics Partner'})`
+        status = "Transferred"
+      }
+
+      return {
+        id: ev.id,
+        date: dateStr,
+        time: timeStr,
+        user: ev.actor?.name || processorName,
+        action,
+        status,
+        productId: ev.product_id,
+        batchId: ev.batch_number
+      }
+    })
+
+    setAuditLogs(prev => {
+      const existingIds = new Set(logs.map(l => l.id))
+      return [...logs, ...prev.filter(p => !existingIds.has(p.id))]
+    })
+  }
+
+  const fetchApiData = async () => {
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {}
+      const [shipmentsRes, batchesRes, eventsRes] = await Promise.all([
+        axios.get(`${API}/processor/shipments/incoming`, { headers }),
+        axios.get(`${API}/processor/batches`, { headers }),
+        axios.get(`${API}/processor/events`, { headers })
+      ])
+      let shipments: any[] = []
+      let backendBatches: any[] = []
+      if (shipmentsRes.data?.success) {
+        shipments = shipmentsRes.data.data
+        setApiShipments(shipments)
+      }
+      if (batchesRes.data?.success) {
+        backendBatches = batchesRes.data.data
+        setApiBatches(backendBatches)
+        syncBackendBatches(backendBatches, shipments)
+      }
+      if (eventsRes.data?.success) {
+        syncBackendAuditLogs(eventsRes.data.data)
+      }
+    } catch (err) {
+      console.error('Failed to load API data', err)
+    }
+  }
 
   // Modal / Form states
   // const [selectedShipment, setSelectedShipment] = useState<any | null>(null)
@@ -474,6 +675,8 @@ export function ProcessorDashboard() {
     if (prodId !== product.id) {
       await updateDbStatus(prodId, "Processing")
     }
+    await fetchApiData()
+    await fetchProducts()
   }
 
   // Action: Dismiss Declined Product from Pipeline
@@ -495,6 +698,29 @@ export function ProcessorDashboard() {
     const hasShortage = receivedQtyNum < registeredQty
     const shortageAmount = registeredQty - receivedQtyNum
     const shortagePercent = registeredQty > 0 ? ((shortageAmount / registeredQty) * 100).toFixed(0) : "0"
+
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
+
+    // Check if matching incoming shipment exists
+    const shipment = apiShipments.find(s => s.product_id === selectedProduct.id || s.batch_number === selectedProduct.batch_number)
+    if (shipment && shipment.status !== 'RECEIVED') {
+      try {
+        await axios.post(`${API}/processor/shipments/${shipment.id}/receive`, { received_quantity: receivedQtyNum }, { headers })
+      } catch (err) {
+        console.error("API Receive failed:", err)
+      }
+    } else {
+      // Direct gate intake
+      try {
+        await axios.post(`${API}/processor/intake`, {
+          product_id: selectedProduct.id,
+          received_quantity: receivedQtyNum,
+          remarks: transitLossReasonInput
+        }, { headers })
+      } catch (err) {
+        console.error("API Intake failed:", err)
+      }
+    }
 
     const receipt: ReceiptDetails = {
       productId: selectedProduct.id,
@@ -518,6 +744,8 @@ export function ProcessorDashboard() {
 
     addLog(logMessage, "Received", selectedProduct.id)
     await updateDbStatus(selectedProduct.id, "Processing")
+    await fetchApiData()
+    await fetchProducts()
 
     setIsReceiveModalOpen(false)
     setReceivedQtyInput("")
@@ -791,15 +1019,30 @@ export function ProcessorDashboard() {
       const shortageAmount = selectedProduct.quantity - verifiedQty
       const shortagePercent = selectedProduct.quantity > 0 ? ((shortageAmount / selectedProduct.quantity) * 100).toFixed(0) : "0"
 
-      // API Call for Phase 3B
-      const shipment = apiShipments.find(s => s.product_id === selectedProduct.id || s.batch_number === selectedProduct.batch_number);
-      if (shipment) {
+      const remarksText = hasShortage
+        ? `Batch verified & accepted at gate. Scale Weight: ${verifiedQty} kg (${shortageAmount} kg Shortage [${shortagePercent}%], Reason: ${transitLossReasonInput}). Quality Score: ${computedScore}% (Grade ${autoGrade}). Remarks: ${remarksInput || "Standard Intake"}`
+        : `Batch verified & accepted at gate. Scale Weight: ${verifiedQty} kg. Quality Score: ${computedScore}% (Grade ${autoGrade}). Remarks: ${remarksInput || "Standard Intake"}`
+
+      // API Call for Phase 3B - either via incoming shipment or direct gate intake
+      const headers = token ? { Authorization: `Bearer ${token}` } : {}
+      const shipment = apiShipments.find(s => s.product_id === selectedProduct.id || s.batch_number === selectedProduct.batch_number)
+      if (shipment && shipment.status !== 'RECEIVED') {
         try {
-          const headers = token ? { Authorization: `Bearer ${token}` } : {};
-          await axios.post(`${API}/processor/shipments/${shipment.id}/receive`, { received_quantity: verifiedQty }, { headers });
-          fetchApiData();
+          await axios.post(`${API}/processor/shipments/${shipment.id}/receive`, { received_quantity: verifiedQty }, { headers })
         } catch (err) {
-          console.error("API Receive failed:", err);
+          console.error("API Receive failed:", err)
+        }
+      } else {
+        try {
+          await axios.post(`${API}/processor/intake`, {
+            product_id: selectedProduct.id,
+            received_quantity: verifiedQty,
+            ai_quality_score: computedScore,
+            ai_quality_label: `Grade ${autoGrade}`,
+            remarks: remarksText
+          }, { headers })
+        } catch (err) {
+          console.error("API Intake failed:", err)
         }
       }
 
@@ -827,10 +1070,7 @@ export function ProcessorDashboard() {
       }
 
       // Create batch ID: PB-XXXXXX mapped randomly
-      const randomBatchId = `PB-${crypto.randomUUID().split('-')[0].toUpperCase()}`
-      const remarksText = hasShortage
-        ? `Batch verified & accepted at gate. Scale Weight: ${verifiedQty} kg (${shortageAmount} kg Shortage [${shortagePercent}%], Reason: ${transitLossReasonInput}). Quality Score: ${computedScore}% (Grade ${autoGrade}). Remarks: ${remarksInput || "Standard Intake"}`
-        : `Batch verified & accepted at gate. Scale Weight: ${verifiedQty} kg. Quality Score: ${computedScore}% (Grade ${autoGrade}). Remarks: ${remarksInput || "Standard Intake"}`
+      const randomBatchId = selectedProduct.batch_number || `PB-${crypto.randomUUID().split('-')[0].toUpperCase()}`
 
       const newBatch: ProcessingBatch = {
         batchId: randomBatchId,
@@ -873,6 +1113,8 @@ export function ProcessorDashboard() {
       }
 
       await updateDbStatus(selectedProduct.id, "Processing")
+      await fetchApiData()
+      await fetchProducts()
       setPipelineStep("processing")
     } else {
       addLog(`Rejected product ${selectedProduct.name}: ${rejectionReasonInput}`, "Rejected by Processor", selectedProduct.id)
@@ -901,6 +1143,8 @@ export function ProcessorDashboard() {
       }
 
       await updateDbStatus(selectedProduct.id, "Rejected by Processor")
+      await fetchApiData()
+      await fetchProducts()
       setPipelineStep("interested")
     }
 
@@ -926,15 +1170,31 @@ export function ProcessorDashboard() {
 
     // API Call for Phase 3B
     try {
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      await axios.post(`${API}/processor/batches/${batch.originalProduct.id}/process`, {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {}
+      const procRes = await axios.post(`${API}/processor/batches/${batch.originalProduct.id}/process`, {
         quantity_used: processedQty,
         new_product_name: `Processed ${batch.originalProduct.name}`,
         new_category: 'Processed Food'
-      }, { headers });
-      fetchApiData();
+      }, { headers })
+
+      if (procRes.data?.data?.id) {
+        const childProduct = procRes.data.data
+        try {
+          await axios.post(`${API}/processor/batches/${childProduct.id}/transfer`, {
+            distributor: 'XYZ Logistics Partner',
+            destination_hub: 'Central Distribution Hub',
+            remarks: 'Certified batch ready and transferred to distribution pipeline.'
+          }, { headers })
+        } catch (tErr) {
+          console.warn("Transfer record warning:", tErr)
+        }
+      }
+
+      await updateDbStatus(batch.originalProduct.id, "In Transit")
+      await fetchApiData()
+      await fetchProducts()
     } catch (err) {
-      console.error("API Processing failed:", err);
+      console.error("API Processing failed:", err)
     }
 
     const now = new Date()
@@ -969,7 +1229,8 @@ export function ProcessorDashboard() {
       completionDate: formattedDate,
       completionTime: formattedTime,
       transferDate: formattedDate,
-      transferTime: formattedTime
+      transferTime: formattedTime,
+      distributor: "XYZ Logistics Partner"
     }
 
     const updatedBatches = { ...batches, [batchId]: updatedBatch }
@@ -977,7 +1238,7 @@ export function ProcessorDashboard() {
     localStorage.setItem("processor_batches", JSON.stringify(updatedBatches))
 
     addLog(`Completed Processing for Batch ${batchId} (${processedQty} kg, Est. Shelf Life: ${formattedExpiry})`, "Processing Completed", batch.productId, batchId)
-    await updateDbStatus(batch.productId, "In Transit")
+    await updateDbStatus(batch.originalProduct.id, "In Transit")
     setProcessingModalBatch(null)
     setPipelineStep("completed")
   }
@@ -1051,18 +1312,32 @@ export function ProcessorDashboard() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 pb-20 pt-6">
       {/* Header bar */}
-      <div className="border-b pb-5">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
-          <Factory className="h-8 w-8 text-primary" />
-          {activeTab === "browse" && "Dashboard"}
-          {activeTab === "pipeline" && "Processing Pipeline"}
-          {activeTab === "history" && "Operational History"}
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {activeTab === "browse" && "Manage farmer products and processing operations."}
-          {activeTab === "pipeline" && "Track, receive, inspect, process, and transfer agricultural yields."}
-          {activeTab === "history" && "Chronological audit logs and history of all processor facility events."}
-        </p>
+      <div className="border-b pb-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
+            <Factory className="h-8 w-8 text-primary" />
+            {activeTab === "browse" && "Dashboard"}
+            {activeTab === "pipeline" && "Processing Pipeline"}
+            {activeTab === "history" && "Operational History"}
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {activeTab === "browse" && "Manage farmer products and processing operations."}
+            {activeTab === "pipeline" && "Track, receive, inspect, process, and transfer agricultural yields."}
+            {activeTab === "history" && "Chronological audit logs and history of all processor facility events."}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            fetchApiData()
+            fetchProducts()
+          }}
+          className="rounded-xl border-white/10 hover:border-primary/50 text-foreground gap-1.5 text-xs font-semibold shadow-sm"
+        >
+          <Clock className="h-3.5 w-3.5 text-primary" />
+          Sync with Database
+        </Button>
       </div>
 
       <DecisionSupportPanel />
@@ -1213,8 +1488,8 @@ export function ProcessorDashboard() {
             <h3 className="font-bold text-lg px-2 mb-3">Pipeline Status</h3>
             {[
               { id: "incoming", label: "📦 Incoming Shipments", count: apiShipments.filter(s => s.status !== "RECEIVED" && s.status !== "DELIVERED").length },
-              { id: "interested", label: "★ Interested Products", count: products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).length },
-              { id: "received", label: "📥 Received / Verify QR", count: products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id]).length },
+              { id: "interested", label: "★ Interested Products", count: products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id) || (p.status === "Processing" && p.current_owner_id !== user?.id)) && !receipts[String(p.id)] && !receipts[p.id] && p.current_owner_id !== user?.id).length },
+              { id: "received", label: "📥 Received / Verify QR", count: products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id] && p.current_owner_id !== user?.id).length },
               { id: "processing", label: "🏭 Active Processing", count: Object.values(batches).filter(b => b.stage !== "Processing Completed" && b.stage !== "Transferred").length },
               { id: "completed", label: "🚚 Transferred to Distributor", count: Object.values(batches).filter(b => b.stage === "Transferred" || b.stageLogs.some(l => l.stage === "Transferred")).length }
             ].map((step) => (
@@ -1257,15 +1532,14 @@ export function ProcessorDashboard() {
                         <Button
                           size="sm"
                           onClick={() => {
-                            // Find product matching this shipment in our API products to mock the flow
-                            const p = products.find(prod => prod.id === s.product_id || prod.batch_number === s.batch_number)
+                            // Find product matching this shipment in our API products or use attached product
+                            const p = products.find(prod => prod.id === s.product_id || prod.batch_number === s.batch_number) || s.product
                             if (p) {
                               setSelectedProduct(p)
-                              // setSelectedShipment(s)
                               setReceivedQtyInput(String(s.quantity))
                               setIsVerifyModalOpen(true)
                             } else {
-                              alert('Product not synced to frontend mock state yet.')
+                              alert('Product details could not be found for this shipment.')
                             }
                           }}
                           className="rounded-xl text-white bg-primary hover:bg-primary/95 flex-1 md:flex-initial gap-1.5 font-semibold shadow-md cursor-pointer"
@@ -1286,7 +1560,7 @@ export function ProcessorDashboard() {
                   <p className="text-muted-foreground text-sm">Farmer registered products you marked interest in. Once they arrive physically, record their receipt.</p>
                 </div>
 
-                {products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).length === 0 ? (
+                {products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id) || (p.status === "Processing" && p.current_owner_id !== user?.id)) && !receipts[String(p.id)] && !receipts[p.id] && p.current_owner_id !== user?.id).length === 0 ? (
                   <div className="text-center py-20 text-muted-foreground">
                     <Star className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                     <p className="font-semibold text-lg">No interested products</p>
@@ -1294,7 +1568,7 @@ export function ProcessorDashboard() {
                   </div>
                 ) : (
                   <div className="grid gap-4">
-                    {products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).map(p => {
+                    {products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id) || (p.status === "Processing" && p.current_owner_id !== user?.id)) && !receipts[String(p.id)] && !receipts[p.id] && p.current_owner_id !== user?.id).map(p => {
                       const isDeclined = Boolean(
                         deals[String(p.id)] === "declined" ||
                         deals[p.batch_number || ""] === "declined" ||
@@ -1428,7 +1702,7 @@ export function ProcessorDashboard() {
                   <p className="text-muted-foreground text-sm">Physically received products awaiting QR code authenticity verification and quality grading.</p>
                 </div>
 
-                {products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id]).length === 0 ? (
+                {products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id] && p.current_owner_id !== user?.id).length === 0 ? (
                   <div className="text-center py-20 text-muted-foreground">
                     <Package className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                     <p className="font-semibold text-lg">No received items awaiting check</p>
@@ -1436,7 +1710,7 @@ export function ProcessorDashboard() {
                   </div>
                 ) : (
                   <div className="grid gap-4">
-                    {products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id]).map(p => (
+                    {products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id] && p.current_owner_id !== user?.id).map(p => (
                       <div key={p.id} className="p-5 rounded-2xl border bg-muted/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
                           <h4 className="font-bold text-lg text-foreground flex items-center gap-1.5">

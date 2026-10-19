@@ -51,17 +51,89 @@ def test_invalid_negative_quantity():
     })
     assert response.status_code == 422
 
-def test_price_prediction_request():
+def test_price_prediction_success():
     response = client.post("/api/farmer/price-prediction", json={
         "commodity": "Tomato",
         "market": "Bangalore",
         "forecast_days": 7
     })
-    # No DB in test, should strictly return 503 VERIFIED_DATA_UNAVAILABLE
+    # If the local database is currently unpopulated, verify documented INSUFFICIENT_HISTORICAL_DATA,
+    # then verify the observation-anchored stale forecast pipeline using an isolated in-memory fixture.
+    if response.status_code == 503 and response.json().get("error_code") == "INSUFFICIENT_HISTORICAL_DATA":
+        from unittest.mock import patch
+        import pandas as pd
+        dates = pd.date_range(end="2026-10-08", periods=35)
+        mock_df = pd.DataFrame({
+            "date": dates.strftime("%Y-%m-%d"),
+            "modal_price": [30.0 + (i * 0.1) for i in range(35)],
+            "arrivals": [100.0] * 35,
+            "commodity": "Tomato",
+            "market": "Bangalore",
+            "source": "DATABASE_CACHE"
+        })
+        with patch("main.fetch_historical_prices", return_value=mock_df):
+            response = client.post("/api/farmer/price-prediction", json={
+                "commodity": "Tomato",
+                "market": "Bangalore",
+                "forecast_days": 7
+            })
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["commodity"] == "Tomato"
+    assert data["market"] == "Bangalore"
+    assert len(data["predictions"]) == 7
+    assert "current_price" in data
+    assert "historical_data" in data
+    assert len(data["historical_data"]) > 0
+    assert data["trend"] in ["INCREASING", "DECREASING", "STABLE"]
+    # Forecast policy and staleness verification
+    assert data["forecast_policy"] == "OBSERVATION_ANCHORED"
+    assert data["forecast_base_date"] == "2026-10-08"
+    assert data["is_stale"] is True
+    assert data["staleness_threshold_days"] == 2
+    assert data["warning"] is not None
+    assert "stale" in data["warning"].lower()
+    # Stale forecast availability and expiration status
+    assert data["forecast_available"] is False
+    assert data["forecast_status"] == "EXPIRED_STALE_OBSERVATIONS"
+    assert data["predictions"][0]["is_expired"] is True
+    assert data["predictions"][0]["status"] == "EXPIRED"
+    assert len(data["expired_projections"]) == 7
+    # Check historical and forecast separation
+    base_date = data["forecast_base_date"]
+    for pred in data["predictions"]:
+        assert pred["date"] > base_date
+    for hist in data["historical_data"]:
+        assert hist["date"] <= base_date
+    assert data["historical_data"][-1]["is_latest"] is True
+    assert data["historical_data"][-1]["date"] == base_date
+    assert data["historical_data"][0]["is_latest"] is False
+
+def test_price_prediction_insufficient_data():
+    response = client.post("/api/farmer/price-prediction", json={
+        "commodity": "ExoticCropXYZ",
+        "market": "UnknownMarketABC",
+        "forecast_days": 7
+    })
     assert response.status_code == 503
     data = response.json()
     assert data["success"] is False
-    assert data["error_code"] == "VERIFIED_DATA_UNAVAILABLE"
+    assert data["error_code"] == "INSUFFICIENT_HISTORICAL_DATA"
+    assert "Insufficient verified historical data" in data["message"]
+
+def test_price_prediction_missing_db(monkeypatch=None):
+    from unittest.mock import patch
+    with patch("services.database.get_supabase_client", return_value=None):
+        response = client.post("/api/farmer/price-prediction", json={
+            "commodity": "Tomato",
+            "market": "Bangalore",
+            "forecast_days": 7
+        })
+        assert response.status_code == 503
+        data = response.json()
+        assert data["success"] is False
+        assert data["error_code"] == "VERIFIED_DATA_UNAVAILABLE"
 
 if __name__ == "__main__":
     test_health_endpoint()
@@ -70,5 +142,7 @@ if __name__ == "__main__":
     test_valid_shelf_life()
     test_invalid_shelf_life()
     test_invalid_negative_quantity()
-    test_price_prediction_request()
+    test_price_prediction_success()
+    test_price_prediction_insufficient_data()
+    test_price_prediction_missing_db()
     print("ALL TESTS PASSED")
