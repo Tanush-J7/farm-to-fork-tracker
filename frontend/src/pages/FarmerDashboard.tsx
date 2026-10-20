@@ -3,7 +3,7 @@ import { Button } from "../components/ui/Button"
 import {
   Leaf, Plus, X, CheckCircle2, Clock, Truck, Factory,
   ShoppingBag, AlertCircle, RefreshCw, Wheat, Star, ImagePlus, CalendarDays, Wand2, Trash2, QrCode, Printer, Download,
-  Bell, PackageCheck, Check
+  Bell, PackageCheck, Check, Sparkles
 } from "lucide-react"
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
 import axios from "axios"
@@ -112,11 +112,23 @@ export function FarmerDashboard() {
   const [notifications, setNotifications] = useState<FarmerNotification[]>([])
   const [showNotifications, setShowNotifications] = useState(false)
 
+  // Active procurement orders broadcasted by processors
+  const [sourcingOrders, setSourcingOrders] = useState<any[]>([])
+
   // Deal Status State: { [productId: string]: "requested" | "accepted" | "dispatched" | "declined" }
   const [deals, setDeals] = useState<Record<string, "requested" | "accepted" | "dispatched" | "declined">>({})
   const [decisions, setDecisions] = useState<Record<string, { decision: "Accepted" | "Rejected"; reason?: string; date: string; time: string }>>({})
 
   const headers = { Authorization: `Bearer ${token}` }
+
+  const fetchSourcingOrders = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API}/processor/farmer-sourcing`, { headers })
+      setSourcingOrders(res.data.data || [])
+    } catch {
+      setSourcingOrders([])
+    }
+  }, [token])
 
   // Load Farmer Notifications from storage
   const loadNotifications = useCallback(() => {
@@ -152,11 +164,13 @@ export function FarmerDashboard() {
     loadNotifications()
     loadDeals()
     loadDecisions()
+    fetchSourcingOrders()
     const handleUpdate = () => {
       loadNotifications()
       loadDeals()
       loadDecisions()
       fetchProducts()
+      fetchSourcingOrders()
     }
     window.addEventListener("farmer_notifications_updated", handleUpdate)
     window.addEventListener("farmer_deals_updated", handleUpdate)
@@ -166,7 +180,7 @@ export function FarmerDashboard() {
       window.removeEventListener("farmer_deals_updated", handleUpdate)
       window.removeEventListener("storage", handleUpdate)
     }
-  }, [loadNotifications, loadDeals, loadDecisions])
+  }, [loadNotifications, loadDeals, loadDecisions, fetchSourcingOrders])
 
   // Handlers for Farmer Deal Lifecycle
   const handleAcceptDeal = (productId: string, batchNumber: string) => {
@@ -546,6 +560,61 @@ export function FarmerDashboard() {
           </div>
         ))}
       </div>
+
+      {/* Active Processor Procurement Orders (Demanded by Retailers) */}
+      {sourcingOrders.length > 0 && (
+        <div className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-400" />
+              <h3 className="font-bold text-foreground">
+                🌾 Active Processor Procurement Orders ({sourcingOrders.length})
+              </h3>
+            </div>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300">
+              Demand Sourcing
+            </span>
+          </div>
+          <p className="text-xs text-slate-300">
+            Processors are actively sourcing these harvests to fulfill retailer store requirements. Click "Fulfill Order" to register harvest directly for this contract.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {sourcingOrders.map((order) => (
+              <div key={order.id} className="p-3.5 rounded-xl border border-purple-500/20 bg-card/60 flex items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-purple-400">{order.request_id}</span>
+                    <strong className="text-sm text-foreground">{order.product_name}</strong>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Required: <span className="text-foreground font-semibold">{order.quantity} {order.unit || "kg"}</span>
+                  </p>
+                  {order.notes && (
+                    <p className="text-[11px] text-purple-300 line-clamp-1">{order.notes}</p>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  className="bg-purple-600 hover:bg-purple-700 text-white text-xs shrink-0"
+                  onClick={() => {
+                    setForm({
+                      name: order.product_name,
+                      category: "Vegetables",
+                      quantity: String(order.quantity),
+                      batchNumber: generateBatchNumber(),
+                      expiryDate: "",
+                      organicStatus: true
+                    })
+                    setShowForm(true)
+                  }}
+                >
+                  Fulfill Order
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Register Form Modal */}
       {showForm && (

@@ -6,12 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../co
 import {
   Factory, AlertCircle, Search, ShieldCheck, Camera, Brain, Clock, User, MapPin,
   Star, Package, Truck, Loader2, QrCode, Upload, Printer, Video, VideoOff, Download, X,
-  Trash2, Scale, Lock, CheckCircle
+  Trash2, Scale, Lock, CheckCircle, Store
 } from "lucide-react"
 import { Html5Qrcode } from "html5-qrcode"
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
 import jsQR from "jsqr"
 import { getFarmerLocation } from "../utils"
+import { RetailerDemandDesk } from "../components/processor/RetailerDemandDesk"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
@@ -119,8 +120,8 @@ export function ProcessorDashboard() {
 
   // Tabs state
   const [searchParams] = useSearchParams()
-  const tabParam = (searchParams.get("tab") as "browse" | "pipeline" | "history") || "browse"
-  const [activeTab, setActiveTab] = useState<"browse" | "pipeline" | "history">(tabParam)
+  const tabParam = (searchParams.get("tab") as "browse" | "pipeline" | "demands" | "history") || "browse"
+  const [activeTab, setActiveTab] = useState<"browse" | "pipeline" | "demands" | "history">(tabParam)
 
   useEffect(() => {
     if (tabParam) {
@@ -1008,16 +1009,55 @@ export function ProcessorDashboard() {
       {/* Header bar */}
       <div className="border-b pb-5">
         <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
-          <Factory className="h-8 w-8 text-primary" />
+          {activeTab === "demands" ? <Store className="h-8 w-8 text-primary" /> : <Factory className="h-8 w-8 text-primary" />}
           {activeTab === "browse" && "Dashboard"}
           {activeTab === "pipeline" && "Processing Pipeline"}
+          {activeTab === "demands" && "Retailer Demand Desk"}
           {activeTab === "history" && "Operational History"}
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
           {activeTab === "browse" && "Manage farmer products and processing operations."}
           {activeTab === "pipeline" && "Track, receive, inspect, process, and transfer agricultural yields."}
+          {activeTab === "demands" && "Review incoming retailer purchase orders. Fulfill from warehouse stock or source fresh crops from farmers."}
           {activeTab === "history" && "Chronological audit logs and history of all processor facility events."}
         </p>
+
+        {/* Tab Quick Selector */}
+        <div className="flex overflow-x-auto gap-2 mt-4 pt-2">
+          <Button
+            variant={activeTab === "browse" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActiveTab("browse")}
+            className="rounded-full px-5 text-xs font-semibold"
+          >
+            Farmer Crops & Batches
+          </Button>
+          <Button
+            variant={activeTab === "pipeline" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActiveTab("pipeline")}
+            className="rounded-full px-5 text-xs font-semibold"
+          >
+            Processing Pipeline
+          </Button>
+          <Button
+            variant={activeTab === "demands" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActiveTab("demands")}
+            className="rounded-full px-5 text-xs font-semibold"
+          >
+            <Store className="h-3.5 w-3.5 mr-1.5" />
+            Retailer Demand Desk
+          </Button>
+          <Button
+            variant={activeTab === "history" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActiveTab("history")}
+            className="rounded-full px-5 text-xs font-semibold"
+          >
+            Operational History
+          </Button>
+        </div>
       </div>
 
       {/* Tabs rendering */}
@@ -1719,6 +1759,16 @@ export function ProcessorDashboard() {
             )}
           </Card>
         </div>
+      )}
+
+      {/* Retailer Demand Desk Tab */}
+      {activeTab === "demands" && (
+        <RetailerDemandDesk
+          api={API}
+          token={token}
+          products={products}
+          onRefreshProducts={fetchProducts}
+        />
       )}
 
       {/* MODAL: Receive Product Form */}

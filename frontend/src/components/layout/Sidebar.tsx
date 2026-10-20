@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
   LayoutDashboard, Leaf, PackageSearch, Truck,
-  Factory, LogOut, BarChart3, Menu, X, Edit3, Camera, MapPin, Locate, Loader2, CheckCircle2, Clock, QrCode, Trash2, ShoppingCart, Package, DollarSign, RefreshCw, AlertTriangle, LinkIcon, Wand2
+  Factory, LogOut, BarChart3, Menu, X, Edit3, Camera, MapPin, Locate, Loader2, CheckCircle2, Clock, QrCode, Trash2, ShoppingCart, Package, DollarSign, RefreshCw, AlertTriangle, LinkIcon, Wand2, Store
 } from "lucide-react"
 import { cn } from "../../utils"
 import { useAuth } from "../../context/AuthContext"
@@ -291,6 +291,20 @@ export function Sidebar() {
               >
                 <Factory className="h-5 w-5 shrink-0" />
                 {!collapsed && <span>Processing</span>}
+              </Link>
+
+              {/* Retailer Demands */}
+              <Link
+                to="/processor?tab=demands"
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
+                  location.pathname === "/processor" && location.search.includes("tab=demands")
+                    ? "bg-emerald-100 text-primary"
+                    : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
+                )}
+              >
+                <Store className="h-5 w-5 shrink-0" />
+                {!collapsed && <span>Retailer Demands</span>}
               </Link>
 
               {/* History */}
