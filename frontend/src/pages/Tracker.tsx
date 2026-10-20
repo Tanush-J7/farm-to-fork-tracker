@@ -38,6 +38,7 @@ export function Tracker() {
   
   const [dbProduct, setDbProduct] = useState<any>(null)
   const [chainProduct, setChainProduct] = useState<any>(null)
+  const [onChainEvents, setOnChainEvents] = useState<any[]>([])
 
   // Scanner modal / state on Tracker page
   const [showScanner, setShowScanner] = useState(false)
@@ -111,6 +112,9 @@ export function Tracker() {
 
     if (foundDb) {
       setDbProduct(foundDb)
+      if (foundDb.onchain_history && Array.isArray(foundDb.onchain_history) && foundDb.onchain_history.length > 0) {
+        setOnChainEvents(foundDb.onchain_history)
+      }
     }
 
     // 4. Query on-chain data if contract configured
@@ -128,6 +132,20 @@ export function Tracker() {
             status: productData.status
           }
           setChainProduct(foundChain)
+        }
+
+        try {
+          const hist = await contract.getProductHistory(searchIdOnChain)
+          if (hist && hist.length > 0) {
+            setOnChainEvents(hist.map((h: any) => ({
+              status: h.status,
+              owner: h.owner,
+              timestamp: Number(h.timestamp),
+              extraInfo: h.extraInfo
+            })))
+          }
+        } catch {
+          // ignore if history method not present
         }
       } catch (err) {
         console.warn("Blockchain read skipped:", err)
@@ -474,13 +492,27 @@ export function Tracker() {
                   </div>
                   <div>
                     <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider">🟢 Cryptographically Verified On-Chain</p>
-                    <p className="text-xs font-mono text-zinc-400 break-all">
-                      Hash: {dbProduct?.blockchain_hash || "0x6f3e5c9b74d28a10e75a3429bc0194857dfbc8e0d9b41a73cf82a0b12cd504fa"}
-                    </p>
+                    {dbProduct?.blockchain_hash ? (
+                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        <span className="text-xs font-mono text-zinc-300 break-all">
+                          Tx: {dbProduct.blockchain_hash}
+                        </span>
+                        <a
+                          href={`https://sepolia.etherscan.io/tx/${dbProduct.blockchain_hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-emerald-400 hover:text-emerald-300 underline font-semibold shrink-0"
+                        >
+                          View on Sepolia Etherscan ↗
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-zinc-400">Awaiting initial block confirmation</p>
+                    )}
                   </div>
                 </div>
                 <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-                  Ethereum Smart Contract
+                  Ethereum Sepolia Testnet
                 </span>
               </div>
             </div>
@@ -582,6 +614,52 @@ export function Tracker() {
               ))}
             </div>
           </Card>
+
+          {/* SECTION: LIVE ON-CHAIN LEDGER EVENTS */}
+          {onChainEvents.length > 0 && (
+            <Card className="rounded-3xl border border-emerald-500/30 shadow-sm p-6 sm:p-8 space-y-4 bg-zinc-950/70">
+              <div className="border-b border-zinc-800 pb-3 flex justify-between items-center flex-wrap gap-2">
+                <div>
+                  <h3 className="font-bold text-lg text-emerald-400 flex items-center gap-2">
+                    <ShieldCheck className="h-5 w-5 text-emerald-400" />
+                    Immutable Blockchain Ledger Audit ({onChainEvents.length} Verified Events)
+                  </h3>
+                  <p className="text-xs text-zinc-400">Directly recorded on Ethereum Sepolia Testnet smart contract.</p>
+                </div>
+                {CONTRACT_ADDRESS && (
+                  <a
+                    href={`https://sepolia.etherscan.io/address/${CONTRACT_ADDRESS}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-mono text-emerald-400 hover:text-emerald-300 underline bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-full"
+                  >
+                    Contract: {CONTRACT_ADDRESS.slice(0, 6)}...{CONTRACT_ADDRESS.slice(-4)} ↗
+                  </a>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                {onChainEvents.map((evt: any, idx: number) => (
+                  <div key={idx} className="p-3.5 rounded-2xl bg-zinc-900/80 border border-zinc-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-white text-sm">#{idx + 1} {evt.status}</span>
+                        <span className="text-[10px] text-zinc-300 bg-zinc-800 px-2.5 py-0.5 rounded-full border border-zinc-700">
+                          {evt.extraInfo || "On-chain record"}
+                        </span>
+                      </div>
+                      <p className="text-zinc-400 font-mono text-[11px]">
+                        Signer: <span className="text-emerald-400">{evt.owner}</span>
+                      </p>
+                    </div>
+                    <div className="text-right text-zinc-400 font-mono text-[11px] shrink-0">
+                      {new Date(evt.timestamp * 1000).toLocaleString("en-GB")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* SECTION 3: INTERACTIVE VISUAL TIMELINE JOURNEY */}
           <Card className="rounded-3xl border shadow-sm p-6 sm:p-8 space-y-6 bg-card/60">

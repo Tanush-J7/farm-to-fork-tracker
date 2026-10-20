@@ -2,16 +2,12 @@ import { Request, Response } from 'express';
 import axios from 'axios';
 import { supabase } from '../config/supabase';
 import { ethers } from 'ethers';
+import { blockchainRelayer } from '../services/blockchainRelayer';
 
 // Render Blueprints provide service host/port values separately from a full URL.
 // Prefer an explicitly configured URL for local development and other hosts.
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL
     || (process.env.AI_SERVICE_HOSTPORT ? `http://${process.env.AI_SERVICE_HOSTPORT}` : 'http://localhost:8000');
-
-const CONTRACT_ABI = [
-  "function registerProduct(string memory _name, string memory _category, string memory _batchNumber, uint256 _quantity, string memory _initialStatus) public",
-  "event ProductRegistered(uint256 indexed productId, string name, address indexed farmer)"
-];
 
 export const registerProduct = async (req: Request, res: Response) => {
   try {
@@ -235,7 +231,16 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
       return;
     }
 
-    res.status(200).json({ success: true, data: product });
+    let onchainHistory: any[] = [];
+    if (product.product_id && Number(product.product_id) > 0 && blockchainRelayer.isConfigured()) {
+      try {
+        onchainHistory = await blockchainRelayer.getProductHistory(Number(product.product_id));
+      } catch (histErr) {
+        console.warn(`[getProductByBlockchainId] On-chain history fetch skipped for Product #${product.product_id}:`, histErr);
+      }
+    }
+
+    res.status(200).json({ success: true, data: { ...product, onchain_history: onchainHistory } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
@@ -244,16 +249,46 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
 export const updateProductStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { status, current_owner_id, blockchain_hash } = req.body;
+    const { status, current_owner_id, blockchain_hash, extraInfo } = req.body;
 
-    const { data: product, error } = await supabase
+    // 1. Fetch current product record
+    const { data: existingProduct, error: fetchErr } = await supabase
+      .from('products')
+      .select('*')
+      .or(`id.eq.${id},product_id.eq.${Number(id) || -1},batch_number.eq.${id}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (fetchErr || !existingProduct) {
+      res.status(404).json({ success: false, message: 'Product not found' });
+      return;
+    }
+
+    let finalBlockchainHash = blockchain_hash || existingProduct.blockchain_hash;
+    const onChainId = Number(existingProduct.product_id);
+
+    // 2. If status is updated and relayer is configured, submit on-chain stage update
+    if (status && status !== existingProduct.status && onChainId > 0 && blockchainRelayer.isConfigured()) {
+      try {
+        const infoText = extraInfo || `Stage updated to ${status}`;
+        const relayRes = await blockchainRelayer.updateStage(onChainId, status, infoText);
+        if (relayRes?.txHash) {
+          finalBlockchainHash = relayRes.txHash;
+        }
+      } catch (bcErr) {
+        console.error(`[updateProductStatus] Relayer updateStage failed for Product #${onChainId}:`, bcErr);
+      }
+    }
+
+    // 3. Update Supabase record
+    const { data: updatedProduct, error } = await supabase
       .from('products')
       .update({
-        status,
-        current_owner_id: current_owner_id || undefined,
-        blockchain_hash: blockchain_hash || undefined,
+        status: status || existingProduct.status,
+        current_owner_id: current_owner_id || existingProduct.current_owner_id,
+        blockchain_hash: finalBlockchainHash || undefined,
       })
-      .eq('id', id)
+      .eq('id', existingProduct.id)
       .select('*, farmer:farmer_id(name, email)')
       .single();
 
@@ -262,7 +297,7 @@ export const updateProductStatus = async (req: Request, res: Response) => {
       return;
     }
 
-    res.status(200).json({ success: true, data: product });
+    res.status(200).json({ success: true, data: updatedProduct });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
   }

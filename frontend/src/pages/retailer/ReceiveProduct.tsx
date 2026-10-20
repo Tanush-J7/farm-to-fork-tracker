@@ -53,7 +53,7 @@ export function ReceiveProduct() {
           scanner.clear()
           setScanning(false)
         },
-        (err) => {
+        () => {
           // Ignore frequent scan errors (expected when no QR is in view)
         }
       )

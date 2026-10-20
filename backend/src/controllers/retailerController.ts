@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
 import { ethers } from 'ethers';
+import { blockchainRelayer } from '../services/blockchainRelayer';
 
 // Generate a unique Request ID (e.g., REQ-1023)
 const generateRequestId = async () => {
@@ -240,17 +241,35 @@ export const receiveProduct = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // 2. Blockchain Transaction simulation / execution
-    let txHash = null;
+    // 2. Blockchain Transaction execution via Relayer
+    let txHash: string | null = null;
     try {
-      if (process.env.BLOCKCHAIN_RPC_URL && process.env.BLOCKCHAIN_PRIVATE_KEY && process.env.CONTRACT_ADDRESS) {
-        const provider = new ethers.JsonRpcProvider(process.env.BLOCKCHAIN_RPC_URL);
-        const wallet = new ethers.Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY, provider);
-        const CONTRACT_ABI = ["function recordReceipt(string memory _batchNumber) public"];
-        const contract = new ethers.Contract(process.env.CONTRACT_ADDRESS, CONTRACT_ABI, wallet);
-        const tx = await contract.recordReceipt(shipment.batch_number);
-        await tx.wait();
-        txHash = tx.hash;
+      // Find on-chain product_id from products table
+      const { data: prodData } = await supabase
+        .from('products')
+        .select('id, product_id, status')
+        .eq('id', shipment.product_id)
+        .maybeSingle();
+
+      const onChainId = prodData?.product_id ? Number(prodData.product_id) : 0;
+
+      if (onChainId > 0 && blockchainRelayer.isConfigured()) {
+        const relayRes = await blockchainRelayer.updateStage(
+          onChainId,
+          'At Retailer',
+          `Retailer received batch ${shipment.batch_number} (Qty: ${shipment.quantity} ${shipment.unit || 'kg'})`
+        );
+        txHash = relayRes?.txHash || null;
+
+        // Also update products table status and latest blockchain_hash
+        await supabase
+          .from('products')
+          .update({
+            status: 'At Retailer',
+            current_owner_id: retailer_id,
+            blockchain_hash: txHash || undefined
+          })
+          .eq('id', shipment.product_id);
       } else {
         const randomBytes = ethers.randomBytes(32);
         txHash = ethers.hexlify(randomBytes);

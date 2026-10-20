@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import axios from "axios"
 import { useAuth } from "../../context/AuthContext"
-import { Search, Filter, AlertCircle, Truck, Package, Factory, User, Calendar, MapPin, QrCode } from "lucide-react"
+import { AlertCircle, Truck, Factory, Calendar, QrCode } from "lucide-react"
 
 const API_URL = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
@@ -51,6 +51,13 @@ export function Shipments() {
           <p className="text-sm text-slate-500">Track and receive your incoming product deliveries.</p>
         </div>
       </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-200 text-sm flex items-center gap-2">
+          <AlertCircle className="h-4 w-4" />
+          {error}
+        </div>
+      )}
 
       <div className="grid gap-6">
         {loading ? (

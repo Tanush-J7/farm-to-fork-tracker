@@ -2363,9 +2363,25 @@ export function ProcessorDashboard() {
               {/* Blockchain Transaction Hash */}
               <div>
                 <span className="text-xs text-zinc-400 uppercase font-bold">Blockchain Authenticity Certificate</span>
-                <p className="font-mono text-xs text-emerald-400 break-all p-3 bg-zinc-950 border border-zinc-850 rounded-2xl mt-1">
-                  {selectedProduct.blockchain_hash || "0x6f3e5c9b74d28a10e75a3429bc0194857dfbc8e0d9b41a73cf82a0b12cd504fa"}
-                </p>
+                {selectedProduct.blockchain_hash ? (
+                  <div className="mt-1 p-3 bg-zinc-950 border border-emerald-500/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <p className="font-mono text-xs text-emerald-400 break-all">
+                      {selectedProduct.blockchain_hash}
+                    </p>
+                    <a
+                      href={`https://sepolia.etherscan.io/tx/${selectedProduct.blockchain_hash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-emerald-400 hover:text-emerald-300 underline font-semibold shrink-0"
+                    >
+                      View on Sepolia Etherscan ↗
+                    </a>
+                  </div>
+                ) : (
+                  <p className="font-mono text-xs text-zinc-500 p-3 bg-zinc-950 border border-zinc-800 rounded-2xl mt-1">
+                    Pending on-chain registration
+                  </p>
+                )}
               </div>
             </div>
 
