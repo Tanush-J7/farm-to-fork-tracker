@@ -25,8 +25,11 @@ export function ReceiveProduct() {
         const res = await axios.get(`${API_URL}/retailer/shipments`, {
           headers: { Authorization: `Bearer ${token}` }
         })
-        // Only show shipments that can be received
-        const eligible = res.data.data?.filter((s: any) => s.status === 'DELIVERED' || s.status === 'ARRIVED') || []
+        // Only show shipments that can be received (arrived, delivered, or in-transit to store)
+        const eligible = res.data.data?.filter((s: any) => {
+          const st = (s.status || '').toUpperCase();
+          return st === 'DELIVERED' || st === 'ARRIVED' || st === 'IN_TRANSIT';
+        }) || []
         setShipments(eligible)
       } catch (err: any) {
         setError(err.response?.data?.message || "Failed to load shipments")
@@ -144,10 +147,34 @@ export function ReceiveProduct() {
                 <option value="">-- Choose a shipment --</option>
                 {shipments.map(s => (
                   <option key={s.id} value={s.id}>
-                    {s.shipment_tracking_id} - {s.request?.product_name} ({s.quantity} {s.unit})
+                    {s.shipment_tracking_id} - {s.request?.product_name || s.batch_number} ({s.quantity} {s.unit})
                   </option>
                 ))}
               </select>
+            )}
+
+            {selectedShipment && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-emerald-900">
+                    {shipments.find(s => s.id === selectedShipment)?.request?.product_name || "Crate Cargo"}
+                  </span>
+                  <span className="font-mono text-emerald-700 bg-white px-2 py-0.5 rounded border">
+                    {shipments.find(s => s.id === selectedShipment)?.batch_number}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sh = shipments.find(s => s.id === selectedShipment);
+                    if (sh) handleVerification(sh.batch_number);
+                  }}
+                  disabled={verifying}
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                >
+                  {verifying ? "Verifying On-Chain..." : "⚡ Quick Verify & Intake Batch"}
+                </button>
+              </div>
             )}
 
             <div className="pt-4 border-t border-slate-100">

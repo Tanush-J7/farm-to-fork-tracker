@@ -52,12 +52,16 @@ export function DistributorDashboard() {
   const [deliverySuccessTx, setDeliverySuccessTx] = useState("")
   const [deliveryError, setDeliveryError] = useState("")
 
+  const [allProducts, setAllProducts] = useState<any[]>([])
+
   const fetchInventory = async () => {
     try {
-      const res = await axios.get(`${API_URL}/products/my`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      setInventory(res.data.data || [])
+      const [myRes, allRes] = await Promise.all([
+        axios.get(`${API_URL}/products/my`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${API_URL}/products`, { headers: { Authorization: `Bearer ${token}` } })
+      ])
+      setInventory(myRes.data.data || [])
+      setAllProducts(allRes.data.data || [])
     } catch (err) {
       console.error("Error fetching distributor inventory:", err)
     } finally {
@@ -422,6 +426,65 @@ export function DistributorDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Ready for Pickup from Processing Facilities */}
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Ready for Transport from Processing Plants</CardTitle>
+            <CardDescription>Inspected batches ready for distributor cold-chain pickup and retailer delivery.</CardDescription>
+          </div>
+          <span className="text-xs font-bold px-3 py-1 bg-emerald-500/10 text-emerald-600 rounded-full border border-emerald-500/20">
+            {allProducts.filter(p => p.status === 'Processed' || p.status === 'Processed - Grade A').length} Available
+          </span>
+        </CardHeader>
+        <CardContent>
+          {allProducts.filter(p => p.status === 'Processed' || p.status === 'Processed - Grade A').length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No batches currently waiting at processing facilities. Once a processor finishes grading, batches will appear here for pickup.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="text-left py-3 px-2">Batch Number</th>
+                    <th className="text-left py-3 px-2">Product</th>
+                    <th className="text-left py-3 px-2">Quantity</th>
+                    <th className="text-left py-3 px-2">Quality Grade</th>
+                    <th className="text-right py-3 px-2">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allProducts.filter(p => p.status === 'Processed' || p.status === 'Processed - Grade A').map((p) => (
+                    <tr key={p.id} className="border-b border-border/40 hover:bg-muted/30">
+                      <td className="py-3 px-2 font-mono font-medium">{p.batch_number}</td>
+                      <td className="py-3 px-2">{p.name}</td>
+                      <td className="py-3 px-2">{p.quantity} kg</td>
+                      <td className="py-3 px-2">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600">
+                          {p.ai_quality_label || "Grade A"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-2 text-right">
+                        <Button
+                          size="sm"
+                          className="text-xs h-8 bg-blue-600 hover:bg-blue-700 text-white"
+                          disabled={handoffLoading}
+                          onClick={() => handleTakeCustody(p)}
+                        >
+                          <Truck className="h-3.5 w-3.5 mr-1" />
+                          Take Custody & Start Transit
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 

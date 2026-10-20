@@ -297,6 +297,53 @@ export const updateProductStatus = async (req: Request, res: Response) => {
       return;
     }
 
+    // 4. Synchronize corresponding shipments table for Distributor <-> Retailer intake
+    try {
+      if (status === 'At Retailer' || status === 'Delivered') {
+        const { data: existingShipment } = await supabase
+          .from('shipments')
+          .select('id')
+          .or(`product_id.eq.${existingProduct.id},batch_number.eq.${existingProduct.batch_number}`)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingShipment) {
+          await supabase
+            .from('shipments')
+            .update({ status: 'DELIVERED', updated_at: new Date().toISOString() })
+            .eq('id', existingShipment.id);
+        } else {
+          // Auto-create delivered shipment so retailer can directly receive it in store
+          const { data: retailerUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('role', 'retailer')
+            .limit(1)
+            .maybeSingle();
+
+          if (retailerUser) {
+            await supabase.from('shipments').insert({
+              shipment_tracking_id: `TRK-${Date.now()}`,
+              batch_number: existingProduct.batch_number,
+              product_id: existingProduct.id,
+              quantity: existingProduct.quantity,
+              unit: 'kg',
+              status: 'DELIVERED',
+              sender_id: current_owner_id || existingProduct.current_owner_id,
+              receiver_id: retailerUser.id
+            });
+          }
+        }
+      } else if (status === 'In Transit') {
+        await supabase
+          .from('shipments')
+          .update({ status: 'IN_TRANSIT', updated_at: new Date().toISOString() })
+          .or(`product_id.eq.${existingProduct.id},batch_number.eq.${existingProduct.batch_number}`);
+      }
+    } catch (shipmentSyncErr) {
+      console.warn('[updateProductStatus] Non-fatal shipment sync warning:', shipmentSyncErr);
+    }
+
     res.status(200).json({ success: true, data: updatedProduct });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
