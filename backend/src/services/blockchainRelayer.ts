@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import { ethers } from 'ethers';
 
 export const FARMCHAIN_ABI = [
