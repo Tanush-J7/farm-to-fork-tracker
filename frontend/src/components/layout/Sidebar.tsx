@@ -155,6 +155,8 @@ export function Sidebar() {
           localStorage.setItem("farmer_address", updates.address)
         } else if (user?.role === "processor") {
           localStorage.setItem("processor_address", updates.address)
+        } else if (user?.role === "retailer") {
+          localStorage.setItem("retailer_address", updates.address)
         }
       }
 
@@ -239,13 +241,16 @@ export function Sidebar() {
           {role !== "processor" ? (
             <>
               {navItems.map((item) => {
-                const isActive = location.pathname === item.path
+                const currentFull = location.pathname + location.search
+                const isActive = item.path.includes("?")
+                  ? (currentFull === item.path || (item.path.includes("tab=profile") && location.pathname.endsWith("/profile")))
+                  : (location.pathname === item.path && (!location.search || !location.search.includes("tab=")))
                 return (
                   <Link key={item.path} to={item.path}>
                     <div className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer",
                       isActive
-                        ? "bg-emerald-100 text-primary"
+                        ? "bg-emerald-100 text-primary font-semibold"
                         : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
                     )}>
                       <item.icon className="h-5 w-5 shrink-0" />
@@ -302,12 +307,26 @@ export function Sidebar() {
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
                   location.pathname === "/processor" && location.search.includes("tab=demands")
-                    ? "bg-emerald-100 text-primary"
+                    ? "bg-emerald-100 text-primary font-semibold"
                     : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
                 )}
               >
                 <Store className="h-5 w-5 shrink-0" />
                 {!collapsed && <span>Retailer Demands</span>}
+              </Link>
+
+              {/* Facility Profile */}
+              <Link
+                to="/processor?tab=profile"
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
+                  location.pathname === "/processor" && location.search.includes("tab=profile")
+                    ? "bg-emerald-100 text-primary font-semibold"
+                    : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
+                )}
+              >
+                <ShieldCheck className="h-5 w-5 shrink-0" />
+                {!collapsed && <span>Facility Profile</span>}
               </Link>
 
               {/* History */}

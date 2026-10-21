@@ -20,6 +20,7 @@ import { AdminProducts } from "./pages/admin/AdminProducts"
 import { AdminProductDetails } from "./pages/admin/AdminProductDetails"
 
 import { Dashboard as RetailerDashboardPlaceholder } from "./pages/retailer/Dashboard"
+import { Profile as RetailerProfile } from "./pages/retailer/Profile"
 import { ProductRequests as RetailerProductRequests } from "./pages/retailer/ProductRequests"
 import { Shipments as RetailerShipments } from "./pages/retailer/Shipments"
 import { ReceiveProduct as RetailerReceiveProduct } from "./pages/retailer/ReceiveProduct"
@@ -74,6 +75,7 @@ function App() {
           <Route element={<ProtectedRoute allowedRoles={['retailer']} />}>
             <Route path="/retailer" element={<DashboardLayout />}>
               <Route index element={<RetailerDashboardPlaceholder />} />
+              <Route path="profile" element={<RetailerProfile />} />
               <Route path="requests" element={<RetailerProductRequests />} />
               <Route path="shipments" element={<RetailerShipments />} />
               <Route path="receive" element={<RetailerReceiveProduct />} />

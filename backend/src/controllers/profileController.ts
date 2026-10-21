@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { supabase } from '../config/supabase';
 import * as profileService from '../services/profileService';
 
 /**
@@ -57,7 +58,33 @@ export const requestProfileUpdate = async (req: Request, res: Response): Promise
       return;
     }
 
-    const request = await profileService.requestProfileUpdate(user.id, user, {
+    let userName = user.name || contact_person_name;
+    let userEmail = user.email || contact_email;
+    let userRole = user.role;
+
+    try {
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('name, email, role')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (dbUser) {
+        userName = userName || dbUser.name;
+        userEmail = userEmail || dbUser.email;
+        userRole = dbUser.role || userRole;
+      }
+    } catch (dbErr) {
+      console.warn('Could not fetch user details for profile update:', dbErr);
+    }
+
+    const effectiveUser = {
+      id: user.id,
+      name: userName || contact_person_name || 'Commercial Facility Admin',
+      email: userEmail || contact_email || '',
+      role: userRole || 'retailer'
+    };
+
+    const request = await profileService.requestProfileUpdate(user.id, effectiveUser, {
       business_name,
       phone,
       license_number,
@@ -65,10 +92,10 @@ export const requestProfileUpdate = async (req: Request, res: Response): Promise
       city: city || 'Bengaluru',
       state: state || 'Karnataka',
       pincode: pincode || '560001',
-      facility_type: facility_type || (user.role === 'retailer' ? 'Retail Supermarket' : 'Agro-Processing Facility'),
+      facility_type: facility_type || (effectiveUser.role === 'retailer' ? 'Retail Supermarket' : 'Agro-Processing Facility'),
       operating_hours: operating_hours || '06:00 AM - 10:00 PM',
-      contact_person_name: contact_person_name || user.name,
-      contact_email: contact_email || user.email,
+      contact_person_name: contact_person_name || effectiveUser.name,
+      contact_email: contact_email || effectiveUser.email,
       coordinates: coordinates || { lat: 13.0285, lng: 77.5456 },
       storage_capacity
     });
