@@ -411,7 +411,13 @@ export function ProcessorDashboard() {
     window.addEventListener("farmer_deals_updated", loadDealsAndDeclined)
     window.addEventListener("storage", loadDealsAndDeclined)
 
+    const interval = setInterval(() => {
+      syncDeliveryRequests()
+      fetchDistributors()
+    }, 5000)
+
     return () => {
+      clearInterval(interval)
       window.removeEventListener("farmer_deals_updated", loadDealsAndDeclined)
       window.removeEventListener("storage", loadDealsAndDeclined)
     }

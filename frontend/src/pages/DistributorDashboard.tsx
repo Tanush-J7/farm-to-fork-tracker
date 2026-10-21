@@ -3,7 +3,7 @@ import axios from "axios"
 import {
   Package, Truck, CheckCircle, Zap, TrendingUp, QrCode,
   SplitSquareHorizontal, Clock, ShieldCheck, Camera, Upload, X, Loader2,
-  CheckCircle2, Store, Thermometer
+  CheckCircle2, Store, Thermometer, RefreshCw
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
 import { Button } from "../components/ui/Button"
@@ -120,8 +120,20 @@ export function DistributorDashboard() {
     if (token) {
       fetchInventory()
       fetchDeliveryRequests()
+
+      // Real-time synchronization poller every 5 seconds
+      const interval = setInterval(() => {
+        fetchDeliveryRequests()
+      }, 5000)
+      return () => clearInterval(interval)
     }
   }, [token])
+
+  useEffect(() => {
+    if (token && (activeTab === "requests" || activeTab === "overview")) {
+      fetchDeliveryRequests()
+    }
+  }, [activeTab, token])
 
   // Camera QR Scanner logic
   const startLiveCamera = async () => {
@@ -858,8 +870,18 @@ export function DistributorDashboard() {
             </p>
           </div>
 
-          {/* Filter Pills */}
+          {/* Filter Pills & Manual Refresh */}
           <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={fetchDeliveryRequests}
+              disabled={loadingRequests}
+              className="rounded-full text-xs h-7 px-3 gap-1.5"
+            >
+              <RefreshCw className={`h-3 w-3 ${loadingRequests ? "animate-spin text-primary" : ""}`} />
+              Refresh
+            </Button>
             {[
               { id: "ALL", label: `All (${deliveryRequests.length})` },
               { id: "REQUESTED", label: `Pending Review (${pendingCount})` },
