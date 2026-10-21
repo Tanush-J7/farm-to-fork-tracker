@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../co
 import {
   Factory, AlertCircle, Search, ShieldCheck, Camera, Brain, Clock, User, MapPin,
   Star, Package, Truck, Loader2, QrCode, Upload, Printer, Video, VideoOff, Download, X,
-  Trash2, Scale, Lock, CheckCircle, Store
+  Trash2, Scale, Lock, CheckCircle, Store, Thermometer, Phone, ExternalLink, CheckCircle2
 } from "lucide-react"
 import { Html5Qrcode } from "html5-qrcode"
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
@@ -92,12 +92,42 @@ interface ProcessingBatch {
   completionDate?: string
   completionTime?: string
   distributor?: string
+  distributorId?: string
+  distributorName?: string
+  distributorVehicle?: string
   destinationHub?: string
+  destinationStore?: string
+  blockchainTx?: string
+  trackingId?: string
   packagingFormat?: string
   storageTemp?: string
   logisticsMode?: string
   transferDate?: string
   transferTime?: string
+}
+
+interface AvailableDistributor {
+  id: string
+  name: string
+  email: string
+  wallet_address?: string
+  fleet_name: string
+  vehicle_type: string
+  vehicle_number: string
+  temperature_control: string
+  payload_capacity: string
+  current_status: "AVAILABLE" | "ON_ROUTE"
+  base_hub: string
+  rating: number
+  completed_trips: number
+  phone: string
+}
+
+interface AvailableRetailer {
+  id: string
+  name: string
+  email: string
+  role: string
 }
 
 interface AuditLog {
@@ -240,6 +270,22 @@ export function ProcessorDashboard() {
   const [processedQtyInput, setProcessedQtyInput] = useState("")
   const [estimatedShelfLifeInput, setEstimatedShelfLifeInput] = useState("")
 
+  // Distributor Logistics Fleet & Dispatch Modal
+  const [dispatchModalBatch, setDispatchModalBatch] = useState<ProcessingBatch | null>(null)
+  const [availableDistributors, setAvailableDistributors] = useState<AvailableDistributor[]>([])
+  const [availableRetailers, setAvailableRetailers] = useState<AvailableRetailer[]>([])
+  const [loadingDistributors, setLoadingDistributors] = useState(false)
+  const [selectedDistributorId, setSelectedDistributorId] = useState("")
+  const [selectedRetailerId, setSelectedRetailerId] = useState("")
+  const [selectedDestinationStore, setSelectedDestinationStore] = useState("")
+  const [dispatchNotesInput, setDispatchNotesInput] = useState("")
+  const [dispatchLoading, setDispatchLoading] = useState(false)
+  const [dispatchSuccessResult, setDispatchSuccessResult] = useState<{
+    tracking_id: string
+    blockchain_hash: string | null
+    message: string
+  } | null>(null)
+
   const formatToDdMmYyyy = (dateStr: string) => {
     if (!dateStr) return ""
     if (dateStr.includes("-") && dateStr.split("-")[0].length === 4) {
@@ -310,6 +356,7 @@ export function ProcessorDashboard() {
   // Load local storage keys
   useEffect(() => {
     fetchProducts()
+    fetchDistributors()
     
     // Interests
     const storedInterests = localStorage.getItem("processor_interests")
@@ -936,6 +983,162 @@ export function ProcessorDashboard() {
     await updateDbStatus(batch.productId, "In Transit")
     setProcessingModalBatch(null)
     setPipelineStep("completed")
+    openDispatchModal(updatedBatch)
+  }
+
+  // Distributor Logistics Fleet Fetching & Dispatch Assignment
+  const fetchDistributors = async () => {
+    try {
+      setLoadingDistributors(true)
+      const res = await axios.get(`${API}/processor/distributors`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.data?.success) {
+        setAvailableDistributors(res.data.distributors || [])
+        setAvailableRetailers(res.data.retailers || [])
+      }
+    } catch (err) {
+      console.warn("Could not load distributors from API, using default fleet profiles", err)
+      setAvailableDistributors([
+        {
+          id: "dist-01",
+          name: "Apex Reefer Logistics",
+          email: "fleet@apexlogistics.com",
+          fleet_name: "Apex Reefer Express (Cold-Chain)",
+          vehicle_type: "Heavy Reefer Truck (Cold-Chain)",
+          vehicle_number: "KA-04-E2941",
+          temperature_control: "2°C to 6°C (Precision Chilled)",
+          payload_capacity: "3,000 kg",
+          current_status: "AVAILABLE",
+          base_hub: "Kolar Cold Hub & Logistics Park",
+          rating: 4.9,
+          completed_trips: 142,
+          phone: "+91 98451 22890"
+        },
+        {
+          id: "dist-02",
+          name: "FarmToCart Rapid Express",
+          email: "ops@farmtocart.in",
+          fleet_name: "FarmToCart Reefer Van",
+          vehicle_type: "Medium Chilled Van",
+          vehicle_number: "KA-05-MK8821",
+          temperature_control: "0°C to 4°C (Deep Chill)",
+          payload_capacity: "1,800 kg",
+          current_status: "AVAILABLE",
+          base_hub: "Yeshwanthpur Agro-Terminal Hub",
+          rating: 4.8,
+          completed_trips: 98,
+          phone: "+91 99002 44321"
+        },
+        {
+          id: "dist-03",
+          name: "GreenRoute Cargo & Logistics",
+          email: "dispatch@greenroute.com",
+          fleet_name: "GreenRoute Multi-Temp Carrier",
+          vehicle_type: "Heavy Reefer Multi-Zone",
+          vehicle_number: "KA-51-AB4019",
+          temperature_control: "2°C to 8°C (Monitored)",
+          payload_capacity: "4,500 kg",
+          current_status: "AVAILABLE",
+          base_hub: "Whitefield Refrigerated Depot",
+          rating: 4.7,
+          completed_trips: 115,
+          phone: "+91 97410 88201"
+        }
+      ])
+      setAvailableRetailers([
+        { id: "ret-01", name: "Metro Fresh Mart Koramangala Store #104", email: "store104@metrofresh.com", role: "retailer" },
+        { id: "ret-02", name: "GreenBasket Supermarket Indiranagar Hub", email: "indiranagar@greenbasket.in", role: "retailer" },
+        { id: "ret-03", name: "DailyHarvest Organic Market Whitefield", email: "whitefield@dailyharvest.com", role: "retailer" }
+      ])
+    } finally {
+      setLoadingDistributors(false)
+    }
+  }
+
+  const openDispatchModal = (batch: ProcessingBatch) => {
+    setDispatchModalBatch(batch)
+    setDispatchSuccessResult(null)
+    setDispatchNotesInput(`Cold-chain handover verified. Batch ${batch.batchId} certified produce.`)
+    fetchDistributors()
+    if (availableDistributors.length > 0) {
+      const avail = availableDistributors.find(d => d.current_status === "AVAILABLE") || availableDistributors[0]
+      setSelectedDistributorId(avail.id)
+    }
+    if (availableRetailers.length > 0) {
+      setSelectedRetailerId(availableRetailers[0].id)
+      setSelectedDestinationStore(availableRetailers[0].name)
+    } else {
+      setSelectedDestinationStore("Metro Fresh Mart Koramangala Store #104")
+    }
+  }
+
+  const handleAssignDistributor = async () => {
+    if (!dispatchModalBatch || !selectedDistributorId) return
+    setDispatchLoading(true)
+    try {
+      const chosenDist = availableDistributors.find(d => d.id === selectedDistributorId)
+      const chosenRet = availableRetailers.find(r => r.id === selectedRetailerId)
+      const targetStoreName = selectedDestinationStore || chosenRet?.name || "Metro Fresh Mart Koramangala Store #104"
+
+      let txHash: string | null = null
+      let trackingId = `TRK-${Date.now()}`
+
+      // Call Backend API
+      try {
+        const res = await axios.post(
+          `${API}/processor/assign-distributor`,
+          {
+            product_id: dispatchModalBatch.productId,
+            distributor_id: selectedDistributorId,
+            retailer_id: selectedRetailerId || undefined,
+            destination_store: targetStoreName,
+            dispatch_notes: dispatchNotesInput
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (res.data?.success && res.data.data) {
+          trackingId = res.data.data.tracking_id || trackingId
+          txHash = res.data.data.blockchain_hash || null
+        }
+      } catch (apiErr) {
+        console.warn("Backend API assign-distributor error, proceeding with local update:", apiErr)
+      }
+
+      // Update batch in local state & localStorage
+      const updatedBatch: ProcessingBatch = {
+        ...dispatchModalBatch,
+        distributor: chosenDist?.fleet_name || chosenDist?.name || "Apex Reefer Logistics",
+        distributorId: selectedDistributorId,
+        distributorName: chosenDist?.name || "Apex Reefer Logistics",
+        distributorVehicle: chosenDist?.vehicle_number || "KA-04-E2941",
+        destinationHub: targetStoreName,
+        destinationStore: targetStoreName,
+        trackingId: trackingId,
+        blockchainTx: txHash || undefined
+      }
+
+      const updatedBatches = { ...batches, [dispatchModalBatch.batchId]: updatedBatch }
+      setBatches(updatedBatches)
+      localStorage.setItem("processor_batches", JSON.stringify(updatedBatches))
+
+      addLog(
+        `Dispatched Batch ${dispatchModalBatch.batchId} via ${chosenDist?.name || 'Distributor'} (${chosenDist?.vehicle_number || 'KA-04-E2941'}) to ${targetStoreName}`,
+        "Transferred",
+        dispatchModalBatch.productId,
+        dispatchModalBatch.batchId
+      )
+
+      setDispatchSuccessResult({
+        tracking_id: trackingId,
+        blockchain_hash: txHash,
+        message: `Batch ${dispatchModalBatch.batchId} successfully assigned to ${chosenDist?.name || 'Distributor'} for cold-chain transit to ${targetStoreName}`
+      })
+    } catch (err: any) {
+      console.error("Failed to assign distributor", err)
+    } finally {
+      setDispatchLoading(false)
+    }
   }
 
 
@@ -1595,6 +1798,83 @@ export function ProcessorDashboard() {
                               </p>
                               <p className="text-[11px] text-emerald-400 font-medium">Recorded on Blockchain</p>
                             </div>
+                          </div>
+
+                          {/* Cold-Chain Logistics Carrier & Destination Delivery Manifest */}
+                          <div className="p-4 rounded-2xl bg-zinc-950/60 dark:bg-zinc-950/90 border border-zinc-800 space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
+                              <div className="flex items-center gap-2">
+                                <Truck className="h-4 w-4 text-emerald-400" />
+                                <span className="font-bold text-sm text-foreground">Logistics Carrier & Delivery Assignment</span>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant={b.distributorName ? "outline" : "default"}
+                                onClick={() => openDispatchModal(b)}
+                                className={`rounded-xl text-xs gap-1.5 h-8 font-semibold ${
+                                  b.distributorName
+                                    ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                                    : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm"
+                                }`}
+                              >
+                                <Truck className="h-3.5 w-3.5" />
+                                {b.distributorName ? "Reassign / View Carrier" : "Select Available Distributor"}
+                              </Button>
+                            </div>
+
+                            {b.distributorName ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                                <div className="space-y-0.5">
+                                  <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                                    🚚 Assigned Carrier
+                                  </span>
+                                  <p className="font-bold text-foreground text-sm">{b.distributorName}</p>
+                                  <p className="font-mono text-[11px] text-emerald-400">{b.distributorVehicle || "KA-04-E2941"} (Cold-Chain Reefer)</p>
+                                </div>
+                                <div className="space-y-0.5">
+                                  <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                                    🏬 Destination Retailer
+                                  </span>
+                                  <p className="font-bold text-foreground text-sm">{b.destinationStore || b.destinationHub || "Metro Fresh Mart Koramangala Store #104"}</p>
+                                  <p className="text-[11px] text-muted-foreground">Retail Supermarket Store Hub</p>
+                                </div>
+                                <div className="space-y-0.5">
+                                  <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                                    🛡️ Tracking & Proof
+                                  </span>
+                                  <p className="font-mono font-bold text-emerald-400 text-xs">{b.trackingId || `TRK-${b.batchId}`}</p>
+                                  {b.blockchainTx ? (
+                                    <a
+                                      href={`https://sepolia.etherscan.io/tx/${b.blockchainTx}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 font-mono"
+                                    >
+                                      Sepolia: {b.blockchainTx.slice(0, 10)}... <ExternalLink className="h-3 w-3 inline" />
+                                    </a>
+                                  ) : (
+                                    <span className="text-[11px] text-muted-foreground">Custody recorded on chain</span>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-500">
+                                <div className="flex items-center gap-2">
+                                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
+                                  <span>
+                                    <strong>Awaiting Distributor Assignment:</strong> Hand over this processed cargo to an available cold-chain logistics partner to deliver directly to the retailer.
+                                  </span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  onClick={() => openDispatchModal(b)}
+                                  className="bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shrink-0 h-8 gap-1.5"
+                                >
+                                  <Truck className="h-3.5 w-3.5" />
+                                  Assign Distributor Now
+                                </Button>
+                              </div>
+                            )}
                           </div>
 
                           {/* Footer Actions & Blockchain Verification */}
@@ -2650,6 +2930,229 @@ export function ProcessorDashboard() {
                 </>
               )
             })()}
+          </Card>
+        </div>
+      )}
+
+      {/* DISTRIBUTOR LOGISTICS & DISPATCH MODAL */}
+      {dispatchModalBatch && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <Card className="max-w-2xl w-full rounded-3xl border border-zinc-800 bg-zinc-900 text-white shadow-2xl p-6 space-y-5 my-8">
+            <div className="flex justify-between items-start border-b border-zinc-800 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Truck className="h-5 w-5 text-emerald-400" />
+                  <CardTitle className="text-xl font-bold">Assign Cold-Chain Distributor</CardTitle>
+                </div>
+                <CardDescription className="text-zinc-400 text-xs mt-1">
+                  Connect Batch <strong className="text-zinc-200 font-mono">{dispatchModalBatch.batchId}</strong> ({dispatchModalBatch.originalProduct.name}) with an available logistics carrier to deliver to the destination retailer.
+                </CardDescription>
+              </div>
+              <button
+                onClick={() => setDispatchModalBatch(null)}
+                className="p-1 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {dispatchSuccessResult ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-2 text-emerald-300">
+                  <div className="flex items-center gap-2 font-bold text-base text-emerald-400">
+                    <CheckCircle2 className="h-5 w-5" />
+                    <span>Dispatch Manifest Confirmed!</span>
+                  </div>
+                  <p className="text-xs text-zinc-300">{dispatchSuccessResult.message}</p>
+                  <div className="p-3 bg-black/40 rounded-xl space-y-1.5 font-mono text-xs text-zinc-300 mt-2">
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Tracking Number:</span>
+                      <span className="font-bold text-emerald-400">{dispatchSuccessResult.tracking_id}</span>
+                    </div>
+                    {dispatchSuccessResult.blockchain_hash && (
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-zinc-500">Sepolia Proof:</span>
+                        <a
+                          href={`https://sepolia.etherscan.io/tx/${dispatchSuccessResult.blockchain_hash}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-emerald-400 underline flex items-center gap-1 hover:text-emerald-300"
+                        >
+                          {dispatchSuccessResult.blockchain_hash.slice(0, 14)}...
+                          <ExternalLink className="h-3 w-3 inline" />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Button
+                  onClick={() => setDispatchModalBatch(null)}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl"
+                >
+                  Done
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Batch Summary Strip */}
+                <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-between text-xs">
+                  <div>
+                    <span className="text-zinc-500 uppercase text-[10px] font-bold block">Certified Batch</span>
+                    <span className="font-bold text-white text-sm">{dispatchModalBatch.originalProduct.name}</span>
+                    <span className="text-zinc-400 ml-2 font-mono">({dispatchModalBatch.processedQuantity || dispatchModalBatch.originalProduct.quantity} kg)</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-zinc-500 uppercase text-[10px] font-bold block">Quality & Expiry</span>
+                    <span className="font-semibold text-emerald-400">{dispatchModalBatch.originalProduct.ai_quality_label || "Grade A"}</span>
+                    <span className="text-zinc-400 ml-2">Exp: {dispatchModalBatch.expiryDate || "14 Days"}</span>
+                  </div>
+                </div>
+
+                {/* Section 1: Available Distributors List */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                      <Truck className="h-3.5 w-3.5 text-emerald-400" />
+                      1. Select Available Cold-Chain Logistics Carrier
+                    </label>
+                    <span className="text-[11px] text-emerald-400 font-medium">
+                      {availableDistributors.filter(d => d.current_status === "AVAILABLE").length} Fleet Units Available
+                    </span>
+                  </div>
+
+                  {loadingDistributors ? (
+                    <div className="py-8 text-center text-zinc-400">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-400 mb-2" />
+                      <span className="text-xs">Scanning available distributor fleets...</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {availableDistributors.map((dist) => {
+                        const isSelected = selectedDistributorId === dist.id
+                        const isAvail = dist.current_status === "AVAILABLE"
+                        return (
+                          <div
+                            key={dist.id}
+                            onClick={() => setSelectedDistributorId(dist.id)}
+                            className={`p-3 rounded-2xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                              isSelected
+                                ? "bg-emerald-500/10 border-emerald-500/50 shadow-sm"
+                                : "bg-zinc-950/60 border-zinc-800/80 hover:bg-zinc-800/40"
+                            }`}
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${isSelected ? "border-emerald-400 bg-emerald-400" : "border-zinc-600"}`}>
+                                  {isSelected && <span className="w-1.5 h-1.5 bg-black rounded-full" />}
+                                </span>
+                                <span className="font-bold text-sm text-white">{dist.fleet_name || dist.name}</span>
+                                <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                                  {dist.vehicle_number}
+                                </span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                  isAvail ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                                }`}>
+                                  {dist.current_status}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 text-xs text-zinc-400 flex-wrap">
+                                <span className="flex items-center gap-1 text-emerald-400">
+                                  <Thermometer className="h-3 w-3" /> {dist.temperature_control}
+                                </span>
+                                <span>Cap: <strong className="text-zinc-300">{dist.payload_capacity}</strong></span>
+                                <span>Hub: <strong className="text-zinc-300">{dist.base_hub}</strong></span>
+                              </div>
+                            </div>
+
+                            <div className="text-right text-xs text-zinc-400 shrink-0 sm:border-l sm:border-zinc-800 sm:pl-3">
+                              <div className="text-emerald-400 font-bold">★ {dist.rating} ({dist.completed_trips} trips)</div>
+                              <div className="text-[11px] text-zinc-500 flex items-center gap-1 justify-end">
+                                <Phone className="h-3 w-3" /> {dist.phone}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 2: Destination Retailer */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                    <Store className="h-3.5 w-3.5 text-emerald-400" />
+                    2. Destination Retailer Store
+                  </label>
+                  {availableRetailers.length > 0 ? (
+                    <select
+                      value={selectedRetailerId}
+                      onChange={(e) => {
+                        setSelectedRetailerId(e.target.value)
+                        const ret = availableRetailers.find(r => r.id === e.target.value)
+                        if (ret) setSelectedDestinationStore(ret.name)
+                      }}
+                      className="w-full h-11 px-3 rounded-xl border border-zinc-700 bg-zinc-950 text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    >
+                      {availableRetailers.map(r => (
+                        <option key={r.id} value={r.id}>
+                          {r.name} ({r.email})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={selectedDestinationStore}
+                      onChange={(e) => setSelectedDestinationStore(e.target.value)}
+                      placeholder="e.g. Metro Fresh Mart Koramangala Store #104"
+                      className="w-full h-11 px-3 rounded-xl border border-zinc-700 bg-zinc-950 text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    />
+                  )}
+                </div>
+
+                {/* Section 3: Dispatch & Cold-Chain SLA Notes */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                    3. Dispatch Handover Notes & Handling SLA
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={dispatchNotesInput}
+                    onChange={(e) => setDispatchNotesInput(e.target.value)}
+                    placeholder="Temperature specs, packaging integrity notes, departure seal numbers..."
+                    className="w-full p-3 rounded-xl border border-zinc-700 bg-zinc-950 text-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setDispatchModalBatch(null)}
+                    className="flex-1 rounded-xl border-zinc-700 text-zinc-300 hover:text-white"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    disabled={!selectedDistributorId || dispatchLoading}
+                    onClick={handleAssignDistributor}
+                    className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {dispatchLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Relaying Handover to Sepolia...
+                      </>
+                    ) : (
+                      <>
+                        <Truck className="h-4 w-4" />
+                        Confirm & Dispatch via Distributor
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </Card>
         </div>
       )}

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import axios from "axios"
 import {
   Store, Package, Search, AlertCircle, CheckCircle2,
-  Send, Loader2, Sparkles, RefreshCw, X
+  Send, Loader2, Sparkles, RefreshCw, X, Truck
 } from "lucide-react"
 import { Card, CardContent, CardTitle, CardDescription } from "../ui/Card"
 import { Button } from "../ui/Button"
@@ -25,6 +25,8 @@ export function RetailerDemandDesk({ api, token, products, onRefreshProducts }: 
   const [fulfillModalOpen, setFulfillModalOpen] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<any>(null)
   const [selectedBatchId, setSelectedBatchId] = useState("")
+  const [selectedDistributorId, setSelectedDistributorId] = useState("")
+  const [distributors, setDistributors] = useState<any[]>([])
   const [fulfillNotes, setFulfillNotes] = useState("")
   const [fulfilling, setFulfilling] = useState(false)
   const [fulfillResult, setFulfillResult] = useState<any>(null)
@@ -41,6 +43,21 @@ export function RetailerDemandDesk({ api, token, products, onRefreshProducts }: 
 
   const headers = { Authorization: `Bearer ${token}` }
 
+  const fetchDistributors = async () => {
+    try {
+      const res = await axios.get(`${api}/processor/distributors`, { headers })
+      if (res.data?.success && res.data.distributors) {
+        setDistributors(res.data.distributors)
+      }
+    } catch {
+      // Fallback
+      setDistributors([
+        { id: "dist-01", name: "Apex Reefer Logistics", vehicle_number: "KA-04-E2941", temperature_control: "2°C to 6°C" },
+        { id: "dist-02", name: "FarmToCart Rapid Express", vehicle_number: "KA-05-MK8821", temperature_control: "0°C to 4°C" }
+      ])
+    }
+  }
+
   const fetchRequests = async () => {
     try {
       setLoading(true)
@@ -55,7 +72,10 @@ export function RetailerDemandDesk({ api, token, products, onRefreshProducts }: 
   }
 
   useEffect(() => {
-    if (token) fetchRequests()
+    if (token) {
+      fetchRequests()
+      fetchDistributors()
+    }
   }, [token])
 
   // Find in-stock batches matching requested product
@@ -79,6 +99,9 @@ export function RetailerDemandDesk({ api, token, products, onRefreshProducts }: 
     setFulfillNotes("")
     const matches = getMatchingStock(req.product_name)
     setSelectedBatchId(matches.length > 0 ? matches[0].id : "")
+    if (distributors.length > 0) {
+      setSelectedDistributorId(distributors[0].id)
+    }
     setFulfillModalOpen(true)
   }
 
@@ -92,6 +115,7 @@ export function RetailerDemandDesk({ api, token, products, onRefreshProducts }: 
         `${api}/processor/requests/${selectedRequest.id}/fulfill`,
         {
           product_id: selectedBatchId,
+          distributor_id: selectedDistributorId || undefined,
           notes: fulfillNotes
         },
         { headers }
@@ -449,6 +473,25 @@ export function RetailerDemandDesk({ api, token, products, onRefreshProducts }: 
                     {products.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name} (Batch: {p.batch_number}) • {p.quantity} kg • Status: {p.status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-1.5">
+                    <Truck className="h-3.5 w-3.5 text-primary" />
+                    Assign Delivery Distributor (Cold-Chain Logistics)
+                  </label>
+                  <select
+                    value={selectedDistributorId}
+                    onChange={(e) => setSelectedDistributorId(e.target.value)}
+                    className="w-full h-11 px-3 rounded-xl border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="">-- Choose logistics carrier --</option>
+                    {distributors.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.fleet_name || d.name} • {d.vehicle_number || "KA-04-E2941"} • {d.temperature_control || "2°C to 6°C"}
                       </option>
                     ))}
                   </select>
