@@ -146,3 +146,70 @@ export const reviewProfileRequest = async (req: Request, res: Response): Promise
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
+
+/**
+ * GET /api/profile/geocode/search?q=...
+ * Search places, cities, and landmarks with high reliability
+ */
+export const searchGeocode = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const query = req.query.q as string;
+    if (!query || !query.trim()) {
+      res.status(400).json({ success: false, message: 'Search query q is required' });
+      return;
+    }
+
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query.trim())}&limit=8&addressdetails=1`;
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'FarmChainTracker/1.0 (contact@farmchain.io)',
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      res.status(200).json({ success: true, data: [] });
+      return;
+    }
+
+    const data = await response.json();
+    res.status(200).json({ success: true, data });
+  } catch (error: any) {
+    console.error('searchGeocode error:', error);
+    res.status(500).json({ success: false, message: 'Geocoding service error', error: error.message });
+  }
+};
+
+/**
+ * GET /api/profile/geocode/reverse?lat=...&lng=...
+ * Reverse geocode coordinates to structured address
+ */
+export const reverseGeocode = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const lat = req.query.lat as string;
+    const lng = req.query.lng as string;
+    if (!lat || !lng) {
+      res.status(400).json({ success: false, message: 'lat and lng parameters are required' });
+      return;
+    }
+
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=18&addressdetails=1`;
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'FarmChainTracker/1.0 (contact@farmchain.io)',
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      res.status(200).json({ success: false, message: 'Unable to reverse geocode' });
+      return;
+    }
+
+    const data = await response.json();
+    res.status(200).json({ success: true, data });
+  } catch (error: any) {
+    console.error('reverseGeocode error:', error);
+    res.status(500).json({ success: false, message: 'Reverse geocoding error', error: error.message });
+  }
+};
