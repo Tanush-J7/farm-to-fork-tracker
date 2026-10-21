@@ -6,7 +6,6 @@ import {
   X,
   Truck,
   Store,
-  Thermometer,
   Clock,
   Compass,
   ArrowRight
@@ -36,53 +35,53 @@ export function RouteMapModal({ isOpen, onClose, request }: RouteMapModalProps) 
   const mapEmbedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(activeLocation)}&t=&z=14&ie=UTF8&iwloc=&output=embed`
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <Card className="max-w-4xl w-full rounded-3xl border border-zinc-800 bg-zinc-950 text-white shadow-2xl overflow-hidden my-6 animate-in fade-in zoom-in-95">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+      <Card className="max-w-4xl w-full rounded-3xl border border-emerald-200 bg-white text-slate-900 shadow-2xl overflow-hidden my-6 animate-in fade-in zoom-in-95">
         {/* Header */}
-        <div className="p-5 border-b border-zinc-800 flex items-start justify-between bg-zinc-900/60">
+        <div className="p-5 border-b border-emerald-200 flex items-start justify-between bg-emerald-50/80">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+              <span className="p-1.5 rounded-lg bg-emerald-600 text-white">
                 <Navigation className="h-4 w-4" />
               </span>
-              <h3 className="text-lg font-bold text-white">Cold-Chain Route & Navigation Map</h3>
-              <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700">
-                {request.batch_number}
+              <h3 className="text-lg font-bold text-emerald-950">Delivery Route & Navigation Map</h3>
+              <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-white text-emerald-800 border border-emerald-300 font-semibold">
+                Batch: {request.batch_number}
               </span>
             </div>
-            <p className="text-xs text-zinc-400 mt-1">
-              Live turn-by-turn navigation for <strong className="text-white">{request.product_name} ({request.quantity} {request.unit || "kg"})</strong>
+            <p className="text-xs text-slate-600 mt-1">
+              Live turn-by-turn navigation for <strong className="text-slate-900">{request.product_name} ({request.quantity} {request.unit || "kg"})</strong>
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-full text-slate-500 hover:text-slate-900 hover:bg-emerald-100 transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Route Waypoints Bar */}
-        <div className="p-4 bg-zinc-900/40 border-b border-zinc-800 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-4 bg-slate-50 border-b border-emerald-200 grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Source Card */}
           <div
             onClick={() => setActiveView("source")}
             className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
               activeView === "source"
-                ? "bg-emerald-500/10 border-emerald-500/50 shadow-sm"
-                : "bg-zinc-900 border-zinc-800 hover:border-zinc-700"
+                ? "bg-white border-emerald-500 shadow-sm ring-2 ring-emerald-500/20"
+                : "bg-white/70 border-slate-200 hover:border-emerald-300"
             }`}
           >
             <div className="flex items-center justify-between text-xs mb-1">
-              <span className="font-bold text-emerald-400 flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="font-bold text-emerald-700 flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
+                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
                 Point A • Pickup Facility (Source)
               </span>
-              <span className="text-[10px] text-zinc-500">Origin Depot</span>
+              <span className="text-[10px] text-slate-400 font-medium">Origin Depot</span>
             </div>
-            <div className="font-bold text-sm text-white">{sourceName}</div>
-            <div className="text-xs text-zinc-400 mt-1 flex items-start gap-1.5">
-              <MapPin className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+            <div className="font-bold text-sm text-slate-900">{sourceName}</div>
+            <div className="text-xs text-slate-600 mt-1 flex items-start gap-1.5">
+              <MapPin className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
               <span>{sourceAddress}</span>
             </div>
           </div>
@@ -92,60 +91,60 @@ export function RouteMapModal({ isOpen, onClose, request }: RouteMapModalProps) 
             onClick={() => setActiveView("destination")}
             className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
               activeView === "destination"
-                ? "bg-blue-500/10 border-blue-500/50 shadow-sm"
-                : "bg-zinc-900 border-zinc-800 hover:border-zinc-700"
+                ? "bg-white border-emerald-500 shadow-sm ring-2 ring-emerald-500/20"
+                : "bg-white/70 border-slate-200 hover:border-emerald-300"
             }`}
           >
             <div className="flex items-center justify-between text-xs mb-1">
-              <span className="font-bold text-blue-400 flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
-                <Store className="h-3 w-3" />
+              <span className="font-bold text-emerald-700 flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
+                <Store className="h-3 w-3 text-emerald-600" />
                 Point B • Retail Delivery Store (Destination)
               </span>
-              <span className="text-[10px] text-zinc-500">Final Store Dock</span>
+              <span className="text-[10px] text-slate-400 font-medium">Final Store Dock</span>
             </div>
-            <div className="font-bold text-sm text-white">{destName}</div>
-            <div className="text-xs text-zinc-400 mt-1 flex items-start gap-1.5">
-              <MapPin className="h-3.5 w-3.5 text-blue-400 shrink-0 mt-0.5" />
+            <div className="font-bold text-sm text-slate-900">{destName}</div>
+            <div className="text-xs text-slate-600 mt-1 flex items-start gap-1.5">
+              <MapPin className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
               <span>{destAddress}</span>
             </div>
           </div>
         </div>
 
         {/* Live Trip Status Strip */}
-        <div className="px-5 py-2.5 bg-black/40 border-b border-zinc-800 flex items-center justify-between text-xs flex-wrap gap-3">
-          <div className="flex items-center gap-4 text-zinc-400">
-            <span className="flex items-center gap-1.5">
-              <Compass className="h-3.5 w-3.5 text-emerald-400" />
-              Distance: <strong className="text-white">16.4 km</strong>
+        <div className="px-5 py-2.5 bg-emerald-50/50 border-b border-emerald-100 flex items-center justify-between text-xs flex-wrap gap-3">
+          <div className="flex items-center gap-4 text-slate-600">
+            <span className="flex items-center gap-1.5 font-medium">
+              <Compass className="h-3.5 w-3.5 text-emerald-600" />
+              Distance: <strong className="text-slate-900">16.4 km</strong>
             </span>
-            <span className="flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-amber-400" />
-              Est. Transit: <strong className="text-white">35 mins</strong>
+            <span className="flex items-center gap-1.5 font-medium">
+              <Clock className="h-3.5 w-3.5 text-emerald-600" />
+              Est. Transit: <strong className="text-slate-900">35 mins</strong>
             </span>
-            <span className="flex items-center gap-1.5">
-              <Thermometer className="h-3.5 w-3.5 text-blue-400" />
-              Cold SLA: <strong className="text-emerald-400">{request.cold_chain_sla?.temperature_control || "2°C to 6°C Chilled"}</strong>
+            <span className="flex items-center gap-1.5 font-medium">
+              <Truck className="h-3.5 w-3.5 text-emerald-600" />
+              Transit Mode: <strong className="text-emerald-700 font-semibold">Direct Dispatch</strong>
             </span>
           </div>
 
           {/* Toggle buttons */}
-          <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-emerald-200">
             <button
               onClick={() => setActiveView("source")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeView === "source"
-                  ? "bg-emerald-600 text-white shadow"
-                  : "text-zinc-400 hover:text-white"
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "text-slate-600 hover:text-emerald-700"
               }`}
             >
               Pickup Map
             </button>
             <button
               onClick={() => setActiveView("destination")}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeView === "destination"
-                  ? "bg-blue-600 text-white shadow"
-                  : "text-zinc-400 hover:text-white"
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "text-slate-600 hover:text-emerald-700"
               }`}
             >
               Retailer Map
@@ -154,29 +153,29 @@ export function RouteMapModal({ isOpen, onClose, request }: RouteMapModalProps) 
         </div>
 
         {/* Embedded Interactive Map Container */}
-        <div className="relative w-full h-80 sm:h-96 bg-zinc-900 border-b border-zinc-800">
+        <div className="relative w-full h-80 sm:h-96 bg-slate-100 border-b border-emerald-200">
           <iframe
             title="Logistics Navigation Map"
             src={mapEmbedUrl}
             width="100%"
             height="100%"
-            style={{ border: 0, filter: "invert(90%) hue-rotate(180deg)" }}
+            style={{ border: 0 }}
             loading="lazy"
             allowFullScreen
           />
           {/* Map Overlay Badge */}
-          <div className="absolute top-3 left-3 bg-zinc-950/90 backdrop-blur-md border border-zinc-800 rounded-xl px-3 py-1.5 text-xs flex items-center gap-2 shadow-lg">
-            <span className={`w-2.5 h-2.5 rounded-full ${activeView === "source" ? "bg-emerald-400" : "bg-blue-400"}`} />
-            <span className="text-zinc-300">
-              Pinpointed: <strong className="text-white">{activeView === "source" ? sourceName : destName}</strong>
+          <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md border border-emerald-200 rounded-xl px-3 py-1.5 text-xs flex items-center gap-2 shadow-md">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
+            <span className="text-slate-700">
+              Pinpointed: <strong className="text-slate-900">{activeView === "source" ? sourceName : destName}</strong>
             </span>
           </div>
         </div>
 
         {/* Navigation Action Buttons */}
-        <div className="p-4 bg-zinc-950 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-xs text-zinc-400 flex items-center gap-1.5">
-            <Truck className="h-4 w-4 text-emerald-400" />
+        <div className="p-4 bg-white flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-xs text-slate-600 flex items-center gap-1.5 font-medium">
+            <Truck className="h-4 w-4 text-emerald-600" />
             <span>Launch native GPS driving directions:</span>
           </div>
 
@@ -190,11 +189,11 @@ export function RouteMapModal({ isOpen, onClose, request }: RouteMapModalProps) 
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-200 hover:text-white hover:bg-zinc-800 gap-1.5 text-xs"
+                className="w-full rounded-xl border-emerald-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 gap-1.5 text-xs font-semibold cursor-pointer"
               >
-                <Navigation className="h-3.5 w-3.5 text-emerald-400" />
+                <Navigation className="h-3.5 w-3.5 text-emerald-600" />
                 GPS to Pickup
-                <ExternalLink className="h-3 w-3 text-zinc-500" />
+                <ExternalLink className="h-3 w-3 text-slate-400" />
               </Button>
             </a>
 
@@ -207,11 +206,11 @@ export function RouteMapModal({ isOpen, onClose, request }: RouteMapModalProps) 
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full rounded-xl border-zinc-700 bg-zinc-900 text-zinc-200 hover:text-white hover:bg-zinc-800 gap-1.5 text-xs"
+                className="w-full rounded-xl border-emerald-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 gap-1.5 text-xs font-semibold cursor-pointer"
               >
-                <Store className="h-3.5 w-3.5 text-blue-400" />
+                <Store className="h-3.5 w-3.5 text-emerald-600" />
                 GPS to Store
-                <ExternalLink className="h-3 w-3 text-zinc-500" />
+                <ExternalLink className="h-3 w-3 text-slate-400" />
               </Button>
             </a>
 
@@ -223,7 +222,7 @@ export function RouteMapModal({ isOpen, onClose, request }: RouteMapModalProps) 
             >
               <Button
                 size="sm"
-                className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5 text-xs shadow-lg shadow-emerald-900/30"
+                className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5 text-xs shadow-sm cursor-pointer"
               >
                 Full Route Directions
                 <ArrowRight className="h-3.5 w-3.5" />

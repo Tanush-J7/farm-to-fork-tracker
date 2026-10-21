@@ -15,13 +15,12 @@ import {
   Loader2,
   CheckCircle2,
   Store,
-  Thermometer,
   RefreshCw,
   Navigation,
   ChevronRight,
   Sparkles,
   Compass,
-  Snowflake
+  CheckCircle
 } from "lucide-react"
 import { Card } from "../components/ui/Card"
 import { Button } from "../components/ui/Button"
@@ -35,12 +34,12 @@ import { getGoogleMapsDestinationUrl } from "../utils"
 const API_URL = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
 const routePerformanceData = [
-  { day: "Mon", deliveries: 8, onTime: 7 },
+  { day: "Mon", deliveries: 8, onTime: 8 },
   { day: "Tue", deliveries: 12, onTime: 11 },
   { day: "Wed", deliveries: 9, onTime: 9 },
-  { day: "Thu", deliveries: 15, onTime: 13 },
-  { day: "Fri", deliveries: 18, onTime: 16 },
-  { day: "Sat", deliveries: 11, onTime: 10 },
+  { day: "Thu", deliveries: 15, onTime: 14 },
+  { day: "Fri", deliveries: 18, onTime: 17 },
+  { day: "Sat", deliveries: 11, onTime: 11 },
   { day: "Sun", deliveries: 6, onTime: 6 },
 ]
 
@@ -68,7 +67,7 @@ export function DistributorDashboard() {
   // Retailer Delivery Modal state
   const [deliveryModalItem, setDeliveryModalItem] = useState<any>(null)
   const [destinationStore, setDestinationStore] = useState("Metro Fresh Mart (Koramangala Store #104)")
-  const [deliveryRemarks, setDeliveryRemarks] = useState("Cold-chain temperature maintained at 3.8°C; intake acknowledged by store manager")
+  const [deliveryRemarks, setDeliveryRemarks] = useState("Direct express delivery completed; intake acknowledged by store manager")
   const [deliveryLoading, setDeliveryLoading] = useState(false)
   const [deliverySuccessTx, setDeliverySuccessTx] = useState("")
   const [deliveryError, setDeliveryError] = useState("")
@@ -302,7 +301,7 @@ export function DistributorDashboard() {
         {
           status: "In Transit",
           current_owner_id: user?.id,
-          extraInfo: `Distributor (${user?.name || user?.email || "Carrier"}) took custody. Cold-chain reefer truck dispatched.`
+          extraInfo: `Distributor (${user?.name || user?.email || "Carrier"}) took custody. Delivery cargo vehicle dispatched.`
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -359,42 +358,42 @@ export function DistributorDashboard() {
   const quickDeclinePresets = [
     "Vehicle capacity currently booked on another route",
     "Destination store is outside today's delivery corridor",
-    "Scheduled vehicle maintenance / reefer inspection",
+    "Scheduled vehicle inspection / routine maintenance",
     "Requested pickup time window cannot be met",
-    "Cold-chain temperature SLA cannot be guaranteed for this commodity"
+    "Delivery schedule conflict on this route"
   ]
 
   // ==========================================
-  // TAB 1: OVERVIEW & COMMAND HUD
+  // TAB 1: OVERVIEW & COMMAND HUD (WHITE & GREEN)
   // ==========================================
   const OverviewTab = () => (
     <div className="space-y-6 animate-in fade-in duration-300">
-      {/* PENDING REQUESTS URGENT HERO BANNER */}
+      {/* PENDING REQUESTS URGENT HERO BANNER (Clean White & Green) */}
       {pendingRequestsCount > 0 && (
-        <div className="relative overflow-hidden p-5 rounded-3xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 shadow-lg">
+        <div className="relative overflow-hidden p-5 rounded-3xl bg-emerald-50/90 border border-emerald-300 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0 shadow-inner">
+              <div className="h-12 w-12 rounded-2xl bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-700 shrink-0 shadow-inner">
                 <Clock className="h-6 w-6 animate-pulse" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs uppercase font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  <span className="text-xs uppercase font-extrabold tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-600 text-white shadow-xs">
                     Action Required
                   </span>
-                  <span className="text-xs text-amber-400/80 font-medium">Real-time Processor Dispatch</span>
+                  <span className="text-xs text-emerald-800 font-semibold">Real-time Processor Dispatch</span>
                 </div>
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mt-1">
-                  {pendingRequestsCount} Incoming Delivery Request{pendingRequestsCount > 1 ? "s" : ""} Waiting for Review
+                <h3 className="text-base sm:text-lg font-black text-emerald-950 mt-1">
+                  {pendingRequestsCount} Incoming Delivery Request{pendingRequestsCount > 1 ? "s" : ""} Awaiting Review
                 </h3>
-                <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                  Processors have booked your cold-chain fleet with source pickup and retailer drop-off waypoints.
+                <p className="text-xs text-emerald-800/90 mt-0.5">
+                  Processors have booked your delivery fleet with source pickup and retailer drop-off locations.
                 </p>
               </div>
             </div>
             <Button
               onClick={() => setActiveTab("requests")}
-              className="bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-2xl px-5 text-xs shadow-md shrink-0 self-start sm:self-center cursor-pointer transition-all"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl px-5 text-xs shadow-sm shrink-0 self-start sm:self-center cursor-pointer transition-all"
             >
               Review Manifests
               <ChevronRight className="ml-1 h-4 w-4" />
@@ -403,144 +402,136 @@ export function DistributorDashboard() {
         </div>
       )}
 
-      {/* 6 AESTHETIC KPI METRIC CARDS */}
+      {/* 6 CRISP WHITE & GREEN KPI METRIC TILES */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3.5">
         {[
           {
             title: "In Transit",
             val: activeShipmentsCount,
-            sub: "Active Reefer Loads",
+            sub: "Active Cargo Shipments",
             icon: Truck,
-            color: "text-blue-500",
-            bg: "from-blue-500/10 to-blue-500/5",
-            border: "border-blue-500/20"
+            color: "text-emerald-700",
+            bg: "bg-emerald-50/70 border-emerald-200"
           },
           {
             title: "Store Delivered",
             val: deliveredCount,
-            sub: "Retail Handoffs",
+            sub: "Retail Store Handoffs",
             icon: CheckCircle2,
-            color: "text-emerald-500",
-            bg: "from-emerald-500/10 to-emerald-500/5",
-            border: "border-emerald-500/20"
+            color: "text-emerald-700",
+            bg: "bg-emerald-50/70 border-emerald-200"
           },
           {
             title: "Pending Requests",
             val: pendingRequestsCount,
             sub: "Processor Manifests",
             icon: Clock,
-            color: "text-amber-500",
-            bg: "from-amber-500/10 to-amber-500/5",
-            border: "border-amber-500/20"
+            color: "text-amber-700",
+            bg: "bg-amber-50/70 border-amber-200"
           },
           {
-            title: "Fleet Temp SLA",
-            val: "3.8°C",
-            sub: "Continuous Chilled",
-            icon: Snowflake,
-            color: "text-cyan-500",
-            bg: "from-cyan-500/10 to-cyan-500/5",
-            border: "border-cyan-500/20"
+            title: "Route Reliability",
+            val: "99.2%",
+            sub: "On-Time Dispatch Rate",
+            icon: ShieldCheck,
+            color: "text-emerald-700",
+            bg: "bg-emerald-50/70 border-emerald-200"
           },
           {
-            title: "Route Efficiency",
+            title: "Fleet Efficiency",
             val: "96.4%",
-            sub: "AI Smart Multi-Drop",
+            sub: "Smart Route Planning",
             icon: Zap,
-            color: "text-indigo-500",
-            bg: "from-indigo-500/10 to-indigo-500/5",
-            border: "border-indigo-500/20"
+            color: "text-emerald-700",
+            bg: "bg-emerald-50/70 border-emerald-200"
           },
           {
             title: "Total Cargo",
             val: inventory.length,
             sub: "Batches on Chain",
             icon: Package,
-            color: "text-purple-500",
-            bg: "from-purple-500/10 to-purple-500/5",
-            border: "border-purple-500/20"
+            color: "text-emerald-700",
+            bg: "bg-emerald-50/70 border-emerald-200"
           }
         ].map((card, idx) => (
           <div
             key={idx}
-            className={`p-4 rounded-3xl bg-gradient-to-b ${card.bg} border ${card.border} shadow-sm hover:shadow-md transition-all space-y-2`}
+            className={`p-4 rounded-3xl bg-white border ${card.bg} shadow-xs hover:shadow-md transition-all space-y-2`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 {card.title}
               </span>
-              <div className={`p-1.5 rounded-xl bg-white dark:bg-slate-900/60 ${card.color} shadow-xs`}>
+              <div className={`p-1.5 rounded-xl bg-emerald-100 ${card.color}`}>
                 <card.icon className="h-4 w-4" />
               </div>
             </div>
             <div>
-              <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{card.val}</div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">{card.sub}</p>
+              <div className="text-2xl font-black text-slate-900 tracking-tight">{card.val}</div>
+              <p className="text-[11px] text-emerald-800 font-semibold truncate mt-0.5">{card.sub}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* MID-GRID: REEFER TELEMETRY HUD + ROUTE PERFORMANCE CHART */}
+      {/* MID-GRID: FLEET VEHICLE HUD + ROUTE PERFORMANCE CHART */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* REEFER TELEMETRY & SATELLITE HUD */}
-        <div className="p-6 rounded-3xl bg-slate-950 text-white border border-slate-800 shadow-xl space-y-5 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
-
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
+        {/* FLEET VEHICLE DIAGNOSTICS CARD (White & Green) */}
+        <div className="p-6 rounded-3xl bg-white border border-emerald-200 shadow-sm space-y-5 text-slate-900">
+          <div className="flex items-center justify-between border-b border-emerald-100 pb-4">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+              <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700">
                 <Truck className="h-5 w-5" />
               </div>
               <div>
-                <h4 className="font-bold text-sm text-white">Cold-Chain Reefer #KA-04-1234</h4>
-                <p className="text-[11px] text-emerald-400 flex items-center gap-1 font-mono">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  Telemetry Online • GPS Linked
+                <h4 className="font-bold text-sm text-slate-900">Delivery Fleet Vehicle #KA-04-1234</h4>
+                <p className="text-[11px] text-emerald-700 flex items-center gap-1 font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  Vehicle Online • GPS Active
                 </p>
               </div>
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
               Fleet Unit 01
             </span>
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-1">
-              <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
-                <Snowflake className="h-3 w-3 text-cyan-400" />
-                Cabin Temperature
+            <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-150 space-y-1">
+              <span className="text-[10px] text-emerald-900 uppercase font-bold flex items-center gap-1">
+                <Truck className="h-3 w-3 text-emerald-600" />
+                Transit Status
               </span>
-              <div className="text-xl font-black text-cyan-400">3.8°C</div>
-              <p className="text-[10px] text-emerald-400 font-semibold">Target: 2.0°C - 5.5°C ✓</p>
+              <div className="text-lg font-black text-emerald-900">En Route</div>
+              <p className="text-[10px] text-emerald-700 font-semibold">Scheduled On Time ✓</p>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-1">
-              <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
-                <Thermometer className="h-3 w-3 text-blue-400" />
-                Relative Humidity
+            <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-150 space-y-1">
+              <span className="text-[10px] text-emerald-900 uppercase font-bold flex items-center gap-1">
+                <Navigation className="h-3 w-3 text-emerald-600" />
+                GPS Tracking
               </span>
-              <div className="text-xl font-black text-blue-400">84%</div>
-              <p className="text-[10px] text-slate-400 font-medium">Optimal Fresh Range</p>
+              <div className="text-lg font-black text-emerald-900">Active</div>
+              <p className="text-[10px] text-emerald-700 font-semibold">12 Satellites Locked</p>
             </div>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-2 text-xs">
+          <div className="p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-200/80 space-y-2 text-xs">
             <div className="flex justify-between items-center text-[11px]">
-              <span className="text-slate-400">Active Delivery Waypoint:</span>
-              <span className="text-emerald-400 font-semibold">Koramangala Supermarket</span>
+              <span className="text-slate-600">Active Delivery Waypoint:</span>
+              <span className="text-emerald-800 font-bold">Koramangala Supermarket</span>
             </div>
             <div className="flex justify-between items-center text-[11px]">
-              <span className="text-slate-400">Cold Storage Buffer:</span>
-              <span className="text-white font-mono">18 / 20 Crates Loaded</span>
+              <span className="text-slate-600">Cargo Bay Load:</span>
+              <span className="text-emerald-950 font-bold font-mono">18 / 20 Crates Loaded (90%)</span>
             </div>
-            <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-              <div className="bg-gradient-to-r from-emerald-500 to-cyan-500 h-full w-[90%]" />
+            <div className="w-full bg-emerald-100 h-2 rounded-full overflow-hidden">
+              <div className="bg-emerald-600 h-full w-[90%]" />
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-            <span className="flex items-center gap-1 text-emerald-400">
+          <div className="flex items-center justify-between text-[11px] text-slate-600 pt-1 border-t border-emerald-100">
+            <span className="flex items-center gap-1 text-emerald-700 font-semibold">
               <ShieldCheck className="h-3.5 w-3.5" />
               Sepolia Contract Sync Active
             </span>
@@ -548,24 +539,24 @@ export function DistributorDashboard() {
           </div>
         </div>
 
-        {/* ON-TIME DELIVERY TREND CHART */}
-        <div className="lg:col-span-2 p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+        {/* ON-TIME DELIVERY TREND CHART (Clean White & Green) */}
+        <div className="lg:col-span-2 p-6 rounded-3xl bg-white border border-emerald-200 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-100 pb-3">
             <div>
-              <h4 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+              <h4 className="font-bold text-base text-slate-900 flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-emerald-600" />
                 Delivery Throughput & On-Time Arrival
               </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5">
                 Weekly scheduled consignments compared to on-time dock arrivals.
               </p>
             </div>
             <div className="flex items-center gap-3 text-xs font-semibold">
-              <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Total Shipments
+              <span className="flex items-center gap-1.5 text-emerald-800">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" /> Total Shipments
               </span>
-              <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> On-Time Dock
+              <span className="flex items-center gap-1.5 text-emerald-600">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" /> On-Time Dock
               </span>
             </div>
           </div>
@@ -574,29 +565,30 @@ export function DistributorDashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={routePerformanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="distBlue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
+                  <linearGradient id="greenThroughput" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#059669" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#059669" stopOpacity={0.0} />
                   </linearGradient>
-                  <linearGradient id="distGreen" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="mintOnTime" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(150, 150, 150, 0.1)" />
-                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#888" }} />
-                <YAxis tick={{ fontSize: 11, fill: "#888" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#475569" }} />
+                <YAxis tick={{ fontSize: 11, fill: "#475569" }} />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "#0f172a",
-                    borderColor: "#334155",
+                    backgroundColor: "#ffffff",
+                    borderColor: "#a7f3d0",
                     borderRadius: "1rem",
-                    color: "#fff",
-                    fontSize: "12px"
+                    color: "#064e3b",
+                    fontSize: "12px",
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
                   }}
                 />
-                <Area type="monotone" dataKey="deliveries" stroke="#3b82f6" strokeWidth={2.5} fill="url(#distBlue)" name="Total Deliveries" />
-                <Area type="monotone" dataKey="onTime" stroke="#10b981" strokeWidth={2.5} fill="url(#distGreen)" name="On-Time Dock" />
+                <Area type="monotone" dataKey="deliveries" stroke="#059669" strokeWidth={2.5} fill="url(#greenThroughput)" name="Total Deliveries" />
+                <Area type="monotone" dataKey="onTime" stroke="#10b981" strokeWidth={2.5} fill="url(#mintOnTime)" name="On-Time Dock" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -607,54 +599,60 @@ export function DistributorDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <button
           onClick={() => setActiveTab("requests")}
-          className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-emerald-500/40 hover:shadow-md transition-all text-left group cursor-pointer"
+          className="p-5 rounded-3xl bg-white border border-emerald-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all text-left group cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
-            <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-500 group-hover:scale-105 transition-transform">
+            <div className="p-2.5 rounded-2xl bg-amber-100 text-amber-700 group-hover:scale-105 transition-transform">
               <Clock className="h-5 w-5" />
             </div>
-            <span className="text-xs font-bold text-amber-500">{pendingRequestsCount} Pending</span>
+            <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+              {pendingRequestsCount} Pending
+            </span>
           </div>
-          <h4 className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-emerald-600 transition-colors">
+          <h4 className="font-bold text-slate-900 text-sm group-hover:text-emerald-700 transition-colors">
             Processor Delivery Requests
           </h4>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Review detailed origin pickup and retailer destination manifests with GPS maps.
+          <p className="text-xs text-slate-600 mt-1">
+            Review origin pickup and retailer destination manifests with GPS navigation maps.
           </p>
         </button>
 
         <button
           onClick={() => setActiveTab("fleet")}
-          className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-emerald-500/40 hover:shadow-md transition-all text-left group cursor-pointer"
+          className="p-5 rounded-3xl bg-white border border-emerald-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all text-left group cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
-            <div className="p-2.5 rounded-2xl bg-blue-500/10 text-blue-500 group-hover:scale-105 transition-transform">
+            <div className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-700 group-hover:scale-105 transition-transform">
               <Truck className="h-5 w-5" />
             </div>
-            <span className="text-xs font-bold text-blue-500">{activeShipmentsCount} In Transit</span>
+            <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              {activeShipmentsCount} In Transit
+            </span>
           </div>
-          <h4 className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-emerald-600 transition-colors">
+          <h4 className="font-bold text-slate-900 text-sm group-hover:text-emerald-700 transition-colors">
             Fleet Transit & Store Handoff
           </h4>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Monitor active reefer truck runs and complete retail delivery acknowledgments.
+          <p className="text-xs text-slate-600 mt-1">
+            Monitor active delivery runs and complete retail delivery acknowledgments.
           </p>
         </button>
 
         <button
           onClick={() => setActiveTab("blockchain")}
-          className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-emerald-500/40 hover:shadow-md transition-all text-left group cursor-pointer"
+          className="p-5 rounded-3xl bg-white border border-emerald-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all text-left group cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
-            <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-500 group-hover:scale-105 transition-transform">
+            <div className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-700 group-hover:scale-105 transition-transform">
               <QrCode className="h-5 w-5" />
             </div>
-            <span className="text-xs font-bold text-emerald-500">Live Camera</span>
+            <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              Live Camera
+            </span>
           </div>
-          <h4 className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-emerald-600 transition-colors">
+          <h4 className="font-bold text-slate-900 text-sm group-hover:text-emerald-700 transition-colors">
             Scan & Claim Custody
           </h4>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs text-slate-600 mt-1">
             Scan QR on harvest or processor crates to broadcast cryptographic transfer on Sepolia.
           </p>
         </button>
@@ -677,15 +675,15 @@ export function DistributorDashboard() {
 
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
-        {/* SUBHEADER & CONTROLS */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+        {/* SUBHEADER & CONTROLS (White & Green) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-emerald-200 pb-4">
           <div>
-            <h3 className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+            <h3 className="text-xl font-bold flex items-center gap-2 text-emerald-950">
               <Clock className="h-5 w-5 text-emerald-600" />
               Incoming Delivery Requests from Processors
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Processors submit formal cargo dispatch manifests for your cold-chain fleet. Accept to take custody or decline.
+            <p className="text-xs text-slate-600 mt-1">
+              Processors submit formal cargo dispatch manifests for your fleet. Accept to take custody or decline.
             </p>
           </div>
 
@@ -696,7 +694,7 @@ export function DistributorDashboard() {
               variant="outline"
               onClick={() => fetchDeliveryRequests(false)}
               disabled={loadingRequests}
-              className="rounded-full text-xs h-8 px-3.5 gap-1.5 cursor-pointer shadow-xs"
+              className="rounded-full text-xs h-8 px-3.5 gap-1.5 cursor-pointer shadow-xs border-emerald-200 text-slate-700 hover:bg-emerald-50"
             >
               <RefreshCw className={`h-3 w-3 ${loadingRequests ? "animate-spin text-emerald-600" : ""}`} />
               Refresh
@@ -718,8 +716,8 @@ export function DistributorDashboard() {
                 onClick={() => setRequestsFilter(f.id as any)}
                 className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
                   requestsFilter === f.id
-                    ? "bg-emerald-600 text-white shadow-sm"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
                 }`}
               >
                 {f.label}
@@ -730,20 +728,20 @@ export function DistributorDashboard() {
 
         {/* LOADING STATE */}
         {loadingRequests ? (
-          <div className="py-20 text-center text-slate-500 dark:text-slate-400">
+          <div className="py-20 text-center text-slate-500">
             <Loader2 className="h-8 w-8 animate-spin mx-auto text-emerald-600 mb-2" />
             <p className="text-sm font-medium">Fetching real-time dispatch manifests...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-12 text-center rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-            <div className="h-14 w-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 mx-auto">
+          <div className="p-12 text-center rounded-3xl bg-white border border-emerald-200 shadow-sm space-y-3">
+            <div className="h-14 w-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 mx-auto border border-emerald-200">
               <Clock className="h-7 w-7" />
             </div>
-            <h4 className="text-base font-bold text-slate-900 dark:text-white">No Delivery Requests Found</h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+            <h4 className="text-base font-bold text-slate-900">No Delivery Requests Found</h4>
+            <p className="text-xs text-slate-600 max-w-md mx-auto">
               {requestsFilter === "REQUESTED"
                 ? "You have no pending delivery requests at the moment. All caught up!"
-                : "When a processor finishes inspecting produce and requests your cold-chain fleet for transport, the detailed manifest will appear here."}
+                : "When a processor finishes inspecting produce and requests your delivery fleet, the detailed manifest will appear here."}
             </p>
           </div>
         ) : (
@@ -767,29 +765,29 @@ export function DistributorDashboard() {
               return (
                 <div
                   key={req.id}
-                  className={`rounded-3xl border transition-all overflow-hidden p-6 space-y-5 bg-white dark:bg-slate-900 shadow-sm ${
+                  className={`rounded-3xl border transition-all overflow-hidden p-6 space-y-5 bg-white shadow-sm ${
                     isPending
-                      ? "border-amber-500/40 shadow-amber-500/5 hover:border-amber-500"
+                      ? "border-emerald-300 ring-2 ring-emerald-500/10 hover:border-emerald-500"
                       : isAccepted
-                      ? "border-emerald-500/30 hover:border-emerald-500/50"
-                      : "border-slate-200 dark:border-slate-800 opacity-80"
+                      ? "border-emerald-200 hover:border-emerald-400"
+                      : "border-slate-200 opacity-80"
                   }`}
                 >
                   {/* TOP HEADER: BATCH, TIMESTAMP, STATUS */}
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-emerald-100 pb-3">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                        <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
                           Batch: {req.batch_number}
                         </span>
                         <span className="font-mono text-[11px] text-slate-500">
                           Tracking: #{req.tracking_id || req.id?.slice(0, 8)}
                         </span>
-                        <span className="text-[11px] text-slate-400">
+                        <span className="text-[11px] text-slate-500">
                           • {new Date(req.created_at).toLocaleDateString()} at {new Date(req.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
-                      <h4 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2 pt-0.5">
+                      <h4 className="text-xl font-black text-slate-900 flex items-center gap-2 pt-0.5">
                         {req.product_name?.includes("Tomato")
                           ? "🍅"
                           : req.product_name?.includes("Mango")
@@ -804,10 +802,10 @@ export function DistributorDashboard() {
                     <span
                       className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
                         isPending
-                          ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 animate-pulse"
+                          ? "bg-amber-100 text-amber-800 border border-amber-300 animate-pulse"
                           : isAccepted
-                          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
-                          : "bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30"
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                          : "bg-slate-100 text-slate-700 border border-slate-300"
                       }`}
                     >
                       {isPending && <Clock className="h-3.5 w-3.5" />}
@@ -817,27 +815,27 @@ export function DistributorDashboard() {
                     </span>
                   </div>
 
-                  {/* VISUAL JOURNEY FLOW: SOURCE -> CHILLED REEFER -> DESTINATION */}
-                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800 space-y-3">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Compass className="h-3.5 w-3.5 text-emerald-600" />
-                      Live Route Journey & Verified Profile Waypoints
+                  {/* VISUAL JOURNEY FLOW: SOURCE -> TRANSIT -> DESTINATION (White & Green) */}
+                  <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-3">
+                    <div className="text-[10px] font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Compass className="h-3.5 w-3.5 text-emerald-700" />
+                      Live Route Journey & Verified Profile Locations
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* SOURCE PICKUP CARD */}
-                      <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-emerald-500/30 space-y-1.5 shadow-xs">
+                      <div className="p-3.5 rounded-2xl bg-white border border-emerald-200 space-y-1.5 shadow-xs">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                            1. Pickup Origin (Processor)
+                          <span className="text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+                            1. Pickup Origin (Processor Facility)
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">Depot Dock</span>
+                          <span className="text-[10px] text-slate-500 font-medium">Origin Depot</span>
                         </div>
-                        <div className="font-bold text-sm text-slate-900 dark:text-white">
+                        <div className="font-bold text-sm text-slate-900">
                           {req.processor?.facility_name || "Agro-Processing Facility"}
                         </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        <p className="text-xs text-slate-600 leading-relaxed">
                           {sourceLocation}
                         </p>
                         <div className="pt-1">
@@ -845,7 +843,7 @@ export function DistributorDashboard() {
                             href={getGoogleMapsDestinationUrl(sourceLocation)}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline font-bold"
+                            className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 font-bold hover:underline"
                           >
                             <Navigation className="h-3 w-3" /> GPS Navigate to Pickup ↗
                           </a>
@@ -853,18 +851,18 @@ export function DistributorDashboard() {
                       </div>
 
                       {/* DESTINATION DELIVERY CARD */}
-                      <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-blue-500/30 space-y-1.5 shadow-xs">
+                      <div className="p-3.5 rounded-2xl bg-white border border-emerald-200 space-y-1.5 shadow-xs">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-extrabold text-blue-700 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                            2. Delivery Destination (Retailer)
+                          <span className="text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+                            <Store className="h-3 w-3 text-emerald-600" />
+                            2. Delivery Destination (Retailer Store)
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">Store Dock</span>
+                          <span className="text-[10px] text-slate-500 font-medium">Final Store Dock</span>
                         </div>
-                        <div className="font-bold text-sm text-slate-900 dark:text-white">
+                        <div className="font-bold text-sm text-slate-900">
                           {req.retailer?.destination_store || "Retail Supermarket"}
                         </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        <p className="text-xs text-slate-600 leading-relaxed">
                           {destLocation}
                         </p>
                         <div className="pt-1">
@@ -872,7 +870,7 @@ export function DistributorDashboard() {
                             href={getGoogleMapsDestinationUrl(destLocation)}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-bold"
+                            className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 font-bold hover:underline"
                           >
                             <Navigation className="h-3 w-3" /> GPS Navigate to Store ↗
                           </a>
@@ -883,62 +881,62 @@ export function DistributorDashboard() {
 
                   {/* 4-SPECIFICATION MANIFEST TILES */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                    <div className="p-3 rounded-2xl bg-slate-100/70 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 space-y-1">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">📦 Cargo Net Weight</span>
-                      <p className="font-black text-sm text-slate-900 dark:text-white">
+                    <div className="p-3 rounded-2xl bg-white border border-emerald-200 space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">📦 Cargo Net Weight</span>
+                      <p className="font-black text-sm text-slate-900">
                         {req.quantity} {req.unit || "kg"}
                       </p>
-                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Packaged Crates</p>
+                      <p className="text-[10px] text-emerald-700 font-semibold">Standard Packaged Crate</p>
                     </div>
 
-                    <div className="p-3 rounded-2xl bg-slate-100/70 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 space-y-1">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">🏅 AI Quality Grade</span>
-                      <p className="font-black text-sm text-slate-900 dark:text-white">
+                    <div className="p-3 rounded-2xl bg-white border border-emerald-200 space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">🏅 AI Quality Grade</span>
+                      <p className="font-black text-sm text-slate-900">
                         {req.quality_label || "Grade A"} ({req.quality_score || 94}%)
                       </p>
-                      <p className="text-[10px] text-slate-500">Certified Shelf Life: {req.expiry_date || "14 Days"}</p>
+                      <p className="text-[10px] text-slate-600">Shelf Life: {req.expiry_date || "14 Days"}</p>
                     </div>
 
-                    <div className="p-3 rounded-2xl bg-slate-100/70 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 space-y-1">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">❄️ Cold-Chain SLA</span>
-                      <p className="font-black text-sm text-cyan-600 dark:text-cyan-400 flex items-center gap-1">
-                        <Snowflake className="h-3 w-3" />
-                        {req.cold_chain_sla?.temperature_control || "2°C to 6°C"}
+                    <div className="p-3 rounded-2xl bg-white border border-emerald-200 space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">🚚 Delivery Priority</span>
+                      <p className="font-black text-sm text-emerald-700 flex items-center gap-1">
+                        <Zap className="h-3 w-3 text-emerald-600" />
+                        Express Transport
                       </p>
-                      <p className="text-[10px] text-slate-500">Reefer Truck Guaranteed</p>
+                      <p className="text-[10px] text-slate-600">Direct Doorstep Route</p>
                     </div>
 
-                    <div className="p-3 rounded-2xl bg-slate-100/70 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 space-y-1">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold">⛓️ Ledger Transfer</span>
-                      <p className="font-black text-sm text-purple-600 dark:text-purple-400">Sepolia ERC-721</p>
-                      <p className="text-[10px] text-slate-500">Auto Handoff Ready</p>
+                    <div className="p-3 rounded-2xl bg-white border border-emerald-200 space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">⛓️ On-Chain Proof</span>
+                      <p className="font-black text-sm text-emerald-800">Sepolia Verified</p>
+                      <p className="text-[10px] text-slate-600">Instant Handoff Ready</p>
                     </div>
                   </div>
 
                   {/* PROCESSOR NOTES */}
                   {req.processor_notes && (
-                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 flex items-start gap-2 italic">
-                      <span className="font-bold not-italic text-slate-900 dark:text-white shrink-0">Processor Dispatch Notes:</span>
+                    <div className="p-3 rounded-2xl bg-emerald-50/60 border border-emerald-200 text-xs text-slate-700 flex items-start gap-2 italic">
+                      <span className="font-bold not-italic text-emerald-950 shrink-0">Processor Dispatch Notes:</span>
                       <span>"{req.processor_notes}"</span>
                     </div>
                   )}
 
                   {/* DECLINED REASON IF APPLICABLE */}
                   {isDeclined && req.decline_reason && (
-                    <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-700 dark:text-rose-400">
+                    <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
                       <strong>Reason for Declining:</strong> "{req.decline_reason}"
                     </div>
                   )}
 
                   {/* ACTION BAR */}
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-emerald-100">
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => setSelectedMapRequest(req)}
-                      className="w-full sm:w-auto rounded-xl text-xs gap-1.5 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 font-bold cursor-pointer"
+                      className="w-full sm:w-auto rounded-xl text-xs gap-1.5 border-emerald-300 text-emerald-800 hover:bg-emerald-50 font-bold cursor-pointer"
                     >
-                      <Navigation className="h-3.5 w-3.5" />
+                      <Navigation className="h-3.5 w-3.5 text-emerald-600" />
                       View Interactive Route Map
                     </Button>
 
@@ -949,10 +947,10 @@ export function DistributorDashboard() {
                           size="sm"
                           disabled={isActioning}
                           onClick={() => setDeclineModalRequest(req)}
-                          className="w-full sm:w-auto rounded-xl text-xs border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 cursor-pointer"
+                          className="w-full sm:w-auto rounded-xl text-xs border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer"
                         >
                           <X className="h-3.5 w-3.5 mr-1" />
-                          Decline Manifest
+                          Decline Request
                         </Button>
                         <Button
                           size="sm"
@@ -977,14 +975,14 @@ export function DistributorDashboard() {
 
                     {isAccepted && (
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                        <span className="text-xs text-emerald-700 font-bold flex items-center gap-1.5">
                           <CheckCircle2 className="h-4 w-4" />
                           Custody active in your fleet!
                         </span>
                         <Button
                           size="sm"
                           onClick={() => setActiveTab("fleet")}
-                          className="rounded-xl text-xs gap-1 bg-blue-600 hover:bg-blue-500 text-white font-bold cursor-pointer"
+                          className="rounded-xl text-xs gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer shadow-xs"
                         >
                           <Truck className="h-3.5 w-3.5" />
                           Deliver to Store Dock
@@ -998,30 +996,30 @@ export function DistributorDashboard() {
           </div>
         )}
 
-        {/* QUICK DECLINE REASON MODAL WITH PRESET CHIPS */}
+        {/* QUICK DECLINE REASON MODAL WITH PRESET CHIPS (Clean White & Green) */}
         {declineModalRequest && (
-          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-            <Card className="max-w-md w-full rounded-3xl border border-slate-800 bg-slate-950 text-white shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
-              <div className="flex justify-between items-start border-b border-slate-800 pb-3">
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <Card className="max-w-md w-full rounded-3xl border border-emerald-200 bg-white text-slate-900 shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95">
+              <div className="flex justify-between items-start border-b border-emerald-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400">
+                  <div className="p-2 rounded-xl bg-amber-100 text-amber-700">
                     <X className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-base text-white">Decline Delivery Request</h3>
-                    <p className="text-xs text-slate-400 font-mono">Batch: {declineModalRequest.batch_number}</p>
+                    <h3 className="font-bold text-base text-slate-900">Decline Delivery Request</h3>
+                    <p className="text-xs text-slate-500 font-mono">Batch: {declineModalRequest.batch_number}</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setDeclineModalRequest(null)}
-                  className="text-slate-400 hover:text-white cursor-pointer"
+                  className="text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   ✕
                 </button>
               </div>
 
               <div className="space-y-2 text-xs">
-                <label className="font-semibold text-slate-300">Quick Reason Presets</label>
+                <label className="font-semibold text-slate-700">Quick Reason Presets</label>
                 <div className="flex flex-wrap gap-1.5">
                   {quickDeclinePresets.map((preset, idx) => (
                     <button
@@ -1030,8 +1028,8 @@ export function DistributorDashboard() {
                       onClick={() => setDeclineReasonInput(preset)}
                       className={`text-[11px] px-2.5 py-1 rounded-xl border transition-all text-left cursor-pointer ${
                         declineReasonInput === preset
-                          ? "bg-rose-500/20 border-rose-500 text-rose-300"
-                          : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                          ? "bg-emerald-100 border-emerald-400 text-emerald-900 font-semibold"
+                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-emerald-50 hover:text-emerald-800"
                       }`}
                     >
                       {preset}
@@ -1041,13 +1039,13 @@ export function DistributorDashboard() {
               </div>
 
               <div className="space-y-1.5 text-xs">
-                <label className="font-semibold text-slate-300">Explanation for Processor</label>
+                <label className="font-semibold text-slate-700">Explanation for Processor</label>
                 <textarea
                   rows={3}
                   value={declineReasonInput}
                   onChange={(e) => setDeclineReasonInput(e.target.value)}
-                  placeholder="Provide brief context for declining..."
-                  className="flex w-full rounded-xl border border-slate-800 bg-slate-900 p-3 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500 text-white"
+                  placeholder="Provide context for declining..."
+                  className="flex w-full rounded-xl border border-emerald-200 bg-white p-3 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
@@ -1055,13 +1053,13 @@ export function DistributorDashboard() {
                 <Button
                   variant="outline"
                   onClick={() => setDeclineModalRequest(null)}
-                  className="flex-1 rounded-xl border-slate-700 text-slate-300 hover:text-white cursor-pointer"
+                  className="flex-1 rounded-xl border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={() => handleRespondToRequest(declineModalRequest.id, "DECLINE", declineReasonInput)}
-                  className="flex-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs cursor-pointer"
+                  className="flex-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs cursor-pointer"
                 >
                   Confirm Decline
                 </Button>
@@ -1085,28 +1083,28 @@ export function DistributorDashboard() {
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* ACTIVE IN-TRANSIT TABLE */}
-          <div className="lg:col-span-2 p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+          {/* ACTIVE IN-TRANSIT TABLE (White & Green) */}
+          <div className="lg:col-span-2 p-6 rounded-3xl bg-white border border-emerald-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
               <div>
-                <h4 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                  <Truck className="h-5 w-5 text-blue-600" />
+                <h4 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                  <Truck className="h-5 w-5 text-emerald-600" />
                   Active In-Transit Cargo
                 </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Produce currently loaded in your cold-chain fleet. Hand off to retailer upon arrival.
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Produce currently loaded in your fleet. Hand off to retailer upon arrival.
                 </p>
               </div>
-              <span className="text-xs font-bold px-3 py-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full border border-blue-500/20">
+              <span className="text-xs font-bold px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-200">
                 {inTransitBatches.length} Live Loads
               </span>
             </div>
 
             {inTransitBatches.length === 0 ? (
-              <div className="py-12 text-center text-slate-500 dark:text-slate-400 space-y-2">
-                <Truck className="h-10 w-10 mx-auto text-slate-300 dark:text-slate-700" />
+              <div className="py-12 text-center text-slate-500 space-y-2">
+                <Truck className="h-10 w-10 mx-auto text-emerald-300" />
                 <p className="text-sm font-semibold">No cargo currently in transit.</p>
-                <p className="text-xs max-w-sm mx-auto">
+                <p className="text-xs max-w-sm mx-auto text-slate-600">
                   Accept an incoming processor dispatch manifest or scan a batch QR code in the "Smart Handoff" dock.
                 </p>
               </div>
@@ -1115,16 +1113,16 @@ export function DistributorDashboard() {
                 {inTransitBatches.map((item) => (
                   <div
                     key={item.id}
-                    className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 dark:text-white text-base">{item.name}</span>
-                        <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-semibold border border-blue-500/20">
+                        <span className="font-bold text-slate-900 text-base">{item.name}</span>
+                        <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold border border-emerald-300">
                           {item.batch_number}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-slate-600">
                         Cargo Load: <strong>{item.quantity} kg</strong> • On-Chain ID: #{item.product_id || "N/A"}
                       </p>
                     </div>
@@ -1148,14 +1146,13 @@ export function DistributorDashboard() {
                               retailer: {
                                 destination_store: "Metro Fresh Mart Koramangala",
                                 store_location: "Metro Fresh Supermarket, 80 Feet Road, 4th Block, Koramangala, Bengaluru 560034"
-                              },
-                              cold_chain_sla: { temperature_control: "2°C to 6°C Precision Chilled" }
+                              }
                             }
                           )
                         }}
-                        className="rounded-xl text-xs gap-1 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 cursor-pointer font-bold"
+                        className="rounded-xl text-xs gap-1 border-emerald-300 text-emerald-800 hover:bg-emerald-100 cursor-pointer font-bold"
                       >
-                        <Navigation className="h-3.5 w-3.5" />
+                        <Navigation className="h-3.5 w-3.5 text-emerald-600" />
                         Route Map
                       </Button>
                       <Button
@@ -1173,45 +1170,45 @@ export function DistributorDashboard() {
             )}
           </div>
 
-          {/* TELEMETRY SIDE CARD */}
-          <div className="p-6 rounded-3xl bg-slate-950 text-white border border-slate-800 shadow-sm space-y-4">
-            <h4 className="font-bold text-sm text-white flex items-center gap-2">
-              <Snowflake className="h-4 w-4 text-cyan-400" />
-              Reefer Sensor Diagnostics
+          {/* FLEET DIAGNOSTICS CARD (White & Green) */}
+          <div className="p-6 rounded-3xl bg-white border border-emerald-200 shadow-sm space-y-4">
+            <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+              <Truck className="h-4 w-4 text-emerald-600" />
+              Delivery Fleet Telemetry
             </h4>
             <div className="space-y-2 text-xs">
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex justify-between items-center">
-                <span className="text-slate-400">Reefer Cabin Temp</span>
-                <span className="font-bold text-cyan-400 font-mono text-sm">3.8°C</span>
+              <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-150 flex justify-between items-center">
+                <span className="text-slate-600">Transit Status</span>
+                <span className="font-bold text-emerald-800 font-mono text-sm">Active On Route</span>
               </div>
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex justify-between items-center">
-                <span className="text-slate-400">Evaporator Coils</span>
-                <span className="font-bold text-emerald-400 font-mono text-sm">Active (Zone 1)</span>
+              <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-150 flex justify-between items-center">
+                <span className="text-slate-600">Engine Telematics</span>
+                <span className="font-bold text-emerald-700 font-mono text-sm">Operational (Zone 1)</span>
               </div>
-              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex justify-between items-center">
-                <span className="text-slate-400">GPS Tracker Status</span>
-                <span className="font-bold text-emerald-400 text-xs">Locked (12 Satellites)</span>
+              <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-150 flex justify-between items-center">
+                <span className="text-slate-600">GPS Tracker Status</span>
+                <span className="font-bold text-emerald-700 text-xs">Active (12 Satellites)</span>
               </div>
             </div>
-            <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-400 flex items-start gap-2">
-              <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
-              <span>All transport logs satisfy FSSAI & ISO-22000 cold-chain traceability standards.</span>
+            <div className="p-3 rounded-2xl bg-emerald-100/70 border border-emerald-200 text-[11px] text-emerald-900 flex items-start gap-2 font-medium">
+              <ShieldCheck className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
+              <span>All transport logs satisfy FSSAI & digital blockchain traceability standards.</span>
             </div>
           </div>
         </div>
 
         {/* READY AT PROCESSING PLANTS */}
-        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div className="p-6 rounded-3xl bg-white border border-emerald-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
             <div>
-              <h4 className="font-bold text-base text-slate-900 dark:text-white">
+              <h4 className="font-bold text-base text-slate-900">
                 Produce Waiting at Processing Facilities
               </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Graded and inspected lots ready for cold-chain distribution.
+              <p className="text-xs text-slate-500 mt-0.5">
+                Graded and inspected lots ready for distribution.
               </p>
             </div>
-            <span className="text-xs font-bold px-3 py-1 bg-emerald-500/10 text-emerald-600 rounded-full border border-emerald-500/20">
+            <span className="text-xs font-bold px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-200">
               {readyAtProcessors.length} Available
             </span>
           </div>
@@ -1224,7 +1221,7 @@ export function DistributorDashboard() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 text-left">
+                  <tr className="border-b border-emerald-100 text-slate-600 text-left bg-emerald-50/50">
                     <th className="py-2.5 px-3">Batch</th>
                     <th className="py-2.5 px-3">Produce</th>
                     <th className="py-2.5 px-3">Quantity</th>
@@ -1232,14 +1229,14 @@ export function DistributorDashboard() {
                     <th className="py-2.5 px-3 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tbody className="divide-y divide-emerald-100">
                   {readyAtProcessors.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="py-3 px-3 font-mono font-bold">{p.batch_number}</td>
-                      <td className="py-3 px-3 font-semibold text-slate-900 dark:text-white">{p.name}</td>
+                    <tr key={p.id} className="hover:bg-emerald-50/40 transition-colors">
+                      <td className="py-3 px-3 font-mono font-bold text-slate-900">{p.batch_number}</td>
+                      <td className="py-3 px-3 font-semibold text-slate-900">{p.name}</td>
                       <td className="py-3 px-3">{p.quantity} kg</td>
                       <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600">
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                           {p.ai_quality_label || "Grade A"}
                         </span>
                       </td>
@@ -1248,7 +1245,7 @@ export function DistributorDashboard() {
                           size="sm"
                           disabled={handoffLoading}
                           onClick={() => handleTakeCustody(p)}
-                          className="h-7 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold cursor-pointer"
+                          className="h-7 text-xs bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold cursor-pointer"
                         >
                           <Truck className="h-3 w-3 mr-1" />
                           Take Custody
@@ -1271,15 +1268,15 @@ export function DistributorDashboard() {
   const InventoryTab = () => (
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div className="lg:col-span-2 p-6 rounded-3xl bg-white border border-emerald-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
             <div>
-              <h4 className="font-bold text-base text-slate-900 dark:text-white">Distributor Custody Manifest</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Historical record of all cargo batches transferred through your cold-chain fleet.
+              <h4 className="font-bold text-base text-slate-900">Distributor Custody Manifest</h4>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Historical record of all cargo batches transferred through your fleet.
               </p>
             </div>
-            <span className="font-mono text-xs px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold">
+            <span className="font-mono text-xs px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
               {inventory.length} Records
             </span>
           </div>
@@ -1292,7 +1289,7 @@ export function DistributorDashboard() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 text-left">
+                  <tr className="border-b border-emerald-100 text-slate-600 text-left bg-emerald-50/50">
                     <th className="py-2.5 px-3">Batch & Token</th>
                     <th className="py-2.5 px-3">Crop Name</th>
                     <th className="py-2.5 px-3">Quantity</th>
@@ -1300,24 +1297,24 @@ export function DistributorDashboard() {
                     <th className="py-2.5 px-3 text-right">Custody Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tbody className="divide-y divide-emerald-100">
                   {inventory.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <tr key={item.id} className="hover:bg-emerald-50/40 transition-colors">
                       <td className="py-3 px-3">
-                        <div className="font-mono font-bold text-slate-900 dark:text-white">{item.batch_number}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">On-Chain #{item.product_id || "N/A"}</div>
+                        <div className="font-mono font-bold text-slate-900">{item.batch_number}</div>
+                        <div className="text-[10px] text-slate-500 font-mono">On-Chain #{item.product_id || "N/A"}</div>
                       </td>
-                      <td className="py-3 px-3 font-medium">{item.name}</td>
-                      <td className="py-3 px-3 font-semibold">{item.quantity} kg</td>
-                      <td className="py-3 px-3 text-slate-500">
+                      <td className="py-3 px-3 font-medium text-slate-900">{item.name}</td>
+                      <td className="py-3 px-3 font-semibold text-slate-900">{item.quantity} kg</td>
+                      <td className="py-3 px-3 text-slate-600">
                         {item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : "N/A"}
                       </td>
                       <td className="py-3 px-3 text-right">
                         <span
                           className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                             item.status === "At Retailer" || item.status === "Delivered"
-                              ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-                              : "bg-blue-500/10 text-blue-600 border border-blue-500/20"
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                              : "bg-blue-100 text-blue-800 border border-blue-300"
                           }`}
                         >
                           {item.status}
@@ -1332,18 +1329,18 @@ export function DistributorDashboard() {
         </div>
 
         {/* BATCH CONSOLIDATION & SUB-LOT SPLITTING */}
-        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-          <h4 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
-            <SplitSquareHorizontal className="h-4 w-4 text-purple-600" />
+        <div className="p-6 rounded-3xl bg-white border border-emerald-200 shadow-sm space-y-4">
+          <h4 className="font-bold text-base text-slate-900 flex items-center gap-2">
+            <SplitSquareHorizontal className="h-4 w-4 text-emerald-700" />
             Consignment Allocation
           </h4>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-600">
             Split high-volume processor pallets into smaller retail crate distributions.
           </p>
           <div className="space-y-3 text-xs">
             <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Select Parent Batch</label>
-              <select className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white">
+              <label className="font-semibold text-slate-700">Select Parent Batch</label>
+              <select className="w-full p-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900">
                 {inventory.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.batch_number} ({item.name}) - {item.quantity} kg
@@ -1353,16 +1350,16 @@ export function DistributorDashboard() {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Sub-Consignments</label>
+              <label className="font-semibold text-slate-700">Sub-Consignments</label>
               <input
                 type="number"
                 defaultValue={2}
                 min={2}
                 max={10}
-                className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                className="w-full p-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900"
               />
             </div>
-            <Button className="w-full rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white cursor-pointer mt-2">
+            <Button className="w-full rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer mt-2 shadow-xs">
               <SplitSquareHorizontal className="mr-1.5 h-4 w-4" />
               Generate Split QR Labels
             </Button>
@@ -1377,21 +1374,21 @@ export function DistributorDashboard() {
   // ==========================================
   const BlockchainTab = () => (
     <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300">
-      <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-center space-y-5">
-        <div className="h-16 w-16 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-500/20 shadow-xs">
+      <div className="p-8 rounded-3xl bg-white border border-emerald-200 shadow-sm text-center space-y-5">
+        <div className="h-16 w-16 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto border border-emerald-200 shadow-xs">
           <ShieldCheck className="h-8 w-8" />
         </div>
         <div>
-          <h3 className="text-2xl font-black text-slate-900 dark:text-white">Cryptographic Custody Handoff</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
+          <h3 className="text-2xl font-black text-slate-900">Cryptographic Custody Handoff</h3>
+          <p className="text-xs text-slate-600 max-w-md mx-auto mt-1">
             Scan a batch QR code from a Farmer or Processor to transfer cryptographic custody to your fleet on Ethereum Sepolia.
           </p>
         </div>
 
         {/* SCANNER CONTROLS */}
-        <div className="p-6 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center space-y-4">
+        <div className="p-6 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 flex flex-col items-center justify-center space-y-4">
           <QrCode className="h-10 w-10 text-emerald-600 animate-pulse" />
-          <p className="text-xs text-slate-500">Scan via camera viewfinder or upload an image file</p>
+          <p className="text-xs text-slate-600">Scan via camera viewfinder or upload an image file</p>
           <div className="flex gap-3 w-full max-w-xs">
             <Button
               type="button"
@@ -1409,9 +1406,9 @@ export function DistributorDashboard() {
               type="button"
               variant="outline"
               onClick={() => fileInputRef.current?.click()}
-              className="flex-1 rounded-xl text-xs gap-1.5 cursor-pointer"
+              className="flex-1 rounded-xl text-xs gap-1.5 border-emerald-200 text-slate-700 hover:bg-emerald-50 cursor-pointer"
             >
-              <Upload className="h-4 w-4" />
+              <Upload className="h-4 w-4 text-emerald-600" />
               Upload Image
             </Button>
           </div>
@@ -1419,33 +1416,33 @@ export function DistributorDashboard() {
 
         {/* SCANNED BATCH PREVIEW CARD */}
         {scannedBatchPreview && (
-          <div className="p-5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-500/40 text-left space-y-3 animate-in fade-in">
+          <div className="p-5 rounded-2xl bg-emerald-50/80 border border-emerald-300 text-left space-y-3 animate-in fade-in">
             <div className="flex justify-between items-start">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
                   Batch Verified
                 </span>
-                <h4 className="text-lg font-bold text-slate-900 dark:text-white mt-1.5">{scannedBatchPreview.name}</h4>
-                <p className="text-xs text-slate-500 font-mono">
+                <h4 className="text-lg font-bold text-slate-900 mt-1.5">{scannedBatchPreview.name}</h4>
+                <p className="text-xs text-slate-600 font-mono">
                   Batch: {scannedBatchPreview.batch_number} • On-Chain ID: #{scannedBatchPreview.product_id}
                 </p>
               </div>
               <button
                 onClick={() => setScannedBatchPreview(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-                <span className="text-slate-400 block text-[10px] font-bold uppercase">Weight:</span>
-                <span className="font-bold text-slate-900 dark:text-white text-sm">{scannedBatchPreview.quantity} kg</span>
+              <div className="p-3 bg-white rounded-xl border border-emerald-200">
+                <span className="text-slate-500 block text-[10px] font-bold uppercase">Weight:</span>
+                <span className="font-bold text-slate-900 text-sm">{scannedBatchPreview.quantity} kg</span>
               </div>
-              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-                <span className="text-slate-400 block text-[10px] font-bold uppercase">Status:</span>
-                <span className="font-bold text-blue-600 text-sm">{scannedBatchPreview.status}</span>
+              <div className="p-3 bg-white rounded-xl border border-emerald-200">
+                <span className="text-slate-500 block text-[10px] font-bold uppercase">Status:</span>
+                <span className="font-bold text-emerald-700 text-sm">{scannedBatchPreview.status}</span>
               </div>
             </div>
 
@@ -1462,7 +1459,7 @@ export function DistributorDashboard() {
 
         {/* SUCCESS / ERROR ALERTS */}
         {handoffSuccess && (
-          <div className="p-4 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 rounded-2xl text-xs space-y-1.5 text-left">
+          <div className="p-4 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-2xl text-xs space-y-1.5 text-left">
             <p className="font-bold flex items-center gap-1.5">
               <CheckCircle2 className="h-4 w-4 text-emerald-600" /> {handoffSuccess}
             </p>
@@ -1471,7 +1468,7 @@ export function DistributorDashboard() {
                 href={`https://sepolia.etherscan.io/tx/${handoffTxHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 underline font-mono text-[11px] text-emerald-600 hover:text-emerald-500"
+                className="inline-flex items-center gap-1 underline font-mono text-[11px] text-emerald-700 hover:text-emerald-900 font-semibold"
               >
                 View Sepolia Block Explorer ↗
               </a>
@@ -1480,7 +1477,7 @@ export function DistributorDashboard() {
         )}
 
         {handoffError && (
-          <div className="p-4 bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 rounded-2xl text-xs text-left">
+          <div className="p-4 bg-rose-50 text-rose-800 border border-rose-200 rounded-2xl text-xs text-left">
             {handoffError}
           </div>
         )}
@@ -1493,12 +1490,12 @@ export function DistributorDashboard() {
               value={handoffId}
               onChange={(e) => setHandoffId(e.target.value)}
               placeholder="Or enter batch number manually (e.g. BCH-APPLE-950801)"
-              className="flex h-11 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="flex h-11 w-full rounded-xl border border-emerald-200 bg-white px-4 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
             <Button
               onClick={() => previewBatchDetails(handoffId)}
               disabled={!handoffId || handoffLoading}
-              className="h-11 px-5 rounded-xl font-bold text-xs bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 cursor-pointer"
+              className="h-11 px-5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-xs"
             >
               {handoffLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify"}
             </Button>
@@ -1509,43 +1506,40 @@ export function DistributorDashboard() {
   )
 
   // ==========================================
-  // ROOT COMPONENT RENDER
+  // ROOT COMPONENT RENDER (WHITE & GREEN THEME)
   // ==========================================
   return (
     <div className="space-y-7">
-      {/* BESPOKE DISTRIBUTOR COMMAND BAR */}
-      <div className="relative overflow-hidden rounded-3xl bg-slate-950 text-white border border-slate-800 shadow-xl p-6 sm:p-7">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 w-60 h-60 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-
+      {/* LUMINOUS WHITE & GREEN COMMAND BAR */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-50 via-white to-emerald-50/70 border border-emerald-200 shadow-sm p-6 sm:p-7">
         <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-5">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-xs">
-                <Truck className="h-3.5 w-3.5" /> Cold-Chain Carrier Command
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-xs">
+                <Truck className="h-3.5 w-3.5 text-emerald-600" /> Distributor Logistics Command
               </span>
-              <span className="text-xs text-slate-400 font-mono">
-                Operator: <strong className="text-white">{user?.name || "Logistics Fleet"}</strong>
+              <span className="text-xs text-slate-600 font-mono">
+                Operator: <strong className="text-emerald-950 font-bold">{user?.name || "Logistics Fleet"}</strong>
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
               Fleet Operations & Distribution
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 max-w-xl">
-              Precision temperature-controlled logistics, turn-by-turn routing, and Sepolia blockchain custody handoffs.
+            <p className="text-xs sm:text-sm text-slate-600 max-w-xl">
+              Real-time crop transit logistics, GPS turn-by-turn routing, and Sepolia blockchain custody handoffs.
             </p>
           </div>
 
-          {/* DRIVER AVAILABILITY SEGMENTED TOGGLE */}
+          {/* DRIVER AVAILABILITY SEGMENTED TOGGLE (White & Green) */}
           <div className="flex flex-col items-start md:items-end gap-2 shrink-0">
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
               Fleet Trip Availability:
             </div>
-            <div className="flex items-center p-1 bg-slate-900 border border-slate-800 rounded-2xl shadow-inner">
+            <div className="flex items-center p-1 bg-white border border-emerald-200 rounded-2xl shadow-xs">
               {[
-                { id: "Available for Trip", label: "Available", dot: "bg-emerald-400", activeClass: "bg-emerald-600 text-white shadow-xs" },
-                { id: "On Route", label: "On Route", dot: "bg-amber-400", activeClass: "bg-amber-600 text-white shadow-xs" },
-                { id: "Unavailable", label: "Off Duty", dot: "bg-rose-400", activeClass: "bg-rose-600 text-white shadow-xs" }
+                { id: "Available for Trip", label: "Available", dot: "bg-emerald-500", activeClass: "bg-emerald-600 text-white shadow-xs" },
+                { id: "On Route", label: "On Route", dot: "bg-amber-500", activeClass: "bg-amber-500 text-white shadow-xs" },
+                { id: "Unavailable", label: "Off Duty", dot: "bg-slate-400", activeClass: "bg-slate-200 text-slate-800 shadow-xs" }
               ].map((opt) => {
                 const isSelected = (user?.availability_status || "Available for Trip") === opt.id
                 return (
@@ -1553,10 +1547,10 @@ export function DistributorDashboard() {
                     key={opt.id}
                     disabled={statusLoading}
                     onClick={() => updateStatus(opt.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       isSelected
                         ? opt.activeClass
-                        : "text-slate-400 hover:text-white"
+                        : "text-slate-600 hover:text-emerald-800"
                     }`}
                   >
                     <span className={`w-2 h-2 rounded-full ${opt.dot} ${isSelected ? "animate-pulse" : ""}`} />
@@ -1566,22 +1560,22 @@ export function DistributorDashboard() {
               })}
             </div>
             {statusSuccess && (
-              <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" /> Status synced with dispatchers
+              <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Status synced with dispatchers
               </span>
             )}
           </div>
         </div>
       </div>
 
-      {/* FLOATING NAVIGATION PILL DOCK */}
+      {/* FLOATING NAVIGATION PILL DOCK (White & Green) */}
       <div className="flex items-center overflow-x-auto pb-1 scrollbar-none gap-2">
         <button
           onClick={() => setActiveTab("overview")}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
             activeTab === "overview"
-              ? "bg-emerald-600 text-white shadow-emerald-500/20 shadow-md"
-              : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
+              ? "bg-emerald-600 text-white shadow-emerald-600/20 shadow-sm"
+              : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
           }`}
         >
           <Sparkles className="h-4 w-4" />
@@ -1592,14 +1586,14 @@ export function DistributorDashboard() {
           onClick={() => setActiveTab("requests")}
           className={`relative flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
             activeTab === "requests"
-              ? "bg-emerald-600 text-white shadow-emerald-500/20 shadow-md"
-              : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
+              ? "bg-emerald-600 text-white shadow-emerald-600/20 shadow-sm"
+              : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
           }`}
         >
           <Clock className="h-4 w-4" />
           Delivery Requests
           {pendingRequestsCount > 0 && (
-            <span className="ml-1 px-2 py-0.2 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 animate-pulse">
+            <span className="ml-1 px-2 py-0.2 rounded-full text-[10px] font-black bg-amber-500 text-white animate-pulse">
               {pendingRequestsCount}
             </span>
           )}
@@ -1609,14 +1603,14 @@ export function DistributorDashboard() {
           onClick={() => setActiveTab("fleet")}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
             activeTab === "fleet"
-              ? "bg-emerald-600 text-white shadow-emerald-500/20 shadow-md"
-              : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
+              ? "bg-emerald-600 text-white shadow-emerald-600/20 shadow-sm"
+              : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
           }`}
         >
           <Truck className="h-4 w-4" />
           Active Fleet & Routes
           {activeShipmentsCount > 0 && (
-            <span className="ml-1 px-2 py-0.2 rounded-full text-[10px] font-black bg-blue-500 text-white">
+            <span className="ml-1 px-2 py-0.2 rounded-full text-[10px] font-black bg-emerald-700 text-white">
               {activeShipmentsCount}
             </span>
           )}
@@ -1626,8 +1620,8 @@ export function DistributorDashboard() {
           onClick={() => setActiveTab("inventory")}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
             activeTab === "inventory"
-              ? "bg-emerald-600 text-white shadow-emerald-500/20 shadow-md"
-              : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
+              ? "bg-emerald-600 text-white shadow-emerald-600/20 shadow-sm"
+              : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
           }`}
         >
           <Package className="h-4 w-4" />
@@ -1638,8 +1632,8 @@ export function DistributorDashboard() {
           onClick={() => setActiveTab("blockchain")}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
             activeTab === "blockchain"
-              ? "bg-emerald-600 text-white shadow-emerald-500/20 shadow-md"
-              : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
+              ? "bg-emerald-600 text-white shadow-emerald-600/20 shadow-sm"
+              : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
           }`}
         >
           <QrCode className="h-4 w-4" />
@@ -1656,13 +1650,13 @@ export function DistributorDashboard() {
         {activeTab === "blockchain" && <BlockchainTab />}
       </div>
 
-      {/* LIVE CAMERA QR SCANNER MODAL */}
+      {/* LIVE CAMERA QR SCANNER MODAL (White & Green) */}
       {showScanner && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <Card className="max-w-sm w-full rounded-3xl border border-slate-800 shadow-2xl p-6 bg-slate-950 text-white space-y-4 text-center animate-in fade-in zoom-in-95">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-base flex items-center gap-2 text-emerald-400">
-                <Camera className="h-5 w-5" />
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <Card className="max-w-sm w-full rounded-3xl border border-emerald-200 shadow-2xl p-6 bg-white text-slate-900 space-y-4 text-center animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-emerald-100 pb-3">
+              <h3 className="font-bold text-base flex items-center gap-2 text-emerald-800">
+                <Camera className="h-5 w-5 text-emerald-600" />
                 Scan Batch QR Code
               </h3>
               <button
@@ -1670,20 +1664,20 @@ export function DistributorDashboard() {
                   stopLiveCamera()
                   setShowScanner(false)
                 }}
-                className="text-slate-400 hover:text-white cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="relative w-full aspect-square rounded-2xl border-2 border-dashed border-slate-700 bg-black overflow-hidden flex items-center justify-center">
+            <div className="relative w-full aspect-square rounded-2xl border-2 border-dashed border-emerald-200 bg-slate-50 overflow-hidden flex items-center justify-center">
               <div id="distributor-qr-reader" className="w-full h-full" />
               {cameraActive && (
-                <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-pulse top-1/2 z-20" />
+                <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent animate-pulse top-1/2 z-20" />
               )}
             </div>
 
-            {scannerError && <p className="text-xs text-rose-400">{scannerError}</p>}
+            {scannerError && <p className="text-xs text-rose-600">{scannerError}</p>}
 
             <Button
               onClick={() => {
@@ -1691,7 +1685,7 @@ export function DistributorDashboard() {
                 setShowScanner(false)
               }}
               variant="outline"
-              className="w-full rounded-xl text-xs border-slate-700 text-slate-300 cursor-pointer"
+              className="w-full rounded-xl text-xs border-slate-300 text-slate-700 cursor-pointer hover:bg-slate-100"
             >
               Cancel
             </Button>
@@ -1699,50 +1693,50 @@ export function DistributorDashboard() {
         </div>
       )}
 
-      {/* RETAILER STORE DELIVERY COMPLETION MODAL */}
+      {/* RETAILER STORE DELIVERY COMPLETION MODAL (White & Green) */}
       {deliveryModalItem && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <Card className="max-w-md w-full rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 bg-white dark:bg-slate-950 space-y-5 animate-in fade-in zoom-in-95">
-            <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <Card className="max-w-md w-full rounded-3xl border border-emerald-200 shadow-2xl p-6 bg-white text-slate-900 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-start border-b border-emerald-100 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600">
+                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700">
                   <Store className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-slate-900 dark:text-white">Complete Retail Delivery</h3>
+                  <h3 className="font-bold text-base text-slate-900">Complete Retail Delivery</h3>
                   <p className="text-xs text-slate-500 font-mono">Batch: {deliveryModalItem.batch_number}</p>
                 </div>
               </div>
               <button
                 onClick={() => setDeliveryModalItem(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl space-y-1.5 text-xs border border-slate-100 dark:border-slate-800">
+            <div className="p-4 bg-emerald-50/60 rounded-2xl space-y-1.5 text-xs border border-emerald-200">
               <div className="flex justify-between">
-                <span className="text-slate-500">Product:</span>
-                <span className="font-bold text-slate-900 dark:text-white">{deliveryModalItem.name}</span>
+                <span className="text-slate-600">Product:</span>
+                <span className="font-bold text-slate-900">{deliveryModalItem.name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Quantity to Hand Off:</span>
-                <span className="font-bold text-slate-900 dark:text-white">{deliveryModalItem.quantity} kg</span>
+                <span className="text-slate-600">Quantity to Hand Off:</span>
+                <span className="font-bold text-slate-900">{deliveryModalItem.quantity} kg</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">On-Chain Product ID:</span>
-                <span className="font-mono text-emerald-600 font-bold">#{deliveryModalItem.product_id || "N/A"}</span>
+                <span className="text-slate-600">On-Chain Product ID:</span>
+                <span className="font-mono text-emerald-700 font-bold">#{deliveryModalItem.product_id || "N/A"}</span>
               </div>
             </div>
 
             <div className="space-y-3 text-xs">
               <div className="space-y-1.5">
-                <label className="font-semibold text-slate-700 dark:text-slate-300">Destination Retailer Store</label>
+                <label className="font-semibold text-slate-700">Destination Retailer Store</label>
                 <select
                   value={destinationStore}
                   onChange={(e) => setDestinationStore(e.target.value)}
-                  className="flex h-10 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 text-xs text-slate-900 dark:text-white"
+                  className="flex h-10 w-full rounded-xl border border-emerald-200 bg-white px-3 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >
                   <option value="Metro Fresh Mart (Koramangala Store #104)">Metro Fresh Mart (Koramangala Store #104)</option>
                   <option value="Nature's Basket (Indiranagar Store #12)">Nature's Basket (Indiranagar Store #12)</option>
@@ -1753,28 +1747,28 @@ export function DistributorDashboard() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-semibold text-slate-700 dark:text-slate-300">Delivery Receipt Notes</label>
+                <label className="font-semibold text-slate-700">Delivery Receipt Notes</label>
                 <textarea
                   rows={2}
                   value={deliveryRemarks}
                   onChange={(e) => setDeliveryRemarks(e.target.value)}
-                  placeholder="e.g. Temperature checked at 3.8°C; intake acknowledged"
-                  className="flex w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 text-xs text-slate-900 dark:text-white"
+                  placeholder="e.g. Produce verified intact; intake acknowledged by store receiver"
+                  className="flex w-full rounded-xl border border-emerald-200 bg-white p-3 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
             </div>
 
             {deliverySuccessTx && (
-              <div className="p-3.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 rounded-xl text-xs space-y-1">
+              <div className="p-3.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl text-xs space-y-1">
                 <p className="font-bold flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4" /> Store Delivery Recorded on Sepolia!
+                  <CheckCircle className="h-4 w-4 text-emerald-600" /> Store Delivery Recorded on Sepolia!
                 </p>
-                <p className="text-[11px] text-slate-500">Status transitioned to "At Retailer" on-chain.</p>
+                <p className="text-[11px] text-slate-600">Status transitioned to "At Retailer" on-chain.</p>
               </div>
             )}
 
             {deliveryError && (
-              <div className="p-3 bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 rounded-xl text-xs">
+              <div className="p-3 bg-rose-50 text-rose-800 border border-rose-200 rounded-xl text-xs">
                 {deliveryError}
               </div>
             )}
@@ -1783,7 +1777,7 @@ export function DistributorDashboard() {
               <Button
                 variant="outline"
                 onClick={() => setDeliveryModalItem(null)}
-                className="flex-1 rounded-xl text-xs cursor-pointer"
+                className="flex-1 rounded-xl text-xs cursor-pointer border-slate-300 text-slate-700 hover:bg-slate-100"
               >
                 Cancel
               </Button>
