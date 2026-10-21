@@ -3,7 +3,7 @@ import axios from "axios"
 import {
   Package, Truck, CheckCircle, Zap, TrendingUp, QrCode,
   SplitSquareHorizontal, Clock, ShieldCheck, Camera, Upload, X, Loader2,
-  CheckCircle2, Store
+  CheckCircle2, Store, Thermometer
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
 import { Button } from "../components/ui/Button"
@@ -54,6 +54,53 @@ export function DistributorDashboard() {
 
   const [allProducts, setAllProducts] = useState<any[]>([])
 
+  // Delivery Requests state (from Processors)
+  const [deliveryRequests, setDeliveryRequests] = useState<any[]>([])
+  const [loadingRequests, setLoadingRequests] = useState(false)
+  const [requestsFilter, setRequestsFilter] = useState<"ALL" | "REQUESTED" | "IN_TRANSIT" | "DECLINED">("ALL")
+  const [respondingRequestId, setRespondingRequestId] = useState<string | null>(null)
+  const [declineModalRequest, setDeclineModalRequest] = useState<any | null>(null)
+  const [declineReasonInput, setDeclineReasonInput] = useState("Vehicle capacity currently booked on another route")
+
+  const fetchDeliveryRequests = async () => {
+    try {
+      setLoadingRequests(true)
+      const res = await axios.get(`${API_URL}/distributor/delivery-requests`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.data?.success) {
+        setDeliveryRequests(res.data.data || [])
+      }
+    } catch (err) {
+      console.warn("Could not load delivery requests", err)
+    } finally {
+      setLoadingRequests(false)
+    }
+  }
+
+  const handleRespondToRequest = async (requestId: string, action: "ACCEPT" | "DECLINE", reason?: string) => {
+    setRespondingRequestId(requestId)
+    try {
+      const res = await axios.put(
+        `${API_URL}/distributor/delivery-requests/${requestId}/respond`,
+        { action, decline_reason: reason },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (res.data?.success) {
+        await fetchDeliveryRequests()
+        await fetchInventory()
+        if (action === "ACCEPT") {
+          setActiveTab("fleet")
+        }
+      }
+    } catch (err: any) {
+      console.error("Failed to respond to delivery request", err)
+    } finally {
+      setRespondingRequestId(null)
+      setDeclineModalRequest(null)
+    }
+  }
+
   const fetchInventory = async () => {
     try {
       const [myRes, allRes] = await Promise.all([
@@ -72,6 +119,7 @@ export function DistributorDashboard() {
   useEffect(() => {
     if (token) {
       fetchInventory()
+      fetchDeliveryRequests()
     }
   }, [token])
 
@@ -256,6 +304,30 @@ export function DistributorDashboard() {
 
   const OverviewTab = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+      {/* PENDING DELIVERY REQUESTS ALERT BANNER */}
+      {deliveryRequests.filter((r) => r.status === "REQUESTED").length > 0 && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Clock className="h-6 w-6 text-amber-500 animate-pulse shrink-0" />
+            <div>
+              <p className="font-bold text-sm text-foreground">
+                {deliveryRequests.filter((r) => r.status === "REQUESTED").length} Delivery Request(s) Awaiting Your Review
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Processors have submitted cargo dispatch manifests for your cold-chain fleet. Accept or decline them.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setActiveTab("requests")}
+            className="bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shrink-0 self-start sm:self-center"
+          >
+            Review Requests
+          </Button>
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
         {stats.map((s) => (
           <Card key={s.title} className="col-span-1 border-border/50 shadow-sm">
@@ -763,6 +835,327 @@ export function DistributorDashboard() {
     }
   }
 
+  const RequestsTab = () => {
+    const pendingCount = deliveryRequests.filter((r) => r.status === "REQUESTED").length
+    const filtered = deliveryRequests.filter((r) => {
+      if (requestsFilter === "ALL") return true
+      if (requestsFilter === "REQUESTED") return r.status === "REQUESTED"
+      if (requestsFilter === "IN_TRANSIT") return r.status === "IN_TRANSIT" || r.status === "ACCEPTED"
+      if (requestsFilter === "DECLINED") return r.status === "DECLINED"
+      return true
+    })
+
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
+          <div>
+            <h3 className="text-xl font-bold flex items-center gap-2 text-foreground">
+              <Clock className="h-5 w-5 text-primary" />
+              Incoming Delivery Requests from Processors
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Review formal crop dispatch requests sent by processing facilities. Accept to take custody or decline.
+            </p>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {[
+              { id: "ALL", label: `All (${deliveryRequests.length})` },
+              { id: "REQUESTED", label: `Pending Review (${pendingCount})` },
+              {
+                id: "IN_TRANSIT",
+                label: `Accepted (${deliveryRequests.filter((r) => r.status === "IN_TRANSIT" || r.status === "ACCEPTED").length})`
+              },
+              {
+                id: "DECLINED",
+                label: `Declined (${deliveryRequests.filter((r) => r.status === "DECLINED").length})`
+              }
+            ].map((f) => (
+              <Button
+                key={f.id}
+                size="sm"
+                variant={requestsFilter === f.id ? "default" : "outline"}
+                onClick={() => setRequestsFilter(f.id as any)}
+                className="rounded-full text-xs h-7 px-3"
+              >
+                {f.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {loadingRequests ? (
+          <div className="py-20 text-center text-muted-foreground">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-2" />
+            <p className="text-sm">Fetching delivery requests...</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <Card className="p-12 text-center rounded-3xl border shadow-sm">
+            <Clock className="h-12 w-12 mx-auto text-muted-foreground/40 mb-3" />
+            <h4 className="text-base font-bold text-foreground">No Delivery Requests Found</h4>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1">
+              {requestsFilter === "REQUESTED"
+                ? "You have no pending delivery requests at the moment. All caught up!"
+                : "When a processor finishes inspecting produce and requests your cold-chain fleet for transport, the detailed manifest will appear here."}
+            </p>
+          </Card>
+        ) : (
+          <div className="grid gap-5">
+            {filtered.map((req) => {
+              const isPending = req.status === "REQUESTED"
+              const isAccepted = req.status === "IN_TRANSIT" || req.status === "ACCEPTED"
+              const isDeclined = req.status === "DECLINED"
+              const isActioning = respondingRequestId === req.id
+
+              return (
+                <Card
+                  key={req.id}
+                  className="rounded-3xl border shadow-sm hover:border-primary/40 transition-all overflow-hidden p-6 space-y-4"
+                >
+                  {/* Top Bar: Batch, Tracking ID, Status */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                          {req.batch_number}
+                        </span>
+                        <span className="font-mono text-[11px] text-muted-foreground">
+                          Tracking: {req.tracking_id}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          • {new Date(req.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <h4 className="text-xl font-bold text-foreground flex items-center gap-2 pt-0.5">
+                        {req.product_name?.includes("Tomato")
+                          ? "🍅"
+                          : req.product_name?.includes("Mango")
+                          ? "🥭"
+                          : req.product_name?.includes("Apple")
+                          ? "🍎"
+                          : "📦"}
+                        {req.product_name}
+                      </h4>
+                    </div>
+
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                        isPending
+                          ? "bg-amber-500/10 text-amber-500 border border-amber-500/30 animate-pulse"
+                          : isAccepted
+                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                          : "bg-red-500/10 text-red-400 border border-red-500/30"
+                      }`}
+                    >
+                      {isPending && <Clock className="h-3.5 w-3.5" />}
+                      {isAccepted && <CheckCircle2 className="h-3.5 w-3.5" />}
+                      {isDeclined && <X className="h-3.5 w-3.5" />}
+                      {isPending ? "Pending Your Review" : isAccepted ? "Accepted & In Transit" : "Declined"}
+                    </span>
+                  </div>
+
+                  {/* 4-Grid Specification Manifest */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    {/* Cargo Quantity */}
+                    <div className="p-3.5 rounded-2xl bg-muted/40 border space-y-1">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                        📦 Cargo Quantity
+                      </span>
+                      <p className="font-bold text-sm text-foreground">
+                        {req.quantity} {req.unit}
+                      </p>
+                      <p className="text-[11px] text-emerald-400 font-medium">Packaged Crates</p>
+                    </div>
+
+                    {/* Certified Quality & Expiry */}
+                    <div className="p-3.5 rounded-2xl bg-muted/40 border space-y-1">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                        🏅 Grade & Quality
+                      </span>
+                      <p className="font-bold text-sm text-foreground">
+                        {req.quality_label || "Grade A"} ({req.quality_score || 92}%)
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">Certified Shelf Life: {req.expiry_date || "14 Days"}</p>
+                    </div>
+
+                    {/* Route: Pickup & Destination */}
+                    <div className="p-3.5 rounded-2xl bg-muted/40 border space-y-1">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                        🏬 Destination Retailer
+                      </span>
+                      <p className="font-bold text-xs text-foreground truncate">
+                        {req.retailer?.destination_store || "Retail Supermarket Hub"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        Pickup: {req.processor?.facility_name || "Processor Facility"}
+                      </p>
+                    </div>
+
+                    {/* Cold-Chain Temp SLA */}
+                    <div className="p-3.5 rounded-2xl bg-muted/40 border space-y-1">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                        ❄️ Cold-Chain Temp SLA
+                      </span>
+                      <p className="font-bold text-xs text-emerald-400 flex items-center gap-1">
+                        <Thermometer className="h-3.5 w-3.5" />{" "}
+                        {req.cold_chain_sla?.temperature_control || "2°C to 6°C"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">Reefer Truck Guaranteed</p>
+                    </div>
+                  </div>
+
+                  {/* Processor Notes Strip */}
+                  {req.processor_notes && (
+                    <div className="p-3 rounded-xl bg-card border text-xs text-muted-foreground italic flex items-start gap-2">
+                      <span className="font-bold not-italic text-foreground shrink-0">Processor Dispatch Notes:</span>
+                      <span>"{req.processor_notes}"</span>
+                    </div>
+                  )}
+
+                  {/* Declined Notice if applicable */}
+                  {isDeclined && req.decline_reason && (
+                    <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+                      <strong>Decline Reason Provided:</strong> "{req.decline_reason}"
+                    </div>
+                  )}
+
+                  {/* Actions Bar */}
+                  {isPending && (
+                    <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isActioning}
+                        onClick={() => setDeclineModalRequest(req)}
+                        className="w-full sm:w-auto rounded-xl text-xs border-red-500/30 text-red-400 hover:bg-red-500/10"
+                      >
+                        <X className="h-3.5 w-3.5 mr-1" />
+                        Decline Delivery
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={isActioning}
+                        onClick={() => handleRespondToRequest(req.id, "ACCEPT")}
+                        className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold gap-1.5 shadow-sm"
+                      >
+                        {isActioning ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Recording Acceptance...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Accept Delivery & Start Route
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
+                  {isAccepted && (
+                    <div className="flex items-center justify-between pt-2 border-t text-xs">
+                      <span className="text-emerald-400 font-medium flex items-center gap-1.5">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Custody accepted! This cargo is in your transit inventory.
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setActiveTab("fleet")}
+                        className="rounded-xl text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                      >
+                        <Truck className="h-3.5 w-3.5" />
+                        View in Fleet & Deliver to Store
+                      </Button>
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
+          </div>
+        )}
+
+        {/* DECLINE REASON MODAL */}
+        {declineModalRequest && (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+            <Card className="max-w-md w-full rounded-3xl border border-zinc-800 bg-zinc-900 text-white shadow-2xl p-6 space-y-4">
+              <div className="flex justify-between items-start border-b border-zinc-800 pb-3">
+                <div>
+                  <h3 className="font-bold text-base text-red-400 flex items-center gap-2">
+                    <X className="h-5 w-5" />
+                    Decline Delivery Request
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Provide a reason so the processor can reassign this batch ({declineModalRequest.batch_number}) to
+                    another carrier.
+                  </p>
+                </div>
+                <button onClick={() => setDeclineModalRequest(null)} className="text-zinc-400 hover:text-white">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                  Select or Enter Reason
+                </label>
+                <div className="space-y-1.5">
+                  {[
+                    "Vehicle capacity currently booked on another route",
+                    "Reefer temperature unit under scheduled maintenance",
+                    "Destination store outside active delivery radius",
+                    "Insufficient driver hours for today's shift"
+                  ].map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setDeclineReasonInput(r)}
+                      className={`w-full text-left text-xs p-2.5 rounded-xl border transition-all ${
+                        declineReasonInput === r
+                          ? "bg-red-500/20 border-red-500/50 text-white font-semibold"
+                          : "bg-zinc-950 border-zinc-800 text-zinc-300 hover:bg-zinc-800"
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  rows={2}
+                  value={declineReasonInput}
+                  onChange={(e) => setDeclineReasonInput(e.target.value)}
+                  placeholder="Or enter custom reason..."
+                  className="w-full p-3 rounded-xl border border-zinc-700 bg-zinc-950 text-white text-xs focus:outline-none focus:ring-2 focus:ring-red-400"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setDeclineModalRequest(null)}
+                  className="flex-1 rounded-xl border-zinc-700 text-zinc-300 hover:text-white"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() =>
+                    handleRespondToRequest(declineModalRequest.id, "DECLINE", declineReasonInput)
+                  }
+                  className="flex-1 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs"
+                >
+                  Confirm Decline
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-8">
       {/* HEADER BAR */}
@@ -804,6 +1197,19 @@ export function DistributorDashboard() {
           Overview
         </Button>
         <Button
+          variant={activeTab === "requests" ? "default" : "outline"}
+          onClick={() => setActiveTab("requests")}
+          className="rounded-full px-6 text-xs relative"
+        >
+          <Clock className="mr-2 h-4 w-4" />
+          Delivery Requests
+          {deliveryRequests.filter((r) => r.status === "REQUESTED").length > 0 && (
+            <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-black animate-pulse">
+              {deliveryRequests.filter((r) => r.status === "REQUESTED").length}
+            </span>
+          )}
+        </Button>
+        <Button
           variant={activeTab === "fleet" ? "default" : "outline"}
           onClick={() => setActiveTab("fleet")}
           className="rounded-full px-6 text-xs"
@@ -832,6 +1238,7 @@ export function DistributorDashboard() {
       {/* TAB CONTENT */}
       <div className="mt-6">
         {activeTab === "overview" && <OverviewTab />}
+        {activeTab === "requests" && <RequestsTab />}
         {activeTab === "fleet" && <FleetTab />}
         {activeTab === "inventory" && <InventoryTab />}
         {activeTab === "blockchain" && <BlockchainTab />}

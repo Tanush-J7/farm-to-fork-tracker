@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../co
 import {
   Factory, AlertCircle, Search, ShieldCheck, Camera, Brain, Clock, User, MapPin,
   Star, Package, Truck, Loader2, QrCode, Upload, Printer, Video, VideoOff, Download, X,
-  Trash2, Scale, Lock, CheckCircle, Store, Thermometer, Phone, ExternalLink, CheckCircle2
+  Trash2, Scale, Lock, CheckCircle, Store, Thermometer, Phone, ExternalLink, CheckCircle2, Send
 } from "lucide-react"
 import { Html5Qrcode } from "html5-qrcode"
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
@@ -99,6 +99,8 @@ interface ProcessingBatch {
   destinationStore?: string
   blockchainTx?: string
   trackingId?: string
+  deliveryRequestStatus?: "REQUESTED" | "ACCEPTED" | "DECLINED" | "IN_TRANSIT"
+  declineReason?: string
   packagingFormat?: string
   storageTemp?: string
   logisticsMode?: string
@@ -360,6 +362,7 @@ export function ProcessorDashboard() {
   useEffect(() => {
     fetchProducts()
     fetchDistributors()
+    syncDeliveryRequests()
     
     // Interests
     const storedInterests = localStorage.getItem("processor_interests")
@@ -1009,6 +1012,50 @@ export function ProcessorDashboard() {
     }
   }
 
+  const syncDeliveryRequests = async () => {
+    try {
+      const res = await axios.get(`${API}/processor/delivery-requests`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.data?.success && res.data.data) {
+        const serverRequests: any[] = res.data.data
+        setBatches((prevBatches) => {
+          let hasChanges = false
+          const nextBatches = { ...prevBatches }
+          Object.keys(nextBatches).forEach((batchId) => {
+            const b = nextBatches[batchId]
+            const matchedReq = serverRequests.find(
+              (r) => r.batch_number === b.batchId || r.product_id === b.productId
+            )
+            if (matchedReq) {
+              if (
+                b.deliveryRequestStatus !== matchedReq.status ||
+                (matchedReq.status === "DECLINED" && b.declineReason !== matchedReq.decline_reason)
+              ) {
+                hasChanges = true
+                nextBatches[batchId] = {
+                  ...b,
+                  deliveryRequestStatus: matchedReq.status,
+                  declineReason: matchedReq.decline_reason,
+                  distributorName: matchedReq.distributor?.name || b.distributorName,
+                  distributorId: matchedReq.distributor?.id || b.distributorId,
+                  trackingId: matchedReq.tracking_id || b.trackingId
+                }
+              }
+            }
+          })
+          if (hasChanges) {
+            localStorage.setItem("processor_batches", JSON.stringify(nextBatches))
+            return nextBatches
+          }
+          return prevBatches
+        })
+      }
+    } catch {
+      // silent
+    }
+  }
+
   const openDispatchModal = (batch: ProcessingBatch) => {
     setDispatchModalBatch(batch)
     setDispatchSuccessResult(null)
@@ -1030,45 +1077,48 @@ export function ProcessorDashboard() {
     if (!dispatchModalBatch || !selectedDistributorId) return
     setDispatchLoading(true)
     try {
-      const chosenDist = availableDistributors.find(d => d.id === selectedDistributorId)
-      const chosenRet = availableRetailers.find(r => r.id === selectedRetailerId)
+      const chosenDist = availableDistributors.find((d) => d.id === selectedDistributorId)
+      const chosenRet = availableRetailers.find((r) => r.id === selectedRetailerId)
       const targetStoreName = selectedDestinationStore || chosenRet?.name || "Metro Fresh Mart Koramangala Store #104"
 
-      let txHash: string | null = null
-      let trackingId = `TRK-${Date.now()}`
+      let trackingId = `REQ-${Date.now()}`
 
-      // Call Backend API
+      // Call Backend API to send formal delivery request to distributor
       try {
         const res = await axios.post(
-          `${API}/processor/assign-distributor`,
+          `${API}/processor/request-delivery`,
           {
             product_id: dispatchModalBatch.productId,
             distributor_id: selectedDistributorId,
             retailer_id: selectedRetailerId || undefined,
             destination_store: targetStoreName,
-            dispatch_notes: dispatchNotesInput
+            pickup_location: processorAddress || "Processor Processing Facility",
+            required_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+            temperature_sla: "2°C to 6°C Precision Chilled",
+            dispatch_notes: dispatchNotesInput,
+            quantity: dispatchModalBatch.processedQuantity || dispatchModalBatch.originalProduct.quantity
           },
           { headers: { Authorization: `Bearer ${token}` } }
         )
         if (res.data?.success && res.data.data) {
           trackingId = res.data.data.tracking_id || trackingId
-          txHash = res.data.data.blockchain_hash || null
         }
       } catch (apiErr) {
-        console.warn("Backend API assign-distributor error, proceeding with local update:", apiErr)
+        console.warn("Backend API request-delivery warning, proceeding with local update:", apiErr)
       }
 
       // Update batch in local state & localStorage
       const updatedBatch: ProcessingBatch = {
         ...dispatchModalBatch,
-        distributor: chosenDist?.fleet_name || chosenDist?.name || "Apex Reefer Logistics",
+        distributor: chosenDist?.fleet_name || chosenDist?.name || "Distributor Fleet",
         distributorId: selectedDistributorId,
-        distributorName: chosenDist?.name || "Apex Reefer Logistics",
+        distributorName: chosenDist?.name || "Distributor",
         distributorVehicle: chosenDist?.vehicle_number || "KA-04-E2941",
         destinationHub: targetStoreName,
         destinationStore: targetStoreName,
         trackingId: trackingId,
-        blockchainTx: txHash || undefined
+        deliveryRequestStatus: "REQUESTED",
+        declineReason: undefined
       }
 
       const updatedBatches = { ...batches, [dispatchModalBatch.batchId]: updatedBatch }
@@ -1076,7 +1126,7 @@ export function ProcessorDashboard() {
       localStorage.setItem("processor_batches", JSON.stringify(updatedBatches))
 
       addLog(
-        `Dispatched Batch ${dispatchModalBatch.batchId} via ${chosenDist?.name || 'Distributor'} (${chosenDist?.vehicle_number || 'KA-04-E2941'}) to ${targetStoreName}`,
+        `Dispatched Delivery Request for Batch ${dispatchModalBatch.batchId} to ${chosenDist?.name || 'Distributor'} (${targetStoreName})`,
         "Transferred",
         dispatchModalBatch.productId,
         dispatchModalBatch.batchId
@@ -1084,11 +1134,11 @@ export function ProcessorDashboard() {
 
       setDispatchSuccessResult({
         tracking_id: trackingId,
-        blockchain_hash: txHash,
-        message: `Batch ${dispatchModalBatch.batchId} successfully assigned to ${chosenDist?.name || 'Distributor'} for cold-chain transit to ${targetStoreName}`
+        blockchain_hash: null,
+        message: `Delivery request for Batch ${dispatchModalBatch.batchId} successfully sent to ${chosenDist?.name || 'Distributor'}. The distributor will review and choose to accept or decline.`
       })
     } catch (err: any) {
-      console.error("Failed to assign distributor", err)
+      console.error("Failed to send delivery request", err)
     } finally {
       setDispatchLoading(false)
     }
@@ -1758,7 +1808,7 @@ export function ProcessorDashboard() {
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
                               <div className="flex items-center gap-2">
                                 <Truck className="h-4 w-4 text-emerald-400" />
-                                <span className="font-bold text-sm text-foreground">Logistics Carrier & Delivery Assignment</span>
+                                <span className="font-bold text-sm text-foreground">Logistics Handshake & Delivery Request</span>
                               </div>
                               <Button
                                 size="sm"
@@ -1770,16 +1820,66 @@ export function ProcessorDashboard() {
                                     : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm"
                                 }`}
                               >
-                                <Truck className="h-3.5 w-3.5" />
-                                {b.distributorName ? "Reassign / View Carrier" : "Select Available Distributor"}
+                                <Send className="h-3.5 w-3.5" />
+                                {b.deliveryRequestStatus === "REQUESTED"
+                                  ? "Resend / Change Carrier"
+                                  : b.deliveryRequestStatus === "DECLINED"
+                                  ? "Send to Another Distributor"
+                                  : b.distributorName
+                                  ? "View Carrier Request"
+                                  : "Send Delivery Request"}
                               </Button>
                             </div>
 
-                            {b.distributorName ? (
+                            {/* State 1: REQUESTED / Pending Distributor Acceptance */}
+                            {b.deliveryRequestStatus === "REQUESTED" ? (
+                              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2 text-xs">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <span className="font-bold text-amber-400 flex items-center gap-1.5">
+                                    <Clock className="h-4 w-4 animate-pulse" />
+                                    Delivery Request Sent — Waiting for Distributor Review
+                                  </span>
+                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                    Tracking: {b.trackingId || `REQ-${b.batchId}`}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground pt-1">
+                                  <div>Carrier: <strong className="text-foreground">{b.distributorName}</strong> ({b.distributorVehicle})</div>
+                                  <div>Destination: <strong className="text-foreground">{b.destinationStore}</strong></div>
+                                  <div>Status: <span className="text-amber-400 font-semibold">Distributor Notified</span></div>
+                                </div>
+                                <p className="text-[11px] text-zinc-400 italic">
+                                  The distributor will review pickup facility, temperature SLA, and route in their dashboard to accept or decline.
+                                </p>
+                              </div>
+                            ) : b.deliveryRequestStatus === "DECLINED" ? (
+                              /* State 2: DECLINED by Distributor */
+                              <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 space-y-2 text-xs">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <span className="font-bold text-red-400 flex items-center gap-1.5">
+                                    <X className="h-4 w-4" />
+                                    Delivery Request Declined by Distributor ({b.distributorName})
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => openDispatchModal(b)}
+                                    className="bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs h-7 px-3 font-semibold"
+                                  >
+                                    Select Another Carrier
+                                  </Button>
+                                </div>
+                                {b.declineReason && (
+                                  <p className="text-xs text-red-300">
+                                    <strong>Distributor Note:</strong> "{b.declineReason}"
+                                  </p>
+                                )}
+                              </div>
+                            ) : b.distributorName ? (
+                              /* State 3: ACCEPTED / In Transit */
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                                 <div className="space-y-0.5">
                                   <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
-                                    🚚 Assigned Carrier
+                                    🚚 Accepted Carrier
                                   </span>
                                   <p className="font-bold text-foreground text-sm">{b.distributorName}</p>
                                   <p className="font-mono text-[11px] text-emerald-400">{b.distributorVehicle || "KA-04-E2941"} (Cold-Chain Reefer)</p>
@@ -1806,25 +1906,26 @@ export function ProcessorDashboard() {
                                       Sepolia: {b.blockchainTx.slice(0, 10)}... <ExternalLink className="h-3 w-3 inline" />
                                     </a>
                                   ) : (
-                                    <span className="text-[11px] text-muted-foreground">Custody recorded on chain</span>
+                                    <span className="text-[11px] text-emerald-400">Custody verified on chain</span>
                                   )}
                                 </div>
                               </div>
                             ) : (
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-500">
+                              /* State 4: Not yet requested */
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400">
                                 <div className="flex items-center gap-2">
-                                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
+                                  <AlertCircle className="h-4 w-4 shrink-0 text-blue-400" />
                                   <span>
-                                    <strong>Awaiting Distributor Assignment:</strong> Hand over this processed cargo to an available cold-chain logistics partner to deliver directly to the retailer.
+                                    <strong>Ready for Delivery Handshake:</strong> Send a formal delivery dispatch request with pickup, crop manifest, and temperature SLA specs to a distributor.
                                   </span>
                                 </div>
                                 <Button
                                   size="sm"
                                   onClick={() => openDispatchModal(b)}
-                                  className="bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shrink-0 h-8 gap-1.5"
+                                  className="bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shrink-0 h-8 gap-1.5"
                                 >
-                                  <Truck className="h-3.5 w-3.5" />
-                                  Assign Distributor Now
+                                  <Send className="h-3.5 w-3.5" />
+                                  Send Delivery Request
                                 </Button>
                               </div>
                             )}
@@ -2894,11 +2995,11 @@ export function ProcessorDashboard() {
             <div className="flex justify-between items-start border-b border-zinc-800 pb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <Truck className="h-5 w-5 text-emerald-400" />
-                  <CardTitle className="text-xl font-bold">Assign Cold-Chain Distributor</CardTitle>
+                  <Send className="h-5 w-5 text-emerald-400" />
+                  <CardTitle className="text-xl font-bold">Send Delivery Request to Distributor</CardTitle>
                 </div>
                 <CardDescription className="text-zinc-400 text-xs mt-1">
-                  Connect Batch <strong className="text-zinc-200 font-mono">{dispatchModalBatch.batchId}</strong> ({dispatchModalBatch.originalProduct.name}) with an available logistics carrier to deliver to the destination retailer.
+                  Send complete crop manifest, cold-chain temperature SLA, and destination retailer store to the distributor. The distributor will review and decide whether to accept or decline the delivery.
                 </CardDescription>
               </div>
               <button
@@ -2914,13 +3015,19 @@ export function ProcessorDashboard() {
                 <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-2 text-emerald-300">
                   <div className="flex items-center gap-2 font-bold text-base text-emerald-400">
                     <CheckCircle2 className="h-5 w-5" />
-                    <span>Dispatch Manifest Confirmed!</span>
+                    <span>Delivery Request Dispatched to Distributor!</span>
                   </div>
                   <p className="text-xs text-zinc-300">{dispatchSuccessResult.message}</p>
                   <div className="p-3 bg-black/40 rounded-xl space-y-1.5 font-mono text-xs text-zinc-300 mt-2">
                     <div className="flex justify-between">
-                      <span className="text-zinc-500">Tracking Number:</span>
+                      <span className="text-zinc-500">Request Tracking ID:</span>
                       <span className="font-bold text-emerald-400">{dispatchSuccessResult.tracking_id}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Status:</span>
+                      <span className="font-semibold text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded text-[11px]">
+                        Awaiting Distributor Acceptance
+                      </span>
                     </div>
                     {dispatchSuccessResult.blockchain_hash && (
                       <div className="flex justify-between items-center gap-2">
@@ -2967,10 +3074,10 @@ export function ProcessorDashboard() {
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
                       <Truck className="h-3.5 w-3.5 text-emerald-400" />
-                      1. Select Available Cold-Chain Logistics Carrier
+                      1. Select Distributor Logistics Carrier
                     </label>
                     <span className="text-[11px] text-emerald-400 font-medium">
-                      {availableDistributors.filter(d => d.current_status === "AVAILABLE").length} Fleet Units Available
+                      {availableDistributors.length} Registered Carrier{availableDistributors.length === 1 ? "" : "s"}
                     </span>
                   </div>
 
@@ -3108,12 +3215,12 @@ export function ProcessorDashboard() {
                     {dispatchLoading ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Relaying Handover to Sepolia...
+                        Sending Delivery Request...
                       </>
                     ) : (
                       <>
-                        <Truck className="h-4 w-4" />
-                        Confirm & Dispatch via Distributor
+                        <Send className="h-4 w-4" />
+                        Send Delivery Request to Distributor
                       </>
                     )}
                   </Button>

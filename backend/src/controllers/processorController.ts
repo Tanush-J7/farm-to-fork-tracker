@@ -271,7 +271,17 @@ export const getAvailableDistributors = async (req: Request, res: Response): Pro
       'APMC Electronic City Terminal'
     ];
 
-    const rawDistributors = distRes.data || [];
+    // Filter out dummy/test accounts so only real registered distributor accounts are returned
+    const isRealAccount = (u: any) => {
+      const email = (u.email || '').toLowerCase();
+      const name = (u.name || '').toLowerCase();
+      if (email.includes('example.com') || email.includes('@t.com') || email.includes('@test.com')) return false;
+      if (/_\d{10,}@/.test(email)) return false;
+      if (/dist\d/i.test(name) && /\d{4,}/.test(name)) return false;
+      return true;
+    };
+
+    const rawDistributors = (distRes.data || []).filter(isRealAccount);
 
     // Map each real distributor account to their live operational profile
     const processedDistributors = rawDistributors.map((d) => {
@@ -474,6 +484,214 @@ export const assignDistributor = async (req: Request, res: Response): Promise<vo
         shipment
       }
     });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+/**
+ * POST /api/processor/request-delivery
+ * Processor sends a formal delivery dispatch request to a distributor.
+ * The request is recorded with status 'REQUESTED'.
+ * The distributor will view the full manifest and decide whether to accept or decline.
+ */
+export const sendDeliveryRequest = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const {
+      product_id,
+      distributor_id,
+      retailer_id,
+      destination_store,
+      pickup_location,
+      required_date,
+      temperature_sla,
+      dispatch_notes,
+      quantity
+    } = req.body;
+    const processorId = (req as any).user?.id;
+
+    if (!product_id || !distributor_id) {
+      res.status(400).json({ success: false, message: 'product_id and distributor_id are required' });
+      return;
+    }
+
+    // 1. Fetch product & processor
+    const [prodRes, distRes, procRes] = await Promise.all([
+      supabase.from('products').select('*').or(`id.eq.${product_id},batch_number.eq.${product_id}`).limit(1).maybeSingle(),
+      supabase.from('users').select('*').eq('id', distributor_id).single(),
+      supabase.from('users').select('*').eq('id', processorId).single()
+    ]);
+
+    const product = prodRes.data;
+    const distributor = distRes.data;
+    const processor = procRes.data;
+
+    if (!product) {
+      res.status(404).json({ success: false, message: 'Product batch not found' });
+      return;
+    }
+
+    if (!distributor) {
+      res.status(404).json({ success: false, message: 'Distributor not found' });
+      return;
+    }
+
+    const trackingId = `REQ-${Date.now()}`;
+    const targetStore = destination_store || 'Metro Fresh Mart Koramangala Store #104';
+    const pickupLoc = pickup_location || processor?.address || 'Processor Central Processing Hub';
+    const tempSla = temperature_sla || '2°C to 6°C Precision Chilled';
+    const notes = dispatch_notes || 'Cold-chain SLA verified. Quality certified batch ready for cargo transfer.';
+
+    // 2. Create shipment with status 'REQUESTED'
+    const { data: shipment, error: shipErr } = await supabase
+      .from('shipments')
+      .insert({
+        shipment_tracking_id: trackingId,
+        batch_number: product.batch_number,
+        product_id: product.id,
+        distributor_id: distributor_id,
+        receiver_id: retailer_id || distributor_id,
+        sender_id: processorId,
+        quantity: quantity || product.quantity,
+        unit: 'kg',
+        status: 'REQUESTED',
+        expected_delivery: required_date || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      })
+      .select()
+      .single();
+
+    if (shipErr) {
+      res.status(500).json({ success: false, message: 'Failed to create delivery request', error: shipErr.message });
+      return;
+    }
+
+    // 3. Log traceability event with full manifest metadata
+    await supabase.from('traceability_events').insert({
+      product_id: product.id,
+      batch_number: product.batch_number,
+      event_type: 'DELIVERY_REQUEST',
+      actor_id: processorId,
+      location: targetStore,
+      metadata: {
+        shipment_id: shipment.id,
+        tracking_id: trackingId,
+        distributor_id: distributor.id,
+        distributor_name: distributor.name,
+        processor_id: processorId,
+        processor_name: processor?.name || 'Processor',
+        pickup_location: pickupLoc,
+        destination_store: targetStore,
+        required_date: required_date || null,
+        temperature_sla: tempSla,
+        dispatch_notes: notes,
+        requested_at: new Date().toISOString()
+      }
+    });
+
+    // 4. Send notification to distributor
+    await supabase.from('notifications').insert({
+      user_id: distributor.id,
+      type: 'DELIVERY_REQUEST',
+      title: 'Incoming Delivery Request',
+      message: `Processor ${processor?.name || 'Admin'} requested delivery for Batch ${product.batch_number} (${product.name}, ${product.quantity} kg) to ${targetStore}`,
+      related_entity_type: 'shipment',
+      related_entity_id: shipment.id
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Delivery request for Batch ${product.batch_number} sent to ${distributor.name}. Awaiting distributor acceptance.`,
+      data: {
+        shipment_id: shipment.id,
+        tracking_id: trackingId,
+        status: 'REQUESTED',
+        product_id: product.id,
+        batch_number: product.batch_number,
+        distributor: {
+          id: distributor.id,
+          name: distributor.name,
+          email: distributor.email
+        },
+        destination_store: targetStore,
+        pickup_location: pickupLoc,
+        temperature_sla: tempSla,
+        notes
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+/**
+ * GET /api/processor/delivery-requests
+ * Returns all delivery requests sent by the logged-in processor with live status.
+ */
+export const getProcessorDeliveryRequests = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const processorId = (req as any).user?.id;
+    if (!processorId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const { data: shipments, error } = await supabase
+      .from('shipments')
+      .select('*')
+      .eq('sender_id', processorId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      res.status(500).json({ success: false, message: 'Failed to fetch processor delivery requests', error: error.message });
+      return;
+    }
+
+    const distIds = (shipments || []).map((s) => s.distributor_id).filter(Boolean);
+    const prodIds = (shipments || []).map((s) => s.product_id).filter(Boolean);
+
+    const [distRes, prodRes, eventsRes] = await Promise.all([
+      distIds.length > 0 ? supabase.from('users').select('id, name, email').in('id', distIds) : { data: [] },
+      prodIds.length > 0 ? supabase.from('products').select('*').in('id', prodIds) : { data: [] },
+      prodIds.length > 0
+        ? supabase.from('traceability_events').select('*').in('product_id', prodIds).in('event_type', ['DELIVERY_REQUEST', 'DELIVERY_ACCEPTED', 'DELIVERY_DECLINED'])
+        : { data: [] }
+    ]);
+
+    const distMap = new Map((distRes.data || []).map((d) => [d.id, d]));
+    const prodMap = new Map((prodRes.data || []).map((p) => [p.id, p]));
+
+    const result = (shipments || []).map((s) => {
+      const dist = distMap.get(s.distributor_id);
+      const prod = prodMap.get(s.product_id);
+      const relatedEvents = (eventsRes.data || []).filter((e) => e.product_id === s.product_id);
+      const reqEvent = relatedEvents.find((e) => e.event_type === 'DELIVERY_REQUEST');
+      const declineEvent = relatedEvents.find((e) => e.event_type === 'DELIVERY_DECLINED');
+      const meta = reqEvent?.metadata || {};
+
+      return {
+        id: s.id,
+        tracking_id: s.shipment_tracking_id,
+        status: s.status, // REQUESTED, ACCEPTED, IN_TRANSIT, DELIVERED, DECLINED
+        batch_number: s.batch_number,
+        product_id: s.product_id,
+        product_name: prod?.name || 'Produce Batch',
+        quantity: s.quantity,
+        unit: s.unit || 'kg',
+        created_at: s.created_at,
+        distributor: {
+          id: dist?.id,
+          name: dist?.name || 'Distributor',
+          email: dist?.email
+        },
+        destination_store: meta.destination_store || 'Metro Fresh Mart Koramangala Store #104',
+        pickup_location: meta.pickup_location || 'Processor Processing Facility',
+        temperature_sla: meta.temperature_sla || '2°C to 6°C Precision Chilled',
+        dispatch_notes: meta.dispatch_notes,
+        decline_reason: declineEvent?.metadata?.decline_reason || null
+      };
+    });
+
+    res.status(200).json({ success: true, data: result });
   } catch (error: any) {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }

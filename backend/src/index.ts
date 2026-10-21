@@ -7,6 +7,7 @@ import authRoutes from './routes/authRoutes';
 import adminRoutes from './routes/adminRoutes';
 import retailerRoutes from './routes/retailerRoutes';
 import processorRoutes from './routes/processorRoutes';
+import distributorRoutes from './routes/distributorRoutes';
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/retailer', retailerRoutes);
 app.use('/api/processor', processorRoutes);
+app.use('/api/distributor', distributorRoutes);
 
 app.listen(PORT, () => {
   console.log(`Backend server running on port ${PORT}`);
