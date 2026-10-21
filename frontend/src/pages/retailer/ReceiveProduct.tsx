@@ -1,14 +1,14 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
 import axios from "axios"
 import { useAuth } from "../../context/AuthContext"
-import { Html5QrcodeScanner } from "html5-qrcode"
+import { Html5QrcodeScanner, Html5Qrcode } from "html5-qrcode"
+import jsQR from "jsqr"
 import {
   QrCode,
   AlertCircle,
   CheckCircle2,
   Package,
-  Search,
   Truck,
   Factory,
   CheckCircle,
@@ -16,7 +16,10 @@ import {
   Loader2,
   ExternalLink,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  Upload,
+  Camera,
+  Scale
 } from "lucide-react"
 
 const API_URL = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
@@ -84,31 +87,106 @@ export function ReceiveProduct() {
     if (token) fetchEligibleShipments()
   }, [token, urlShipmentId])
 
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
-    if (scanning && selectedShipment) {
-      const scanner = new Html5QrcodeScanner(
+    let scanner: any = null
+    if (scanning) {
+      scanner = new Html5QrcodeScanner(
         "qr-reader",
         { fps: 10, qrbox: { width: 250, height: 250 } },
         false
       )
 
       scanner.render(
-        async (decodedText) => {
-          scanner.pause(true)
-          await handleVerification(decodedText)
-          scanner.clear()
+        async (decodedText: string) => {
+          try {
+            await scanner.pause(true)
+          } catch (e) {}
           setScanning(false)
+          try {
+            await scanner.clear()
+          } catch (e) {}
+          await handleVerification(decodedText)
         },
         () => {
           // scanning
         }
       )
+    }
 
-      return () => {
-        scanner.clear().catch(console.error)
+    return () => {
+      if (scanner) {
+        try {
+          scanner.clear().catch(console.error)
+        } catch (e) {}
       }
     }
-  }, [scanning, selectedShipment])
+  }, [scanning])
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setVerificationError("")
+    const objectUrl = URL.createObjectURL(file)
+    const img = new Image()
+
+    img.onload = async () => {
+      // 1. Native BarcodeDetector
+      if ("BarcodeDetector" in window) {
+        try {
+          const barcodeDetector = new (window as any).BarcodeDetector({ formats: ["qr_code"] })
+          const barcodes = await barcodeDetector.detect(img)
+          if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+            URL.revokeObjectURL(objectUrl)
+            handleVerification(barcodes[0].rawValue)
+            return
+          }
+        } catch (err) {}
+      }
+
+      // 2. jsQR Canvas Direct Scan
+      try {
+        const canvas = document.createElement("canvas")
+        canvas.width = img.naturalWidth || img.width
+        canvas.height = img.naturalHeight || img.height
+        const ctx = canvas.getContext("2d", { willReadFrequently: true })
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+          const code =
+            jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" }) ||
+            jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" })
+          if (code && code.data) {
+            URL.revokeObjectURL(objectUrl)
+            handleVerification(code.data)
+            return
+          }
+        }
+      } catch (err) {}
+
+      // 3. Html5Qrcode scanFile fallback
+      try {
+        const html5Qr = new Html5Qrcode("hidden-retailer-qr-reader")
+        const result = await html5Qr.scanFile(file, false)
+        if (result) {
+          URL.revokeObjectURL(objectUrl)
+          handleVerification(result)
+          return
+        }
+      } catch (err) {}
+
+      URL.revokeObjectURL(objectUrl)
+      setVerificationError("Could not detect a valid Delivery QR code in this image. Please upload a clear photo or enter the token.")
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      setVerificationError("Invalid image file format. Please upload a PNG or JPEG photo.")
+    }
+
+    img.src = objectUrl
+  }
 
   const handleVerification = async (qrData: string) => {
     setVerifying(true)
@@ -117,12 +195,12 @@ export function ReceiveProduct() {
     setComparisonData(null)
     setDiscrepancySuccess(false)
 
-    // 1. First attempt full Delivery QR verification (with side-by-side snapshot)
     try {
       const dlvRes = await axios.post(
         `${API_URL}/retailer/verify-delivery-qr`,
         {
           shipment_id: selectedShipment || undefined,
+          qr_data: qrData,
           qr_code: qrData
         },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -140,26 +218,18 @@ export function ReceiveProduct() {
           blockchain_hash: comp.blockchain_hash
         })
         setAcceptedQty(comp.expected?.quantity || 100)
+        if (comp.shipment_id && !selectedShipment) {
+          setSelectedShipment(comp.shipment_id)
+        }
         return
+      } else {
+        setVerificationError(dlvRes.data?.message || "Delivery QR verification failed.")
       }
     } catch (dlvErr: any) {
-      console.warn("verify-delivery-qr fallback to standard verify-batch:", dlvErr)
-    }
-
-    // 2. Fallback: verify-batch
-    try {
-      const res = await axios.post(
-        `${API_URL}/retailer/verify-batch`,
-        {
-          shipment_id: selectedShipment,
-          qr_data: qrData
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
+      setVerificationError(
+        dlvErr.response?.data?.message ||
+        "Invalid Delivery QR. The carrier driver must generate the Delivery Handoff QR upon arrival at your receiving bay."
       )
-      setVerifiedData(res.data.data)
-      setAcceptedQty(res.data.data?.quantity || 100)
-    } catch (err: any) {
-      setVerificationError(err.response?.data?.message || "Verification failed.")
     } finally {
       setVerifying(false)
     }
@@ -226,15 +296,19 @@ export function ReceiveProduct() {
   const handleManualEntry = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const form = e.target as HTMLFormElement
-    const input = form.elements.namedItem("batch_number") as HTMLInputElement
-    if (input.value) {
+    const input = form.elements.namedItem("delivery_token") as HTMLInputElement
+    const val = input?.value?.trim()
+    if (val) {
       setScanning(false)
-      handleVerification(input.value)
+      handleVerification(val)
     }
   }
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      {/* Hidden container for Html5Qrcode file scan */}
+      <div id="hidden-retailer-qr-reader" style={{ display: "none" }}></div>
+
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Receive Product & Dual-QR Verification</h1>
         <p className="text-sm text-slate-500">
@@ -254,144 +328,174 @@ export function ReceiveProduct() {
 
       {!verifiedData ? (
         <div className="grid md:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <Package className="h-5 w-5 text-emerald-600" /> Select Incoming Shipment
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <Package className="h-4 w-4 text-emerald-600" /> Select Incoming Shipment (Optional)
             </h3>
 
             {loading ? (
-              <div className="p-4 text-center text-sm text-slate-500 bg-slate-50 rounded-xl">
+              <div className="p-4 text-center text-xs text-slate-500 bg-slate-50 rounded-xl">
                 Loading incoming shipments...
               </div>
             ) : error ? (
-              <div className="p-4 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-xl">
+              <div className="p-4 text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-xl">
                 {error}
               </div>
             ) : shipments.length === 0 ? (
-              <div className="p-4 text-center text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-xl">
-                No shipments ready to receive (status IN_TRANSIT, ARRIVED, or DELIVERED).
+              <div className="p-4 text-center text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl">
+                No shipments awaiting intake (status IN_TRANSIT, ARRIVED, or DELIVERED).
               </div>
             ) : (
               <select
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/50 text-sm font-medium text-slate-900"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/50 text-xs font-semibold text-slate-900"
                 value={selectedShipment}
                 onChange={(e) => setSelectedShipment(e.target.value)}
               >
-                <option value="">-- Choose an incoming shipment --</option>
+                <option value="">-- Or scan any arriving Delivery QR below --</option>
                 {shipments.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.shipment_tracking_id} - {s.product_name || s.product?.name || s.request?.product_name || s.batch_number} ({s.quantity} {s.unit})
+                    Tracking #{s.shipment_tracking_id} ({s.quantity} {s.unit})
                   </option>
                 ))}
               </select>
             )}
 
-            {selectedShipment && (
-              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2.5">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-bold text-emerald-950 capitalize">
-                    {(() => {
-                      const found = shipments.find((s) => s.id === selectedShipment)
-                      return found?.product_name || found?.product?.name || found?.request?.product_name || (found?.batch_number ? `Batch #${found.batch_number}` : "Produce Cargo")
-                    })()}
-                  </span>
-                  <span className="font-mono text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200 font-bold">
-                    Batch: {shipments.find((s) => s.id === selectedShipment)?.batch_number}
-                  </span>
-                </div>
+            {/* LOCKED CUSTODY SECURITY NOTICE (DO NOT REVEAL DETAILS PRIOR TO QR SCAN) */}
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                  Cargo Manifest Sealed
+                </span>
+                <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full border border-amber-300 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  Distributor QR Required
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Physical commodity details, origin processor records, and vehicle credentials are encrypted until the arriving carrier driver's <strong>Delivery QR</strong> is scanned.
+              </p>
+              <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/80 flex items-center gap-1">
+                <span>Driver presents QR code upon dock arrival. Details will unlock once scanned.</span>
+              </div>
+            </div>
 
-                <div className="text-[11px] text-emerald-900 space-y-0.5">
-                  <div>
-                    Carrier: <strong>{shipments.find((s) => s.id === selectedShipment)?.distributor?.name || "Assigned Carrier"}</strong>
-                  </div>
-                  {shipments.find((s) => s.id === selectedShipment)?.expected_delivery && (
-                    <div>Expected: {new Date(shipments.find((s) => s.id === selectedShipment)?.expected_delivery).toLocaleDateString()}</div>
-                  )}
-                </div>
-
+            {/* SCANNER ACTIONS */}
+            <div className="pt-2 space-y-2.5">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    const sh = shipments.find((s) => s.id === selectedShipment)
-                    if (sh) handleVerification(sh.batch_number)
-                  }}
+                  onClick={() => setScanning(!scanning)}
                   disabled={verifying}
-                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer"
+                  className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-3 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
                 >
-                  {verifying ? "Verifying On-Chain..." : "⚡ Quick Verify Delivery & Produce"}
+                  <Camera className="h-4 w-4" /> {scanning ? "Close Camera" : "Live Camera Scan"}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={verifying}
+                  className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 px-3 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                >
+                  <Upload className="h-4 w-4 text-emerald-600" /> Upload QR Photo
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
               </div>
-            )}
 
-            <div className="pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setScanning(!scanning)}
-                disabled={!selectedShipment || verifying}
-                className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-500 text-white px-4 py-3 rounded-xl text-sm font-bold transition-colors cursor-pointer"
-              >
-                <QrCode className="h-4 w-4" /> {scanning ? "Stop Scanner" : "Scan Delivery Handoff QR"}
-              </button>
+              <div className="relative pt-1">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-slate-200" />
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase font-bold">
+                  <span className="bg-white px-2 text-slate-400">Or Enter Carrier Delivery Token</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleManualEntry} className="flex gap-2">
+                <input
+                  name="delivery_token"
+                  type="text"
+                  placeholder="e.g. DLV_... or paste QR payload"
+                  disabled={verifying}
+                  className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 bg-white font-mono"
+                />
+                <button
+                  type="submit"
+                  disabled={verifying}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify QR"}
+                </button>
+              </form>
             </div>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-slate-200" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-slate-400">Or enter token / batch</span>
-              </div>
-            </div>
-
-            <form onSubmit={handleManualEntry} className="flex gap-2">
-              <input
-                name="batch_number"
-                type="text"
-                placeholder="Enter DLV_... or Batch Number"
-                disabled={!selectedShipment || verifying}
-                className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-50 font-mono"
-              />
-              <button
-                type="submit"
-                disabled={!selectedShipment || verifying}
-                className="px-4 py-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-bold rounded-xl text-xs transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                Verify
-              </button>
-            </form>
           </div>
 
-          <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 flex flex-col items-center justify-center min-h-[350px]">
+          {/* RIGHT COLUMN: SCANNER / SCANNING STATUS */}
+          <div className="bg-slate-50 rounded-3xl border border-slate-200 p-6 flex flex-col items-center justify-center min-h-[360px]">
             {scanning ? (
-              <div className="w-full max-w-[300px]">
-                <div id="qr-reader" className="w-full overflow-hidden rounded-xl border-2 border-emerald-500 shadow-lg"></div>
-                <p className="text-center text-xs text-slate-500 mt-4">Point your camera at the Distributor's delivery QR code.</p>
+              <div className="w-full max-w-[320px] text-center space-y-3">
+                <div id="qr-reader" className="w-full overflow-hidden rounded-2xl border-2 border-emerald-500 shadow-md"></div>
+                <p className="text-xs text-slate-500">
+                  Align camera with the <strong>Delivery Handoff QR</strong> on the carrier driver's device.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setScanning(false)}
+                  className="text-xs text-slate-600 hover:text-slate-900 underline font-medium cursor-pointer"
+                >
+                  Cancel camera
+                </button>
               </div>
             ) : verifying ? (
               <div className="text-center space-y-3">
-                <Search className="h-10 w-10 text-emerald-500 animate-pulse mx-auto" />
-                <p className="text-sm font-medium text-slate-700">Verifying on Sepolia blockchain...</p>
+                <div className="h-12 w-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+                  <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+                </div>
+                <p className="text-sm font-bold text-slate-900">Authenticating Delivery QR...</p>
+                <p className="text-xs text-slate-500">Decrypting manifest and validating on Sepolia blockchain.</p>
               </div>
             ) : verificationError ? (
-              <div className="text-center space-y-3 w-full">
-                <div className="mx-auto h-16 w-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center">
-                  <AlertCircle className="h-8 w-8" />
+              <div className="text-center space-y-3 w-full max-w-sm">
+                <div className="mx-auto h-14 w-14 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center">
+                  <AlertCircle className="h-7 w-7" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900">Verification Failed</h3>
-                <p className="text-xs text-rose-600 bg-rose-50 p-3 rounded-xl border border-rose-200 mx-auto">{verificationError}</p>
+                <h3 className="text-sm font-bold text-slate-900">QR Authentication Failed</h3>
+                <p className="text-xs text-rose-700 bg-rose-50 p-3 rounded-xl border border-rose-200 leading-relaxed">
+                  {verificationError}
+                </p>
                 <button
                   onClick={() => setVerificationError("")}
-                  className="mt-2 px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                  className="mt-1 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
                 >
                   Try Again
                 </button>
               </div>
             ) : (
-              <div className="text-center opacity-50 space-y-2">
-                <QrCode className="h-14 w-14 mx-auto text-slate-400" />
-                <p className="text-sm font-medium text-slate-500">Scanner is inactive.</p>
-                <p className="text-xs text-slate-400 max-w-xs">
-                  Choose a shipment from the left or scan the Delivery QR code presented by the carrier driver.
-                </p>
+              <div className="text-center space-y-3 max-w-xs">
+                <div className="h-14 w-14 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center mx-auto text-emerald-600">
+                  <QrCode className="h-7 w-7" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">Scan Delivery QR to Inspect</h4>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Cargo details and processor manifests will be revealed here immediately after the carrier's Delivery QR is scanned.
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setScanning(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-colors cursor-pointer"
+                  >
+                    <Camera className="h-3.5 w-3.5" /> Open Scanner
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -504,7 +608,26 @@ export function ReceiveProduct() {
 
           {/* SIDE-BY-SIDE COMPARISON CARDS */}
           {comparisonData ? (
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-4">
+              {comparisonData.expected?.has_weight_discrepancy && (
+                <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-900 space-y-1.5">
+                  <div className="font-bold flex items-center gap-2 text-amber-950">
+                    <Scale className="h-4 w-4 text-amber-600" />
+                    <span>Carrier Loading Bay Scale Weight Variance Noted</span>
+                    <span className="ml-auto font-mono text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-950">
+                      Delta: {comparisonData.expected.weight_discrepancy > 0 ? `+${comparisonData.expected.weight_discrepancy}` : comparisonData.expected.weight_discrepancy} {comparisonData.expected.unit || "kg"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-800">
+                    Distributor platform scale weighed <strong>{comparisonData.expected.quantity} {comparisonData.expected.unit}</strong> (manifest was {comparisonData.expected.manifest_quantity} {comparisonData.expected.unit}).
+                    {comparisonData.expected.distributor_remarks && (
+                      <span className="block mt-1 font-medium">Carrier Observations: "{comparisonData.expected.distributor_remarks}"</span>
+                    )}
+                  </p>
+                </div>
+              )}
+
+              <div className="grid md:grid-cols-2 gap-4">
               {/* Card 1: Prior Processor Dispatch Notice */}
               <div className="p-5 rounded-2xl bg-indigo-50/60 border border-indigo-200 space-y-3">
                 <div className="flex items-center justify-between border-b border-indigo-200 pb-2">
@@ -603,7 +726,8 @@ export function ReceiveProduct() {
                 </div>
               </div>
             </div>
-          ) : (
+          </div>
+        ) : (
             /* Fallback Produce Cards */
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
               <div>

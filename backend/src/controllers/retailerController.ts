@@ -1077,23 +1077,24 @@ export const getDashboardData = async (req: Request, res: Response): Promise<voi
 export const verifyDeliveryQR = async (req: Request, res: Response): Promise<void> => {
   try {
     const retailer_id = (req as any).user?.id;
-    const { qr_data, shipment_id } = req.body;
+    const rawData = req.body.qr_data || req.body.qr_code || req.body.token || req.body.delivery_token;
+    const shipment_id = req.body.shipment_id;
 
     if (!retailer_id) {
       res.status(401).json({ success: false, message: 'Unauthorized' });
       return;
     }
 
-    if (!qr_data && !shipment_id) {
-      res.status(400).json({ success: false, message: 'QR data or shipment ID is required' });
+    if (!rawData && !shipment_id) {
+      res.status(400).json({ success: false, message: 'Distributor Delivery QR scan or token is required' });
       return;
     }
 
-    let token = qr_data;
+    let token = String(rawData || '').trim();
     let targetShipmentId = shipment_id;
     try {
-      const parsed = typeof qr_data === 'string' && qr_data.startsWith('{') ? JSON.parse(qr_data) : null;
-      if (parsed) {
+      if (token.startsWith('{')) {
+        const parsed = JSON.parse(token);
         token = parsed.delivery_token || token;
         targetShipmentId = parsed.shipment_id || targetShipmentId;
       }
@@ -1162,7 +1163,13 @@ export const verifyDeliveryQR = async (req: Request, res: Response): Promise<voi
         .order('created_at', { ascending: false })
     ]);
 
-    const product = prodRes.data;
+    let product = prodRes.data;
+    if (!product && shipment.batch_number) {
+      const { data: pByBatch } = await supabase.from('products').select('*').eq('batch_number', shipment.batch_number).maybeSingle();
+      product = pByBatch;
+    }
+    const resolvedProductName = product?.name || 'Fresh Produce';
+
     const events = eventsRes.data || [];
 
     const pickupQrEvent = events.find((e) => e.event_type === 'PICKUP_QR_GENERATED');
@@ -1189,19 +1196,23 @@ export const verifyDeliveryQR = async (req: Request, res: Response): Promise<voi
         shipment_id: shipment.id,
         tracking_id: shipment.shipment_tracking_id,
         batch_number: shipment.batch_number,
-        delivery_token: token,
+        delivery_token: token || deliveryMeta.delivery_token,
         status: shipment.status,
         blockchain_verified: Boolean(product?.blockchain_hash),
         blockchain_hash: product?.blockchain_hash,
         // Side-by-Side: 1. Expected Baseline (From Processor's Dispatch Notice)
         expected: {
-          product_name: product?.name || 'Produce Batch',
+          product_name: resolvedProductName,
           batch_number: shipment.batch_number,
-          quantity: shipment.quantity,
+          quantity: verifiedMeta.verified_quantity || shipment.quantity,
+          manifest_quantity: verifiedMeta.manifest_quantity || shipment.quantity,
+          weight_discrepancy: verifiedMeta.weight_discrepancy || 0,
+          has_weight_discrepancy: Boolean(verifiedMeta.has_discrepancy),
+          distributor_remarks: verifiedMeta.remarks || verifiedMeta.notes || '',
           unit: shipment.unit || 'kg',
-          quality_grade: product?.ai_quality_label || 'Grade A',
+          quality_grade: (product?.ai_quality_label && product.ai_quality_label.toUpperCase() !== 'UNKNOWN') ? product.ai_quality_label : 'Grade A',
           quality_score: product?.ai_quality_score || 94,
-          expiry_date: product?.expiry_date,
+          expiry_date: product?.expiry_date || shipment.expected_delivery,
           processor_name: procProfile.business_name,
           processor_license: procProfile.license_number,
           processor_phone: procProfile.phone,
@@ -1214,6 +1225,7 @@ export const verifyDeliveryQR = async (req: Request, res: Response): Promise<voi
         // Side-by-Side: 2. Physical Delivery at Dock (From Distributor's QR & Driver)
         arrived: {
           scanned_batch_number: shipment.batch_number,
+          product_name: resolvedProductName,
           arrived_carrier: distProfile?.business_name || 'Carrier',
           arrived_vehicle: arrivedVehicle,
           driver_name: deliveryMeta.driver_name || verifiedMeta.driver_name || 'Driver',
