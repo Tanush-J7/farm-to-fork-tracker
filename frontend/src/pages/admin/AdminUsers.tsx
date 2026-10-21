@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import axios from "axios"
 import { useAuth } from "../../context/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/Card"
-import { User, Edit, Save, X, Trash2, Download, Search, Eye } from "lucide-react"
+import { User, Edit, Save, X, Trash2, Download, Search, Eye, ShieldCheck, Users } from "lucide-react"
 import { Button } from "../../components/ui/Button"
+import { AdminProfileRequests } from "../../components/admin/AdminProfileRequests"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
@@ -20,6 +21,9 @@ interface AdminUser {
 export function AdminUsers() {
   const { token } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = searchParams.get("tab") === "approvals" ? "approvals" : "users"
+
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -111,17 +115,42 @@ export function AdminUsers() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">User Directory</h1>
-          <p className="text-muted-foreground">Manage all users in the FarmChain ecosystem.</p>
+          <h1 className="text-3xl font-bold tracking-tight">User & Facility Management</h1>
+          <p className="text-muted-foreground">Manage ecosystem users, accounts, and facility profile verification requests.</p>
         </div>
-        <Button onClick={handleExportCSV} variant="outline" className="flex items-center gap-2">
-          <Download className="h-4 w-4" /> Export CSV
+        {activeTab === "users" && (
+          <Button onClick={handleExportCSV} variant="outline" className="flex items-center gap-2">
+            <Download className="h-4 w-4" /> Export CSV
+          </Button>
+        )}
+      </div>
+
+      {/* SUB-TABS */}
+      <div className="flex overflow-x-auto pb-1 gap-2 border-b">
+        <Button
+          variant={activeTab === "users" ? "default" : "outline"}
+          onClick={() => setSearchParams({})}
+          className="rounded-full px-5 text-xs font-semibold gap-2"
+        >
+          <Users className="h-3.5 w-3.5" />
+          Registered Users Directory
+        </Button>
+        <Button
+          variant={activeTab === "approvals" ? "default" : "outline"}
+          onClick={() => setSearchParams({ tab: "approvals" })}
+          className="rounded-full px-5 text-xs font-semibold gap-2"
+        >
+          <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+          Facility Profile Approvals
         </Button>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2">
-          <CardTitle>Registered Users ({filteredUsers.length})</CardTitle>
+      {activeTab === "approvals" ? (
+        <AdminProfileRequests />
+      ) : (
+        <Card>
+          <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-2">
+            <CardTitle>Registered Users ({filteredUsers.length})</CardTitle>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -233,6 +262,7 @@ export function AdminUsers() {
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   )
 }

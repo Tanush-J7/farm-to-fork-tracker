@@ -1,5 +1,6 @@
 import express from 'express';
 import { getDashboardStats, getAllUsers, updateUserRole, getBlockchainHealth, getAnalytics, deleteUser, approveProduct, getUserDetails, getProductDetails } from '../controllers/adminController';
+import { getAdminProfileRequests, reviewProfileRequest } from '../controllers/profileController';
 import { protect, authorize } from '../middleware/auth';
 
 const router = express.Router();
@@ -16,5 +17,9 @@ router.put('/users/:id/role', updateUserRole);
 router.delete('/users/:id', deleteUser);
 router.put('/products/:id/approve', approveProduct);
 router.get('/blockchain-health', getBlockchainHealth);
+
+// Profile verification and approval routes
+router.get('/profile-requests', getAdminProfileRequests);
+router.put('/profile-requests/:id/review', reviewProfileRequest);
 
 export default router;

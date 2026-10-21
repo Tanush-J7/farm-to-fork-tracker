@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
 import { blockchainRelayer } from '../services/blockchainRelayer';
+import { getActiveProfile } from '../services/profileService';
 
 /**
  * GET /api/processor/requests
@@ -537,16 +538,17 @@ export const sendDeliveryRequest = async (req: Request, res: Response): Promise<
     }
 
     const trackingId = `REQ-${Date.now()}`;
-    const cleanPickup = (!pickup_location || pickup_location === 'Processing Facility' || pickup_location === 'Processor Processing Facility')
-      ? (processor?.name ? `${processor.name} Agro-Processing Depot, APMC Yard, Yeshwanthpur, Bengaluru 560022` : 'Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru, Karnataka 560022')
-      : pickup_location;
 
-    const cleanTargetStore = (!destination_store || destination_store === 'John')
-      ? "John's Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru, Karnataka 560034"
-      : destination_store;
+    // Look up verified active profile locations
+    const processorProfile = await getActiveProfile(processorId);
+    const retailerProfile = retailer_id ? await getActiveProfile(retailer_id) : null;
 
-    const targetStore = cleanTargetStore;
-    const pickupLoc = cleanPickup;
+    // The verified profile location is the definitive source of truth
+    const pickupLoc = processorProfile.address;
+    const targetStore = retailerProfile
+      ? `${retailerProfile.business_name}, ${retailerProfile.address}`
+      : (destination_store || "Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru, Karnataka 560034");
+
     const tempSla = temperature_sla || '2°C to 6°C Precision Chilled';
     const notes = dispatch_notes || 'Cold-chain SLA verified. Quality certified batch ready for cargo transfer.';
 
@@ -586,7 +588,15 @@ export const sendDeliveryRequest = async (req: Request, res: Response): Promise<
         distributor_id: distributor.id,
         distributor_name: distributor.name,
         processor_id: processorId,
-        processor_name: processor?.name || 'Processor',
+        processor_name: processorProfile.business_name || processor?.name || 'Processor',
+        processor_phone: processorProfile.phone,
+        processor_license: processorProfile.license_number,
+        processor_coordinates: processorProfile.coordinates,
+        retailer_id: retailer_id || null,
+        retailer_name: retailerProfile?.business_name || null,
+        retailer_phone: retailerProfile?.phone || null,
+        retailer_license: retailerProfile?.license_number || null,
+        retailer_coordinates: retailerProfile?.coordinates || null,
         pickup_location: pickupLoc,
         destination_store: targetStore,
         required_date: required_date || null,

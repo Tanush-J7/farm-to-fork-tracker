@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react"
+import { useSearchParams } from "react-router-dom"
 import axios from "axios"
 import { useAuth } from "../context/AuthContext"
 import { ShoppingBag, TrendingDown, ShieldCheck, QrCode, Tag, Truck, RefreshCw, Star, BarChart3, Package, Store } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
 import { Button } from "../components/ui/Button"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts"
+import { ProfileManagementSection } from "../components/profile/ProfileManagementSection"
 
 const API_URL = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
@@ -20,9 +22,18 @@ const demandForecast = [
 
 export function RetailerDashboard() {
   const { user, token } = useAuth()
-  const [activeTab, setActiveTab] = useState("overview")
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialTab = searchParams.get("tab") || "overview"
+  const [activeTab, setActiveTab] = useState(initialTab)
   const [inventory, setInventory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const tab = searchParams.get("tab")
+    if (tab && ["overview", "receiving", "inventory", "restock", "profile"].includes(tab)) {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
 
   // Handoff state
   const [handoffId, setHandoffId] = useState("")
@@ -363,9 +374,13 @@ export function RetailerDashboard() {
           <Package className="mr-2 h-4 w-4" />
           Smart Inventory
         </Button>
-        <Button variant={activeTab === "restock" ? "default" : "outline"} onClick={() => setActiveTab("restock")} className="rounded-full px-6">
+        <Button variant={activeTab === "restock" ? "default" : "outline"} onClick={() => { setActiveTab("restock"); setSearchParams({ tab: "restock" }); }} className="rounded-full px-6">
           <RefreshCw className="mr-2 h-4 w-4" />
           Restocking
+        </Button>
+        <Button variant={activeTab === "profile" ? "default" : "outline"} onClick={() => { setActiveTab("profile"); setSearchParams({ tab: "profile" }); }} className="rounded-full px-6">
+          <ShieldCheck className="mr-2 h-4 w-4 text-emerald-500" />
+          Store Profile & Compliance
         </Button>
       </div>
 
@@ -374,6 +389,7 @@ export function RetailerDashboard() {
         {activeTab === "receiving" && <ReceivingTab />}
         {activeTab === "inventory" && <InventoryTab />}
         {activeTab === "restock" && <RestockingTab />}
+        {activeTab === "profile" && <ProfileManagementSection role="retailer" />}
       </div>
     </div>
   )

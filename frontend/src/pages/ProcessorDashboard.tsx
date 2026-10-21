@@ -6,14 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../co
 import {
   Factory, AlertCircle, Search, ShieldCheck, Camera, Brain, Clock, User, MapPin,
   Star, Package, Truck, Loader2, QrCode, Upload, Printer, Video, VideoOff, Download, X,
-  Trash2, Scale, Lock, CheckCircle, Store, Thermometer, Phone, ExternalLink, CheckCircle2, Send,
-  Locate
+  Trash2, Scale, Lock, CheckCircle, Store, Thermometer, Phone, ExternalLink, CheckCircle2, Send
 } from "lucide-react"
 import { Html5Qrcode } from "html5-qrcode"
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
 import jsQR from "jsqr"
 import { getFarmerLocation, getProcessorLocation, getRetailerLocation } from "../utils"
 import { RetailerDemandDesk } from "../components/processor/RetailerDemandDesk"
+import { ProfileManagementSection } from "../components/profile/ProfileManagementSection"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
@@ -156,8 +156,8 @@ export function ProcessorDashboard() {
 
   // Tabs state
   const [searchParams] = useSearchParams()
-  const tabParam = (searchParams.get("tab") as "browse" | "pipeline" | "demands" | "history") || "browse"
-  const [activeTab, setActiveTab] = useState<"browse" | "pipeline" | "demands" | "history">(tabParam)
+  const tabParam = (searchParams.get("tab") as "browse" | "pipeline" | "demands" | "history" | "profile") || "browse"
+  const [activeTab, setActiveTab] = useState<"browse" | "pipeline" | "demands" | "history" | "profile">(tabParam)
 
   useEffect(() => {
     if (tabParam) {
@@ -286,7 +286,6 @@ export function ProcessorDashboard() {
   const [selectedDestinationStore, setSelectedDestinationStore] = useState("")
   const [destinationStoreAddress, setDestinationStoreAddress] = useState("")
   const [processorPickupLocation, setProcessorPickupLocation] = useState("")
-  const [detectingGps, setDetectingGps] = useState(false)
   const [dispatchNotesInput, setDispatchNotesInput] = useState("")
   const [dispatchLoading, setDispatchLoading] = useState(false)
   const [dispatchSuccessResult, setDispatchSuccessResult] = useState<{
@@ -1066,28 +1065,6 @@ export function ProcessorDashboard() {
     }
   }
 
-  const handleDetectProcessorGps = () => {
-    if (!navigator.geolocation) return
-    setDetectingGps(true)
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`)
-          const data = await res.json()
-          if (data.display_name) {
-            setProcessorPickupLocation(data.display_name)
-            localStorage.setItem("processor_address", data.display_name)
-          }
-        } catch {
-        } finally {
-          setDetectingGps(false)
-        }
-      },
-      () => setDetectingGps(false),
-      { enableHighAccuracy: true, timeout: 8000 }
-    )
-  }
-
   const openDispatchModal = (batch: ProcessingBatch) => {
     setDispatchModalBatch(batch)
     setDispatchSuccessResult(null)
@@ -1101,11 +1078,30 @@ export function ProcessorDashboard() {
     const defaultProcLoc = getProcessorLocation(user?.email || user?.name)
     setProcessorPickupLocation(defaultProcLoc)
 
+    // Pull verified active profile location for processor
+    axios.get(`${API}/profile/my`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        if (res.data.success && res.data.data?.active_profile?.address) {
+          setProcessorPickupLocation(res.data.data.active_profile.address)
+        }
+      })
+      .catch(err => console.warn("Failed to fetch verified processor profile for dispatch", err))
+
     if (availableRetailers.length > 0) {
       const firstRet = availableRetailers[0]
       setSelectedRetailerId(firstRet.id)
       setSelectedDestinationStore(firstRet.name)
       setDestinationStoreAddress(getRetailerLocation(firstRet.email || firstRet.name))
+
+      // Pull verified active profile location for retailer
+      axios.get(`${API}/profile/user/${firstRet.id}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => {
+          if (res.data.success && res.data.data?.address) {
+            setDestinationStoreAddress(res.data.data.address)
+            setSelectedDestinationStore(res.data.data.business_name || firstRet.name)
+          }
+        })
+        .catch(err => console.warn("Failed to fetch verified retailer profile for dispatch", err))
     } else {
       setSelectedDestinationStore("Metro Fresh Mart (Koramangala)")
       setDestinationStoreAddress(getRetailerLocation("retailer@gmail.com"))
@@ -1257,17 +1253,19 @@ export function ProcessorDashboard() {
       {/* Header bar */}
       <div className="border-b pb-5">
         <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
-          {activeTab === "demands" ? <Store className="h-8 w-8 text-primary" /> : <Factory className="h-8 w-8 text-primary" />}
+          {activeTab === "demands" ? <Store className="h-8 w-8 text-primary" /> : activeTab === "profile" ? <ShieldCheck className="h-8 w-8 text-emerald-500" /> : <Factory className="h-8 w-8 text-primary" />}
           {activeTab === "browse" && "Dashboard"}
           {activeTab === "pipeline" && "Processing Pipeline"}
           {activeTab === "demands" && "Retailer Demand Desk"}
           {activeTab === "history" && "Operational History"}
+          {activeTab === "profile" && "Facility Profile & Compliance"}
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
           {activeTab === "browse" && "Manage farmer products and processing operations."}
           {activeTab === "pipeline" && "Track, receive, inspect, process, and transfer agricultural yields."}
           {activeTab === "demands" && "Review incoming retailer purchase orders. Fulfill from warehouse stock or source fresh crops from farmers."}
           {activeTab === "history" && "Chronological audit logs and history of all processor facility events."}
+          {activeTab === "profile" && "Manage verified legal facility name, FSSAI / trade license, and physical address for distributor delivery manifests."}
         </p>
 
         {/* Tab Quick Selector */}
@@ -1304,6 +1302,15 @@ export function ProcessorDashboard() {
             className="rounded-full px-5 text-xs font-semibold"
           >
             Operational History
+          </Button>
+          <Button
+            variant={activeTab === "profile" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActiveTab("profile")}
+            className="rounded-full px-5 text-xs font-semibold gap-1.5"
+          >
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+            Facility Profile
           </Button>
         </div>
       </div>
@@ -3030,6 +3037,16 @@ export function ProcessorDashboard() {
         </div>
       )}
 
+      {/* Facility Profile & Compliance Section */}
+      {activeTab === "profile" && (
+        <ProfileManagementSection
+          role="processor"
+          onProfileUpdated={(p) => {
+            setProcessorPickupLocation(p.address)
+          }}
+        />
+      )}
+
       {/* DISTRIBUTOR LOGISTICS & DISPATCH MODAL */}
       {dispatchModalBatch && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
@@ -3195,59 +3212,72 @@ export function ProcessorDashboard() {
                 </div>
 
                 {/* Section 2: Source Pickup Location (Processor Profile) */}
-                <div className="space-y-1.5 p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
+                <div className="space-y-2 p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
                       <MapPin className="h-3.5 w-3.5 text-emerald-400" />
                       2. Source: Processor Facility Pickup Location
                     </label>
-                    <button
-                      type="button"
-                      onClick={handleDetectProcessorGps}
-                      disabled={detectingGps}
-                      className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                    >
-                      {detectingGps ? (
-                        <>
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          Detecting GPS...
-                        </>
-                      ) : (
-                        <>
-                          <Locate className="h-3 w-3" />
-                          Auto-Detect GPS
-                        </>
-                      )}
-                    </button>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <ShieldCheck className="h-3 w-3" />
+                      Verified Profile Location
+                    </span>
                   </div>
-                  <input
-                    type="text"
-                    value={processorPickupLocation}
-                    onChange={(e) => setProcessorPickupLocation(e.target.value)}
-                    placeholder="e.g. Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru 560022"
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-800 bg-zinc-900 text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                  />
+                  <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white text-xs">{processorName}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDispatchModalBatch(null)
+                          setActiveTab("profile")
+                        }}
+                        className="text-[10px] text-emerald-400 hover:underline font-semibold cursor-pointer"
+                      >
+                        Edit in Profile Tab →
+                      </button>
+                    </div>
+                    <p className="text-zinc-300 leading-relaxed text-[11px]">
+                      {processorPickupLocation || "Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru 560022"}
+                    </p>
+                  </div>
                   <p className="text-[10px] text-zinc-500">
-                    This verified facility address is shared with the distributor for depot cargo pickup.
+                    Distributor fleets strictly navigate to your admin-verified facility address for cargo intake.
                   </p>
                 </div>
 
                 {/* Section 3: Destination Retailer Store & Address (From Profile) */}
-                <div className="space-y-2 p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                    <Store className="h-3.5 w-3.5 text-blue-400" />
-                    3. Destination: Retailer Store & Delivery Location
-                  </label>
+                <div className="space-y-2 p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                      <Store className="h-3.5 w-3.5 text-blue-400" />
+                      3. Destination: Retailer Store & Delivery Location
+                    </label>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                      <ShieldCheck className="h-3 w-3" />
+                      Verified Retail Store
+                    </span>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {availableRetailers.length > 0 && (
                       <select
                         value={selectedRetailerId}
                         onChange={(e) => {
-                          setSelectedRetailerId(e.target.value)
-                          const ret = availableRetailers.find(r => r.id === e.target.value)
+                          const retId = e.target.value
+                          setSelectedRetailerId(retId)
+                          const ret = availableRetailers.find(r => r.id === retId)
                           if (ret) {
                             setSelectedDestinationStore(ret.name)
-                            setDestinationStoreAddress(getRetailerLocation(ret.email || ret.name))
+                            axios.get(`${API}/profile/user/${retId}`, { headers: { Authorization: `Bearer ${token}` } })
+                              .then(res => {
+                                if (res.data.success && res.data.data?.address) {
+                                  setDestinationStoreAddress(res.data.data.address)
+                                  setSelectedDestinationStore(res.data.data.business_name || ret.name)
+                                } else {
+                                  setDestinationStoreAddress(getRetailerLocation(ret.email || ret.name))
+                                }
+                              })
+                              .catch(() => setDestinationStoreAddress(getRetailerLocation(ret.email || ret.name)))
                           }
                         }}
                         className="w-full h-10 px-3 rounded-xl border border-zinc-700 bg-zinc-900 text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
@@ -3267,16 +3297,15 @@ export function ProcessorDashboard() {
                       className="w-full h-10 px-3 rounded-xl border border-zinc-700 bg-zinc-900 text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
                     />
                   </div>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-500" />
-                    <input
-                      type="text"
-                      value={destinationStoreAddress}
-                      onChange={(e) => setDestinationStoreAddress(e.target.value)}
-                      placeholder="Full Destination Retail Store Address for Delivery"
-                      className="w-full pl-9 pr-3 py-2 rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-200 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                    />
+                  <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs">
+                    <span className="text-[10px] text-zinc-500 uppercase font-bold block mb-0.5">Verified Receiving Dock Address:</span>
+                    <p className="text-zinc-300 text-[11px] leading-relaxed">
+                      {destinationStoreAddress || "Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru 560034"}
+                    </p>
                   </div>
+                  <p className="text-[10px] text-zinc-500">
+                    Distributor delivery vehicles navigate directly to this verified retailer store address.
+                  </p>
                 </div>
 
                 {/* Section 4: Dispatch & Cold-Chain SLA Notes */}

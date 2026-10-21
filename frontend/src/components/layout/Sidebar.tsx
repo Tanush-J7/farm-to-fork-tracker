@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
   LayoutDashboard, Leaf, PackageSearch, Truck,
-  Factory, LogOut, BarChart3, Menu, X, Edit3, Camera, MapPin, Locate, Loader2, CheckCircle2, Clock, QrCode, Trash2, ShoppingCart, Package, DollarSign, RefreshCw, AlertTriangle, LinkIcon, Wand2, Store
+  Factory, LogOut, BarChart3, Menu, X, Edit3, Camera, MapPin, Locate, Loader2, CheckCircle2, Clock, QrCode, Trash2, ShoppingCart, Package, DollarSign, RefreshCw, AlertTriangle, LinkIcon, Wand2, Store, ShieldCheck
 } from "lucide-react"
 import { cn } from "../../utils"
 import { useAuth } from "../../context/AuthContext"
@@ -11,6 +11,7 @@ const roleNavMap: Record<string, { name: string; path: string; icon: React.Eleme
   admin: [
     { name: "Overview", path: "/admin", icon: LayoutDashboard },
     { name: "User Directory", path: "/admin/users", icon: Edit3 },
+    { name: "Profile Approvals", path: "/admin/users?tab=approvals", icon: ShieldCheck },
     { name: "Supply Chain", path: "/admin/products", icon: Factory },
     { name: "Analytics", path: "/admin/analytics", icon: BarChart3 },
     { name: "Track Product", path: "/track", icon: PackageSearch },
@@ -23,6 +24,7 @@ const roleNavMap: Record<string, { name: string; path: string; icon: React.Eleme
   ],
   processor: [
     { name: "Processing", path: "/processor", icon: Factory },
+    { name: "Facility Profile", path: "/processor?tab=profile", icon: ShieldCheck },
     { name: "Track Product", path: "/track", icon: PackageSearch },
   ],
   distributor: [
@@ -31,6 +33,7 @@ const roleNavMap: Record<string, { name: string; path: string; icon: React.Eleme
   ],
   retailer: [
     { name: "Dashboard", path: "/retailer", icon: LayoutDashboard },
+    { name: "Store Profile", path: "/retailer?tab=profile", icon: ShieldCheck },
     { name: "Order Stock", path: "/retailer/requests", icon: ShoppingCart },
     { name: "Shipments", path: "/retailer/shipments", icon: Truck },
     { name: "Receive Batch", path: "/retailer/receive", icon: QrCode },

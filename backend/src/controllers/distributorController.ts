@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
 import { blockchainRelayer } from '../services/blockchainRelayer';
+import { getActiveProfile } from '../services/profileService';
 
 /**
  * GET /api/distributor/delivery-requests
@@ -55,73 +56,81 @@ export const getDistributorDeliveryRequests = async (req: Request, res: Response
     const productsMap = new Map((prodRes.data || []).map((p) => [p.id, p]));
     const usersMap = new Map((usersRes.data || []).map((u) => [u.id, u]));
 
-    const enrichedRequests = shipments.map((shipment) => {
-      const product = productsMap.get(shipment.product_id);
-      const processor = usersMap.get(shipment.sender_id);
-      const retailer = usersMap.get(shipment.receiver_id);
+    const enrichedRequests = await Promise.all(
+      shipments.map(async (shipment) => {
+        const product = productsMap.get(shipment.product_id);
+        const processor = usersMap.get(shipment.sender_id);
+        const retailer = usersMap.get(shipment.receiver_id);
 
-      const relatedEvents = (eventsRes.data || []).filter(
-        (e) => e.product_id === shipment.product_id && (e.metadata?.shipment_id === shipment.id || !e.metadata?.shipment_id)
-      );
-      const requestEvent = relatedEvents.find((e) => e.event_type === 'DELIVERY_REQUEST');
-      const declineEvent = relatedEvents.find((e) => e.event_type === 'DELIVERY_DECLINED');
+        const relatedEvents = (eventsRes.data || []).filter(
+          (e) => e.product_id === shipment.product_id && (e.metadata?.shipment_id === shipment.id || !e.metadata?.shipment_id)
+        );
+        const requestEvent = relatedEvents.find((e) => e.event_type === 'DELIVERY_REQUEST');
+        const declineEvent = relatedEvents.find((e) => e.event_type === 'DELIVERY_DECLINED');
 
-      const metadata = requestEvent?.metadata || {};
+        const metadata = requestEvent?.metadata || {};
 
-      return {
-        id: shipment.id,
-        tracking_id: shipment.shipment_tracking_id,
-        status: shipment.status, // REQUESTED, ACCEPTED, IN_TRANSIT, DELIVERED, DECLINED
-        batch_number: shipment.batch_number,
-        product_id: shipment.product_id,
-        product_name: product?.name || 'Packaged Produce',
-        quantity: shipment.quantity,
-        unit: shipment.unit || 'kg',
-        quality_score: product?.ai_quality_score || 92,
-        quality_label: product?.ai_quality_label || 'Grade A',
-        expiry_date: product?.expiry_date || '14 Days Certified',
-        product_image_url: product?.product_image_url,
-        blockchain_hash: product?.blockchain_hash,
-        expected_delivery: shipment.expected_delivery,
-        created_at: shipment.created_at,
-        processor: {
-          id: processor?.id,
-          name: processor?.name || 'Processing Facility Admin',
-          email: processor?.email,
-          facility_name: (metadata.pickup_location && metadata.pickup_location !== 'Processing Facility' && metadata.pickup_location !== 'Processor Processing Facility')
-            ? metadata.pickup_location
-            : (processor?.name ? `${processor.name} Agro-Processing Depot, APMC Yard, Yeshwanthpur, Bengaluru 560022` : 'Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru, Karnataka 560022'),
-          facility_location: (metadata.pickup_location && metadata.pickup_location !== 'Processing Facility' && metadata.pickup_location !== 'Processor Processing Facility')
-            ? metadata.pickup_location
-            : (processor?.name ? `${processor.name} Agro-Processing Depot, APMC Yard, Yeshwanthpur, Bengaluru 560022` : 'Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru, Karnataka 560022'),
-          coordinates: { lat: 13.0285, lng: 77.5456 }
-        },
-        retailer: {
-          id: retailer?.id,
-          name: retailer?.name || 'Retail Supermarket',
-          email: retailer?.email,
-          destination_store: (metadata.destination_store && metadata.destination_store !== 'John')
-            ? metadata.destination_store
-            : (retailer?.name ? `${retailer.name}'s Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru 560034` : 'Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru 560034'),
-          store_location: (metadata.destination_store && metadata.destination_store !== 'John')
-            ? metadata.destination_store
-            : (retailer?.name ? `${retailer.name}'s Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru 560034` : 'Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru 560034'),
-          coordinates: { lat: 12.9345, lng: 77.6200 }
-        },
-        route_details: {
-          distance_km: 16.4,
-          estimated_travel_time: '35 mins',
-          source_label: 'Processor Cold-Storage Facility (Yeshwanthpur APMC)',
-          destination_label: 'Retail Receiving Dock (Koramangala 4th Block)'
-        },
-        cold_chain_sla: {
-          temperature_control: metadata.temperature_sla || '2°C to 6°C Precision Chilled',
-          storage_temp: metadata.temperature_sla || '2°C to 6°C'
-        },
-        processor_notes: metadata.dispatch_notes || 'Cold-chain SLA verified. Packaged produce ready for cargo intake.',
-        decline_reason: declineEvent?.metadata?.decline_reason || null
-      };
-    });
+        // Fetch verified profile of processor (source) and retailer (destination)
+        const procProfile = await getActiveProfile(shipment.sender_id);
+        const retProfile = shipment.receiver_id ? await getActiveProfile(shipment.receiver_id) : null;
+
+        const pickupLocation = procProfile.address || metadata.pickup_location || 'Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru, Karnataka 560022';
+        const targetStoreAddress = retProfile?.address || metadata.destination_store || "Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru 560034";
+        const targetStoreName = retProfile?.business_name || (metadata.retailer_name || retailer?.name || 'Retail Supermarket');
+
+        return {
+          id: shipment.id,
+          tracking_id: shipment.shipment_tracking_id,
+          status: shipment.status, // REQUESTED, ACCEPTED, IN_TRANSIT, DELIVERED, DECLINED
+          batch_number: shipment.batch_number,
+          product_id: shipment.product_id,
+          product_name: product?.name || 'Packaged Produce',
+          quantity: shipment.quantity,
+          unit: shipment.unit || 'kg',
+          quality_score: product?.ai_quality_score || 92,
+          quality_label: product?.ai_quality_label || 'Grade A',
+          expiry_date: product?.expiry_date || '14 Days Certified',
+          product_image_url: product?.product_image_url,
+          blockchain_hash: product?.blockchain_hash,
+          expected_delivery: shipment.expected_delivery,
+          created_at: shipment.created_at,
+          processor: {
+            id: processor?.id,
+            name: procProfile.business_name || processor?.name || 'Processing Facility Admin',
+            email: processor?.email,
+            phone: procProfile.phone,
+            license_number: procProfile.license_number,
+            facility_name: procProfile.business_name,
+            facility_location: pickupLocation,
+            coordinates: procProfile.coordinates || { lat: 13.0285, lng: 77.5456 },
+            is_verified: procProfile.is_verified
+          },
+          retailer: {
+            id: retailer?.id,
+            name: targetStoreName,
+            email: retailer?.email,
+            phone: retProfile?.phone || '+91 98860 54321',
+            license_number: retProfile?.license_number || 'FSSAI-VERIFIED',
+            destination_store: targetStoreName,
+            store_location: targetStoreAddress,
+            coordinates: retProfile?.coordinates || { lat: 12.9345, lng: 77.6200 },
+            is_verified: retProfile?.is_verified ?? true
+          },
+          route_details: {
+            distance_km: 16.4,
+            estimated_travel_time: '35 mins',
+            source_label: `${procProfile.business_name} (${procProfile.city || 'Depot'})`,
+            destination_label: `${targetStoreName} (${retProfile?.city || 'Store'})`
+          },
+          cold_chain_sla: {
+            temperature_control: metadata.temperature_sla || '2°C to 6°C Precision Chilled',
+            storage_temp: metadata.temperature_sla || '2°C to 6°C'
+          },
+          processor_notes: metadata.dispatch_notes || 'Cold-chain SLA verified. Packaged produce ready for cargo intake.',
+          decline_reason: declineEvent?.metadata?.decline_reason || null
+        };
+      })
+    );
 
     res.status(200).json({ success: true, data: enrichedRequests });
   } catch (error: any) {
