@@ -92,9 +92,10 @@ export function ReceiveProduct() {
   useEffect(() => {
     let scanner: any = null
     if (scanning) {
+      const boxSize = typeof window !== 'undefined' ? Math.min(window.innerWidth - 80, 250) : 250
       scanner = new Html5QrcodeScanner(
         "qr-reader",
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        { fps: 10, qrbox: { width: boxSize, height: boxSize } },
         false
       )
 

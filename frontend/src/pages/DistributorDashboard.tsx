@@ -27,7 +27,8 @@ import {
   Scale,
   Download,
   Copy,
-  Check
+  Check,
+  Sparkles
 } from "lucide-react"
 import { QRCodeCanvas } from "qrcode.react"
 import { Card } from "../components/ui/Card"
@@ -2354,8 +2355,8 @@ export function DistributorDashboard() {
   return (
     <div className="space-y-7">
       {/* LUMINOUS WHITE & GREEN COMMAND BAR */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-50 via-white to-emerald-50/70 border border-emerald-200 shadow-sm p-6 sm:p-7">
-        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-5">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-50 via-white to-emerald-50/70 border border-emerald-200 shadow-sm p-4 sm:p-7">
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-5">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-xs">
@@ -2373,7 +2374,7 @@ export function DistributorDashboard() {
                 Fleet Profile
               </button>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+            <h1 className="text-xl sm:text-3xl font-black tracking-tight text-slate-900">
               Fleet Operations & Distribution
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 max-w-xl">
@@ -2386,7 +2387,7 @@ export function DistributorDashboard() {
             <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
               Fleet Trip Availability:
             </div>
-            <div className="flex items-center p-1 bg-white border border-emerald-200 rounded-2xl shadow-xs">
+            <div className="flex items-center p-1 bg-white border border-emerald-200 rounded-2xl shadow-xs flex-wrap">
               {[
                 { id: "Available for Trip", label: "Available", dot: "bg-emerald-500", activeClass: "bg-emerald-600 text-white shadow-xs" },
                 { id: "On Route", label: "On Route", dot: "bg-amber-500", activeClass: "bg-amber-500 text-white shadow-xs" },
@@ -2398,7 +2399,7 @@ export function DistributorDashboard() {
                     key={opt.id}
                     disabled={statusLoading}
                     onClick={() => updateStatus(opt.id)}
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       isSelected
                         ? opt.activeClass
                         : "text-slate-600 hover:text-emerald-800"
@@ -2417,6 +2418,35 @@ export function DistributorDashboard() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* QUICK MOBILE TAB PILL BAR (Hidden on desktop md:) */}
+      <div className="md:hidden flex overflow-x-auto gap-2 -mt-2 pb-1 no-scrollbar">
+        {[
+          { id: "overview", label: "Overview", icon: Sparkles },
+          { id: "requests", label: `Requests (${deliveryRequests.filter(r => r.status === "REQUESTED").length})`, icon: Clock },
+          { id: "fleet", label: `Fleet (${deliveryRequests.filter(r => r.status === "IN_TRANSIT" || r.status === "ARRIVED_AT_RETAILER").length})`, icon: Truck },
+          { id: "inventory", label: "Cargo", icon: Package },
+          { id: "blockchain", label: "Smart Handoff", icon: QrCode },
+          { id: "profile", label: "Profile", icon: ShieldCheck }
+        ].map((tab) => {
+          const Icon = tab.icon
+          const isActive = activeTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              onClick={() => handleTabSwitch(tab.id as any)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                isActive
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "bg-white text-slate-700 border border-emerald-200 hover:bg-emerald-50"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              <span>{tab.label}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* ACTIVE TAB CONTENT VIEW */}

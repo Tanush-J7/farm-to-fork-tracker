@@ -56,7 +56,7 @@ const roleNavMap: Record<string, { name: string; path: string; icon: React.Eleme
   ],
 }
 
-export function Sidebar() {
+export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: boolean; onMobileClose?: () => void } = {}) {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, token, logout, updateUser } = useAuth()
@@ -237,8 +237,135 @@ export function Sidebar() {
 
   return (
     <>
+      {/* Mobile Off-Canvas Drawer (Visible only on mobile when mobileOpen is true) */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex animate-in fade-in duration-200">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+            onClick={onMobileClose}
+          />
+          {/* Drawer Sheet */}
+          <div className="relative flex flex-col w-72 max-w-[85vw] h-full bg-white shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+            {/* Header with Close */}
+            <div className="flex items-center justify-between p-4 border-b border-emerald-100">
+              <div>
+                <h2 className="text-lg font-bold tracking-tight text-emerald-950">FarmChain AI</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Blockchain Traceability</p>
+              </div>
+              <button
+                onClick={onMobileClose}
+                className="p-1.5 rounded-xl hover:bg-emerald-50 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                aria-label="Close menu"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Mobile User Info */}
+            {user && (
+              <div className="px-4 py-3 border-b border-emerald-100 flex items-center justify-between bg-emerald-50/40">
+                <div className="flex items-center gap-3 min-w-0">
+                  {user.photo ? (
+                    <img
+                      src={user.photo}
+                      alt={user.name}
+                      className="h-9 w-9 rounded-full object-cover border-2 border-emerald-500 shrink-0"
+                    />
+                  ) : (
+                    <div className="h-9 w-9 rounded-full bg-emerald-100 text-emerald-800 font-bold text-sm flex items-center justify-center shrink-0 border border-emerald-200">
+                      {user.name ? user.name.charAt(0).toUpperCase() : "U"}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900 truncate">{user.name}</p>
+                    <p className="text-xs text-emerald-700 font-semibold capitalize">{user.role}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    onMobileClose?.()
+                    handleOpenModal()
+                  }}
+                  className="text-slate-400 hover:text-emerald-700 p-1.5 rounded-lg hover:bg-emerald-100/50 transition-colors"
+                  title="Edit Profile"
+                >
+                  <Edit3 className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Mobile Navigation List */}
+            <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
+              {navItems.map((item) => {
+                const currentFull = location.pathname + location.search
+                const isDistributorOverview =
+                  item.path.startsWith("/distributor") &&
+                  item.path.includes("tab=overview") &&
+                  location.pathname === "/distributor" &&
+                  (!location.search || location.search === "" || location.search.includes("tab=overview"))
+
+                const isActive = isDistributorOverview
+                  ? true
+                  : item.path.includes("?")
+                  ? (currentFull === item.path || (item.path.includes("tab=profile") && location.pathname.endsWith("/profile")))
+                  : (location.pathname === item.path && (!location.search || !location.search.includes("tab=")))
+
+                const Icon = item.icon
+                const isDeliveryRequests = item.path.includes("tab=requests")
+                const isFleetRoutes = item.path.includes("tab=fleet")
+
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={onMobileClose}
+                    className={cn(
+                      "flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer",
+                      isActive
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-950"
+                    )}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-white" : "text-emerald-600")} />
+                      <span className="truncate">{item.name}</span>
+                    </div>
+                    {isDeliveryRequests && distributorPendingCount > 0 && (
+                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white px-1.5 shadow-xs">
+                        {distributorPendingCount}
+                      </span>
+                    )}
+                    {isFleetRoutes && distributorFleetCount > 0 && (
+                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white px-1.5 shadow-xs">
+                        {distributorFleetCount}
+                      </span>
+                    )}
+                  </Link>
+                )
+              })}
+            </nav>
+
+            {/* Mobile Footer with Logout */}
+            <div className="p-3 border-t border-emerald-100">
+              <button
+                onClick={() => {
+                  onMobileClose?.()
+                  handleLogout()
+                }}
+                className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-bold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Log out</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Sidebar (Identical to before on md: and up) */}
       <div className={cn(
-        "flex h-screen flex-col border-r border-emerald-100 bg-white transition-all duration-300",
+        "hidden md:flex h-screen flex-col border-r border-emerald-100 bg-white transition-all duration-300 shrink-0",
         collapsed ? "w-16" : "w-64"
       )}>
         {/* Header */}

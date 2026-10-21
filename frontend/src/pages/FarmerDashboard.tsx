@@ -442,7 +442,7 @@ export function FarmerDashboard() {
 
             {/* Notification Dropdown Panel */}
             {showNotifications && (
-              <div className="absolute right-0 mt-3 w-80 sm:w-96 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl p-4 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute right-0 mt-3 w-[calc(100vw-2.5rem)] max-w-sm sm:w-96 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl p-4 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3">
                   <div className="flex items-center gap-2">
                     <Bell className="h-4 w-4 text-emerald-400" />
@@ -631,7 +631,7 @@ export function FarmerDashboard() {
             </div>
 
             <form onSubmit={handleRegister} className="space-y-3 sm:space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {[
                   { label: "Product Name", name: "name", placeholder: "e.g. Organic Tomatoes" },
                   { label: "Category", name: "category", placeholder: "e.g. Vegetables" },

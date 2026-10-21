@@ -1382,7 +1382,7 @@ export function ProcessorDashboard() {
         </div>
 
         {/* Tab Quick Selector (White & Green Theme) */}
-        <div className="flex overflow-x-auto gap-2 mt-5 pt-1 pb-1">
+        <div className="flex overflow-x-auto gap-2 mt-5 pt-1 pb-1 no-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0">
           <button
             onClick={() => setActiveTab("browse")}
             className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${

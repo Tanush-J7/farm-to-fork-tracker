@@ -148,3 +148,12 @@ html {
 *::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Hide scrollbar for touch-scrolling pill carousels */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
