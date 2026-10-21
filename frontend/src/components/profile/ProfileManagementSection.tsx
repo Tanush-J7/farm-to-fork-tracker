@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import axios from "axios"
 import { useAuth } from "../../context/AuthContext"
 import {
@@ -8,7 +8,6 @@ import {
   Phone,
   FileText,
   Clock,
-  Locate,
   CheckCircle2,
   AlertCircle,
   Clock3,
@@ -20,8 +19,8 @@ import {
   Store,
   UserCheck
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/Card"
 import { Button } from "../ui/Button"
+import { LocationPickerMap } from "./LocationPickerMap"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
@@ -96,7 +95,6 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
   const [lng, setLng] = useState<number>(77.5456)
   const [storageCapacity, setStorageCapacity] = useState("")
 
-  const [locating, setLocating] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null)
   const [showPendingDiff, setShowPendingDiff] = useState(false)
@@ -157,57 +155,26 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
     }
   }, [token])
 
-  const handleDetectGps = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.")
-      return
-    }
+  const handleLocationChangeFromMap = (loc: {
+    lat: number
+    lng: number
+    address: string
+    city?: string
+    state?: string
+    pincode?: string
+    accuracy?: number
+  }) => {
+    setLat(loc.lat)
+    setLng(loc.lng)
+    setAddress(loc.address)
+    if (loc.city) setCity(loc.city)
+    if (loc.state) setState(loc.state)
+    if (loc.pincode) setPincode(loc.pincode)
 
-    setLocating(true)
-    setFeedbackMsg(null)
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const curLat = pos.coords.latitude
-        const curLng = pos.coords.longitude
-        setLat(curLat)
-        setLng(curLng)
-
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${curLat}&lon=${curLng}`
-          )
-          const data = await res.json()
-          if (data && data.display_name) {
-            setAddress(data.display_name)
-            if (data.address?.city || data.address?.town || data.address?.state_district) {
-              setCity(data.address.city || data.address.town || data.address.state_district)
-            }
-            if (data.address?.state) setState(data.address.state)
-            if (data.address?.postcode) setPincode(data.address.postcode)
-            setFeedbackMsg({
-              type: "success",
-              text: `GPS location detected! Reverse-geocoded to ${data.display_name.slice(0, 50)}...`
-            })
-          } else {
-            setAddress(`Lat: ${curLat.toFixed(5)}, Lng: ${curLng.toFixed(5)}`)
-          }
-        } catch {
-          setAddress(`Lat: ${curLat.toFixed(5)}, Lng: ${curLng.toFixed(5)}`)
-          setFeedbackMsg({
-            type: "info",
-            text: `GPS coordinates captured: (${curLat.toFixed(4)}, ${curLng.toFixed(4)}). Please enter street address details.`
-          })
-        } finally {
-          setLocating(false)
-        }
-      },
-      (err) => {
-        console.error("GPS error:", err)
-        setFeedbackMsg({ type: "error", text: "Unable to detect GPS location. Please check browser permissions." })
-        setLocating(false)
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    )
+    setFeedbackMsg({
+      type: "success",
+      text: `Precise location pinned at (${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}). Address updated.`
+    })
   }
 
   const handleReset = () => {
@@ -287,9 +254,9 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
 
   if (loading) {
     return (
-      <div className="p-12 text-center space-y-4">
+      <div className="p-12 text-center space-y-4 bg-white rounded-3xl border border-emerald-100 shadow-sm">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent mx-auto" />
-        <p className="text-sm text-muted-foreground font-medium">Loading verified profile and compliance records...</p>
+        <p className="text-sm text-emerald-950 font-medium">Loading verified profile and compliance records...</p>
       </div>
     )
   }
@@ -301,21 +268,21 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
         <div>
           <div className="flex items-center gap-2">
             {isProcessor ? (
-              <Warehouse className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+              <Warehouse className="h-6 w-6 text-emerald-600" />
             ) : (
-              <Store className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+              <Store className="h-6 w-6 text-emerald-600" />
             )}
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900">
               {isProcessor ? "Processor Facility Profile & Logistics Hub" : "Retailer Store Profile & Receiving Dock"}
             </h2>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-slate-600 mt-1">
             Manage your legal entity, FSSAI / trade license, and physical location. This verified location is strictly used for distributor delivery routes.
           </p>
         </div>
 
         {activeProfile?.is_verified && (
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-semibold shrink-0">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs font-bold shrink-0 shadow-sm">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
             <span>Admin Verified Facility</span>
           </div>
@@ -325,22 +292,22 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
       {/* FEEDBACK ALERT */}
       {feedbackMsg && (
         <div
-          className={`p-4 rounded-xl border flex items-start gap-3 text-sm animate-in fade-in ${
+          className={`p-4 rounded-xl border flex items-start gap-3 text-sm animate-in fade-in shadow-sm ${
             feedbackMsg.type === "success"
-              ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-900"
               : feedbackMsg.type === "error"
-              ? "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200"
-              : "bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200"
+              ? "bg-red-50 border-red-200 text-red-900"
+              : "bg-blue-50 border-blue-200 text-blue-900"
           }`}
         >
           {feedbackMsg.type === "success" ? (
-            <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" />
+            <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5 text-emerald-600" />
           ) : feedbackMsg.type === "error" ? (
-            <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+            <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-red-600" />
           ) : (
-            <Info className="h-5 w-5 shrink-0 mt-0.5" />
+            <Info className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
           )}
-          <div className="flex-1 font-medium">{feedbackMsg.text}</div>
+          <div className="flex-1 font-semibold">{feedbackMsg.text}</div>
           <button onClick={() => setFeedbackMsg(null)} className="text-xs opacity-70 hover:opacity-100 font-bold">
             Dismiss
           </button>
@@ -349,474 +316,473 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
 
       {/* STATUS BANNER 1: PENDING ADMIN APPROVAL */}
       {pendingRequest && (
-        <Card className="border-amber-400/50 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 mt-0.5">
-                  <Clock3 className="h-5 w-5 animate-pulse" />
+        <div className="rounded-2xl border border-amber-300 bg-amber-50/80 p-5 shadow-sm text-amber-950">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-xl bg-amber-200/80 text-amber-800 mt-0.5">
+                <Clock3 className="h-5 w-5 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-bold text-amber-950 text-base">
+                    Profile Updates Pending Admin Verification
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900 border border-amber-300">
+                    PENDING REVIEW
+                  </span>
+                </div>
+                <p className="text-xs text-amber-900 mt-1 max-w-2xl leading-relaxed">
+                  You submitted profile changes on{" "}
+                  <span className="font-bold">{new Date(pendingRequest.created_at).toLocaleDateString()}</span>. An
+                  administrator will verify your food safety license and physical facility address. During this review
+                  period, your existing verified address remains active for logistics.
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowPendingDiff(!showPendingDiff)}
+              className="border-amber-300 bg-white text-amber-900 hover:bg-amber-100 shrink-0 text-xs font-bold"
+            >
+              {showPendingDiff ? "Hide Submitted Changes" : "Review Submitted Changes"}
+            </Button>
+          </div>
+
+          {/* EXPANDABLE PENDING DIFF */}
+          {showPendingDiff && (
+            <div className="mt-4 pt-4 border-t border-amber-200 text-xs space-y-2">
+              <p className="font-bold text-amber-950">Requested Changes Awaiting Approval:</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-white p-4 rounded-xl border border-amber-200">
+                <div>
+                  <span className="text-slate-500 block text-[11px] font-medium">Proposed Facility Name:</span>
+                  <span className="font-bold text-slate-900">
+                    {pendingRequest.requested_changes.business_name || "—"}
+                  </span>
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-bold text-amber-800 dark:text-amber-300">
-                      Profile Updates Pending Admin Verification
-                    </h4>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300">
-                      PENDING REVIEW
-                    </span>
-                  </div>
-                  <p className="text-xs text-amber-700/90 dark:text-amber-400/90 mt-1 max-w-2xl leading-relaxed">
-                    You submitted profile changes on{" "}
-                    <span className="font-semibold">{new Date(pendingRequest.created_at).toLocaleDateString()}</span>. An
-                    administrator will verify your food safety license and physical facility address. During this review
-                    period, your existing verified address remains active for logistics.
-                  </p>
+                  <span className="text-slate-500 block text-[11px] font-medium">Proposed License Number:</span>
+                  <span className="font-bold text-emerald-800 font-mono">
+                    {pendingRequest.requested_changes.license_number || "—"}
+                  </span>
+                </div>
+                <div className="md:col-span-2">
+                  <span className="text-slate-500 block text-[11px] font-medium">Proposed Address:</span>
+                  <span className="font-semibold text-slate-900">
+                    {pendingRequest.requested_changes.address || "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px] font-medium">Proposed Phone:</span>
+                  <span className="font-semibold text-slate-900 font-mono">
+                    {pendingRequest.requested_changes.phone || "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px] font-medium">Proposed Operating Hours:</span>
+                  <span className="font-semibold text-slate-900">
+                    {pendingRequest.requested_changes.operating_hours || "—"}
+                  </span>
                 </div>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowPendingDiff(!showPendingDiff)}
-                className="border-amber-400/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 shrink-0 text-xs font-semibold"
-              >
-                {showPendingDiff ? "Hide Submitted Changes" : "Review Submitted Changes"}
-              </Button>
             </div>
-
-            {/* EXPANDABLE PENDING DIFF */}
-            {showPendingDiff && (
-              <div className="mt-4 pt-4 border-t border-amber-300/30 text-xs space-y-2">
-                <p className="font-bold text-amber-900 dark:text-amber-200">Requested Changes Awaiting Approval:</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-white/60 dark:bg-black/40 p-3.5 rounded-xl border border-amber-200/50">
-                  <div>
-                    <span className="text-muted-foreground block text-[11px]">Proposed Facility Name:</span>
-                    <span className="font-semibold text-foreground">
-                      {pendingRequest.requested_changes.business_name || "—"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[11px]">Proposed License Number:</span>
-                    <span className="font-semibold text-foreground">
-                      {pendingRequest.requested_changes.license_number || "—"}
-                    </span>
-                  </div>
-                  <div className="md:col-span-2">
-                    <span className="text-muted-foreground block text-[11px]">Proposed Address:</span>
-                    <span className="font-semibold text-foreground">
-                      {pendingRequest.requested_changes.address || "—"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[11px]">Proposed Phone:</span>
-                    <span className="font-semibold text-foreground">
-                      {pendingRequest.requested_changes.phone || "—"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[11px]">Proposed Operating Hours:</span>
-                    <span className="font-semibold text-foreground">
-                      {pendingRequest.requested_changes.operating_hours || "—"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          )}
+        </div>
       )}
 
       {/* STATUS BANNER 2: REJECTED FEEDBACK */}
       {lastRejectedRequest && !pendingRequest && (
-        <Card className="border-red-400/50 bg-gradient-to-r from-red-500/10 via-red-500/5 to-transparent shadow-sm">
-          <CardContent className="p-5 flex items-start gap-3.5">
-            <div className="p-2 rounded-xl bg-red-500/20 text-red-600 dark:text-red-400 mt-0.5">
-              <AlertCircle className="h-5 w-5" />
+        <div className="rounded-2xl border border-red-300 bg-red-50/80 p-5 shadow-sm text-red-950 flex items-start gap-3.5">
+          <div className="p-2 rounded-xl bg-red-200 text-red-800 mt-0.5">
+            <AlertCircle className="h-5 w-5" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <h4 className="font-bold text-red-950 text-base">Previous Profile Update Declined</h4>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-200 text-red-900 border border-red-300">
+                REJECTED
+              </span>
             </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <h4 className="font-bold text-red-800 dark:text-red-300">Previous Profile Update Declined</h4>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-700 dark:text-red-300">
-                  REJECTED
-                </span>
-              </div>
-              <p className="text-xs text-red-700/90 dark:text-red-400/90 leading-relaxed">
-                <span className="font-semibold">Admin Notes: </span>
-                {lastRejectedRequest.admin_notes || "Profile details could not be verified. Please verify your license and address details."}
-              </p>
-              <p className="text-[11px] text-muted-foreground pt-1">
-                Please correct the information in the form below and re-submit for verification.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+            <p className="text-xs text-red-900 leading-relaxed">
+              <span className="font-bold">Admin Notes: </span>
+              {lastRejectedRequest.admin_notes || "Profile details could not be verified. Please verify your license and address details."}
+            </p>
+            <p className="text-[11px] text-red-800 pt-1">
+              Please correct the information in the form below and re-submit for verification.
+            </p>
+          </div>
+        </div>
       )}
 
-      {/* ACTIVE VERIFIED PROFILE SUMMARY */}
+      {/* ACTIVE VERIFIED PROFILE SUMMARY (CRISP, HIGH-CONTRAST WHITE / EMERALD) */}
       {activeProfile && (
-        <Card className="border border-emerald-500/30 bg-emerald-50/20 dark:bg-emerald-950/10 shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+        <div className="bg-white rounded-3xl border border-emerald-200 shadow-sm p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-emerald-100 gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                <h3 className="text-base font-bold text-slate-900">
                   Active Verified Logistics Information
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  This location is locked and verified. Distributor fleets navigate directly to this address.
-                </CardDescription>
+                </h3>
               </div>
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeProfile.address)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold"
-              >
-                <MapPin className="h-3.5 w-3.5" /> Open in Google Maps <ExternalLink className="h-3 w-3" />
-              </a>
+              <p className="text-xs text-slate-600 mt-0.5">
+                This location is locked and verified. Distributor fleets navigate directly to this address.
+              </p>
             </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div className="p-3 rounded-xl bg-white/70 dark:bg-zinc-900/60 border border-emerald-100 dark:border-emerald-900/40">
-                <span className="text-muted-foreground uppercase text-[10px] font-bold block mb-1">
-                  {isProcessor ? "Facility Name" : "Store / Supermarket Name"}
-                </span>
-                <span className="font-bold text-slate-900 dark:text-white text-sm">{activeProfile.business_name}</span>
-                <div className="text-muted-foreground text-[11px] mt-1 flex items-center gap-1">
-                  <Phone className="h-3 w-3" /> {activeProfile.phone}
-                </div>
-              </div>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeProfile.address)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-bold shrink-0 transition-colors"
+            >
+              <MapPin className="h-3.5 w-3.5 text-emerald-600" /> Open in Google Maps <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
 
-              <div className="p-3 rounded-xl bg-white/70 dark:bg-zinc-900/60 border border-emerald-100 dark:border-emerald-900/40">
-                <span className="text-muted-foreground uppercase text-[10px] font-bold block mb-1">
-                  Food Safety / Trade License
-                </span>
-                <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 text-sm">
-                  {activeProfile.license_number}
-                </span>
-                <div className="text-muted-foreground text-[11px] mt-1 flex items-center gap-1">
-                  <ShieldCheck className="h-3 w-3 text-emerald-500" /> Verified by {activeProfile.verified_by || "Admin"}
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-white/70 dark:bg-zinc-900/60 border border-emerald-100 dark:border-emerald-900/40">
-                <span className="text-muted-foreground uppercase text-[10px] font-bold block mb-1">
-                  Operating / Dock Hours
-                </span>
-                <span className="font-semibold text-slate-900 dark:text-white text-sm">
-                  {activeProfile.operating_hours}
-                </span>
-                <div className="text-muted-foreground text-[11px] mt-1 flex items-center gap-1">
-                  <Clock className="h-3 w-3" /> {activeProfile.facility_type}
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div className="p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-100">
+              <span className="text-slate-500 uppercase text-[10px] font-bold block mb-1">
+                {isProcessor ? "Facility Name" : "Store / Supermarket Name"}
+              </span>
+              <span className="font-bold text-slate-900 text-sm block">{activeProfile.business_name}</span>
+              <div className="text-slate-600 text-[11px] mt-1.5 flex items-center gap-1.5">
+                <Phone className="h-3 w-3 text-emerald-600" /> {activeProfile.phone}
               </div>
             </div>
 
-            <div className="mt-3 p-3 rounded-xl bg-white/70 dark:bg-zinc-900/60 border border-emerald-100 dark:border-emerald-900/40 flex items-start gap-2 text-xs">
-              <MapPin className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="text-muted-foreground uppercase text-[10px] font-bold block">
-                  Active Delivery / Pickup Address
-                </span>
-                <span className="font-medium text-slate-900 dark:text-white leading-relaxed">
-                  {activeProfile.address}
-                </span>
-                {activeProfile.coordinates && (
-                  <span className="block text-[11px] font-mono text-muted-foreground mt-0.5">
-                    GPS Coordinates: {activeProfile.coordinates.lat.toFixed(4)}, {activeProfile.coordinates.lng.toFixed(4)}
-                  </span>
-                )}
+            <div className="p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-100">
+              <span className="text-slate-500 uppercase text-[10px] font-bold block mb-1">
+                Food Safety / Trade License
+              </span>
+              <span className="font-mono font-bold text-emerald-800 text-sm block">
+                {activeProfile.license_number}
+              </span>
+              <div className="text-slate-600 text-[11px] mt-1.5 flex items-center gap-1.5">
+                <ShieldCheck className="h-3 w-3 text-emerald-600" /> Verified by {activeProfile.verified_by || "Admin"}
               </div>
             </div>
-          </CardContent>
-        </Card>
+
+            <div className="p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-100">
+              <span className="text-slate-500 uppercase text-[10px] font-bold block mb-1">
+                Operating / Dock Hours
+              </span>
+              <span className="font-bold text-slate-900 text-sm block">
+                {activeProfile.operating_hours}
+              </span>
+              <div className="text-slate-600 text-[11px] mt-1.5 flex items-center gap-1.5">
+                <Clock className="h-3 w-3 text-emerald-600" /> {activeProfile.facility_type}
+              </div>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex items-start gap-2.5 text-xs">
+            <MapPin className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <span className="text-emerald-950 uppercase text-[10px] font-bold block">
+                Active Delivery / Pickup Address (Source of Truth for Logistics)
+              </span>
+              <p className="font-semibold text-slate-900 text-xs leading-relaxed">
+                {activeProfile.address}
+              </p>
+              {activeProfile.coordinates && (
+                <span className="block text-[11px] font-mono text-emerald-800 font-semibold pt-0.5">
+                  GPS Coordinates: {activeProfile.coordinates.lat.toFixed(6)}, {activeProfile.coordinates.lng.toFixed(6)}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* EDIT PROFILE FORM */}
-      <Card className="border-border/60 shadow-md">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-primary" />
-                Edit Facility & Store Details
-              </CardTitle>
-              <CardDescription>
-                Submit updates to your business name, license, address, and dock operating hours.
-              </CardDescription>
-            </div>
-            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-              Admin Verification Required
-            </span>
+      <div className="bg-white rounded-3xl border border-emerald-200 shadow-md p-6 sm:p-8 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-emerald-100 gap-3">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-emerald-600" />
+              Edit Facility & Store Details
+            </h3>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Submit updates to your business name, license, address, and dock operating hours.
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmitForApproval} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Business Name */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Building2 className="h-3.5 w-3.5 text-primary" />
-                  Legal Facility / Business Name *
-                </label>
-                <input
-                  type="text"
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  placeholder={isProcessor ? "e.g. Agro-Processing Unit #4" : "e.g. Metro Fresh Supermarket"}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 font-medium"
-                  required
-                />
-                <span className="text-[11px] text-muted-foreground block">
-                  This business name appears on delivery waybills and traceability certificates.
-                </span>
-              </div>
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 shrink-0 self-start sm:self-auto">
+            Admin Verification Required
+          </span>
+        </div>
 
-              {/* License Number */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <FileText className="h-3.5 w-3.5 text-primary" />
-                  Food Safety / FSSAI / Trade License Number *
-                </label>
-                <input
-                  type="text"
-                  value={licenseNumber}
-                  onChange={(e) => setLicenseNumber(e.target.value)}
-                  placeholder="e.g. FSSAI-11223344556677"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 font-mono"
-                  required
-                />
-                <span className="text-[11px] text-muted-foreground block">
-                  Subject to administrative validation against the Food Safety register.
-                </span>
-              </div>
-
-              {/* Phone Number */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Phone className="h-3.5 w-3.5 text-primary" />
-                  Official Business Contact Phone *
-                </label>
-                <input
-                  type="text"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. +91 98450 12345"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 font-mono"
-                  required
-                />
-                <span className="text-[11px] text-muted-foreground block">
-                  Used by distributor drivers for gate access and handover coordination.
-                </span>
-              </div>
-
-              {/* Facility Type */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Warehouse className="h-3.5 w-3.5 text-primary" />
-                  Facility / Store Classification
-                </label>
-                <select
-                  value={facilityType}
-                  onChange={(e) => setFacilityType(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                >
-                  {isProcessor ? (
-                    <>
-                      <option value="Chilled Cold-Storage & Agro-Processing Warehouse">Chilled Cold-Storage & Agro-Processing Warehouse</option>
-                      <option value="Grain Milling & Secondary Processing Unit">Grain Milling & Secondary Processing Unit</option>
-                      <option value="Precision Cold-Chain Packing House">Precision Cold-Chain Packing House</option>
-                      <option value="Perishables Sorting & Value Addition Depot">Perishables Sorting & Value Addition Depot</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="Direct Retail Supermarket & Cold Dock">Direct Retail Supermarket & Cold Dock</option>
-                      <option value="Hypermarket Commercial Receiving Bay">Hypermarket Commercial Receiving Bay</option>
-                      <option value="Organic Specialty Grocer & Retail Shelf">Organic Specialty Grocer & Retail Shelf</option>
-                      <option value="Neighborhood Fresh Produce Mart">Neighborhood Fresh Produce Mart</option>
-                    </>
-                  )}
-                </select>
-              </div>
-            </div>
-
-            {/* Full Physical Address */}
-            <div className="space-y-2 pt-2 border-t">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5 text-primary" />
-                  Physical Facility / Store Address *
-                </label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={handleDetectGps}
-                  disabled={locating}
-                  className="h-8 text-xs gap-1.5 rounded-xl border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
-                >
-                  <Locate className={`h-3.5 w-3.5 ${locating ? "animate-spin" : ""}`} />
-                  {locating ? "Detecting GPS..." : "Auto-Detect Current GPS Location"}
-                </Button>
-              </div>
-              <textarea
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                rows={3}
-                placeholder="Complete street address, industrial estate / building name, road, area, and city"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 leading-relaxed"
+        <form onSubmit={handleSubmitForApproval} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Business Name */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Building2 className="h-3.5 w-3.5 text-emerald-600" />
+                Legal Facility / Business Name *
+              </label>
+              <input
+                type="text"
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                placeholder={isProcessor ? "e.g. Agro-Processing Unit #4" : "e.g. Metro Fresh Supermarket"}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 font-semibold"
                 required
               />
-              <span className="text-[11px] text-muted-foreground block">
-                IMPORTANT: Distributor vehicles will be navigated directly to this street address for cargo pickup and unloading.
+              <span className="text-[11px] text-slate-500 block">
+                This business name appears on delivery waybills and traceability certificates.
               </span>
             </div>
 
-            {/* City, State, Pin Code & GPS */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">City / District</label>
-                <input
-                  type="text"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-input bg-background text-sm"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">State</label>
-                <input
-                  type="text"
-                  value={state}
-                  onChange={(e) => setState(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-input bg-background text-sm"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">PIN Code</label>
-                <input
-                  type="text"
-                  value={pincode}
-                  onChange={(e) => setPincode(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-input bg-background text-sm font-mono"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">GPS Coordinates</label>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    step="0.0001"
-                    value={lat}
-                    onChange={(e) => setLat(parseFloat(e.target.value) || 0)}
-                    placeholder="Lat"
-                    title="Latitude"
-                    className="w-1/2 px-2.5 py-2 rounded-xl border border-input bg-background text-xs font-mono"
-                  />
-                  <input
-                    type="number"
-                    step="0.0001"
-                    value={lng}
-                    onChange={(e) => setLng(parseFloat(e.target.value) || 0)}
-                    placeholder="Lng"
-                    title="Longitude"
-                    className="w-1/2 px-2.5 py-2 rounded-xl border border-input bg-background text-xs font-mono"
-                  />
-                </div>
-              </div>
+            {/* License Number */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5 text-emerald-600" />
+                Food Safety / FSSAI / Trade License Number *
+              </label>
+              <input
+                type="text"
+                value={licenseNumber}
+                onChange={(e) => setLicenseNumber(e.target.value)}
+                placeholder="e.g. FSSAI-11223344556677"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 font-mono font-bold"
+                required
+              />
+              <span className="text-[11px] text-slate-500 block">
+                Subject to administrative validation against the Food Safety register.
+              </span>
             </div>
 
-            {/* Operating Hours & Contact Person */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 text-primary" />
-                  Operating & Dock Receiving Hours
-                </label>
-                <input
-                  type="text"
-                  value={operatingHours}
-                  onChange={(e) => setOperatingHours(e.target.value)}
-                  placeholder="e.g. 06:00 AM - 10:00 PM (Daily)"
-                  className="w-full px-3.5 py-2 rounded-xl border border-input bg-background text-sm"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <UserCheck className="h-3.5 w-3.5 text-primary" />
-                  Operations Contact Person
-                </label>
-                <input
-                  type="text"
-                  value={contactPerson}
-                  onChange={(e) => setContactPerson(e.target.value)}
-                  placeholder="e.g. Facility Manager Name"
-                  className="w-full px-3.5 py-2 rounded-xl border border-input bg-background text-sm"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Storage / Dock Capacity
-                </label>
-                <input
-                  type="text"
-                  value={storageCapacity}
-                  onChange={(e) => setStorageCapacity(e.target.value)}
-                  placeholder="e.g. 500 Metric Tons Chilled"
-                  className="w-full px-3.5 py-2 rounded-xl border border-input bg-background text-sm"
-                />
-              </div>
+            {/* Phone Number */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Phone className="h-3.5 w-3.5 text-emerald-600" />
+                Official Business Contact Phone *
+              </label>
+              <input
+                type="text"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="e.g. +91 98450 12345"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 font-mono font-semibold"
+                required
+              />
+              <span className="text-[11px] text-slate-500 block">
+                Used by distributor drivers for gate access and handover coordination.
+              </span>
             </div>
 
-            {/* COMPLIANCE NOTICE */}
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-border/80 flex items-start gap-3 text-xs text-muted-foreground leading-relaxed">
-              <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-foreground block mb-0.5">Admin Verification Policy:</span>
-                Changes made here do not take effect instantly. Once submitted, FarmChain administrators verify your
-                FSSAI / trade license validity and address geolocation before activating the changes. Once approved, the
-                new verified location will automatically update in distributor route manifests.
-              </div>
-            </div>
-
-            {/* ACTION BUTTONS */}
-            <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleReset}
-                disabled={submitting}
-                className="w-full sm:w-auto rounded-xl gap-2 text-xs"
+            {/* Facility Type */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Warehouse className="h-3.5 w-3.5 text-emerald-600" />
+                Facility / Store Classification
+              </label>
+              <select
+                value={facilityType}
+                onChange={(e) => setFacilityType(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 font-medium"
               >
-                <RotateCcw className="h-3.5 w-3.5" /> Discard / Reset to Active
-              </Button>
-
-              <Button
-                type="submit"
-                disabled={submitting}
-                className="w-full sm:w-auto rounded-xl gap-2 font-bold bg-primary hover:bg-primary/90 text-primary-foreground text-xs px-6 shadow-md"
-              >
-                {submitting ? (
+                {isProcessor ? (
                   <>
-                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Submitting for Verification...
+                    <option value="Chilled Cold-Storage & Agro-Processing Warehouse">Chilled Cold-Storage & Agro-Processing Warehouse</option>
+                    <option value="Grain Milling & Secondary Processing Unit">Grain Milling & Secondary Processing Unit</option>
+                    <option value="Precision Cold-Chain Packing House">Precision Cold-Chain Packing House</option>
+                    <option value="Perishables Sorting & Value Addition Depot">Perishables Sorting & Value Addition Depot</option>
                   </>
                 ) : (
                   <>
-                    <Save className="h-4 w-4" />
-                    Submit Profile for Admin Verification & Approval
+                    <option value="Direct Retail Supermarket & Cold Dock">Direct Retail Supermarket & Cold Dock</option>
+                    <option value="Hypermarket Commercial Receiving Bay">Hypermarket Commercial Receiving Bay</option>
+                    <option value="Organic Specialty Grocer & Retail Shelf">Organic Specialty Grocer & Retail Shelf</option>
+                    <option value="Neighborhood Fresh Produce Mart">Neighborhood Fresh Produce Mart</option>
                   </>
                 )}
-              </Button>
+              </select>
             </div>
-          </form>
-        </CardContent>
-      </Card>
+          </div>
+
+          {/* INTERACTIVE HIGH-ACCURACY MAP & PIN PICKER */}
+          <div className="space-y-3 pt-4 border-t border-emerald-100">
+            <div>
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <MapPin className="h-4 w-4 text-emerald-600" />
+                Exact Facility Doorstep / Gate Geolocation (Interactive Map) *
+              </label>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Click <strong>"Detect My Exact GPS"</strong> or drag the green marker on the map to pinpoint your exact facility gate or store entrance.
+              </p>
+            </div>
+
+            {/* Interactive Leaflet Map with Search and Drag-to-Pinpoint */}
+            <LocationPickerMap
+              lat={lat}
+              lng={lng}
+              onLocationChange={handleLocationChangeFromMap}
+            />
+          </div>
+
+          {/* Full Physical Address Textarea */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-emerald-600" />
+              Full Street Address (Auto-filled from map or manually editable) *
+            </label>
+            <textarea
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              rows={3}
+              placeholder="Building name / unit number, street, industrial area, road, and city"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 leading-relaxed font-medium"
+              required
+            />
+            <span className="text-[11px] text-slate-500 block">
+              Distributor vehicles will be navigated directly to this street address for cargo pickup and delivery.
+            </span>
+          </div>
+
+          {/* City, State, Pin Code & GPS numbers */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-800">City / District</label>
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm font-medium"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-800">State</label>
+              <input
+                type="text"
+                value={state}
+                onChange={(e) => setState(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm font-medium"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-800">PIN Code</label>
+              <input
+                type="text"
+                value={pincode}
+                onChange={(e) => setPincode(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm font-mono font-bold"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-800">GPS Coordinates</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  step="0.000001"
+                  value={lat}
+                  onChange={(e) => setLat(parseFloat(e.target.value) || 0)}
+                  placeholder="Lat"
+                  title="Latitude"
+                  className="w-1/2 px-2.5 py-2 rounded-xl border border-emerald-200 bg-white text-slate-900 text-xs font-mono font-semibold"
+                />
+                <input
+                  type="number"
+                  step="0.000001"
+                  value={lng}
+                  onChange={(e) => setLng(parseFloat(e.target.value) || 0)}
+                  placeholder="Lng"
+                  title="Longitude"
+                  className="w-1/2 px-2.5 py-2 rounded-xl border border-emerald-200 bg-white text-slate-900 text-xs font-mono font-semibold"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Operating Hours & Contact Person */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-emerald-100">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-emerald-600" />
+                Operating & Dock Receiving Hours
+              </label>
+              <input
+                type="text"
+                value={operatingHours}
+                onChange={(e) => setOperatingHours(e.target.value)}
+                placeholder="e.g. 06:00 AM - 10:00 PM (Daily)"
+                className="w-full px-3.5 py-2 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm font-medium"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <UserCheck className="h-3.5 w-3.5 text-emerald-600" />
+                Operations Contact Person
+              </label>
+              <input
+                type="text"
+                value={contactPerson}
+                onChange={(e) => setContactPerson(e.target.value)}
+                placeholder="e.g. Facility Manager Name"
+                className="w-full px-3.5 py-2 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm font-medium"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-800">
+                Storage / Dock Capacity
+              </label>
+              <input
+                type="text"
+                value={storageCapacity}
+                onChange={(e) => setStorageCapacity(e.target.value)}
+                placeholder="e.g. 500 Metric Tons Chilled"
+                className="w-full px-3.5 py-2 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm font-medium"
+              />
+            </div>
+          </div>
+
+          {/* COMPLIANCE NOTICE (CRISP, READABLE GREEN BOX) */}
+          <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 flex items-start gap-3 text-xs text-emerald-950 leading-relaxed shadow-sm">
+            <Info className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-emerald-950 block mb-0.5 text-xs">Admin Verification Policy:</span>
+              Changes made here do not take effect instantly. Once submitted, FarmChain administrators verify your
+              FSSAI / trade license validity and address geolocation before activating the changes. Once approved, the
+              new verified location will automatically update in distributor route manifests.
+            </div>
+          </div>
+
+          {/* ACTION BUTTONS */}
+          <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleReset}
+              disabled={submitting}
+              className="w-full sm:w-auto rounded-xl gap-2 text-xs font-bold border-emerald-200 text-slate-700 hover:bg-emerald-50"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Discard / Reset to Active
+            </Button>
+
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="w-full sm:w-auto rounded-xl gap-2 font-bold bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-6 shadow-md"
+            >
+              {submitting ? (
+                <>
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Submitting for Verification...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  Submit Profile for Admin Verification & Approval
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
