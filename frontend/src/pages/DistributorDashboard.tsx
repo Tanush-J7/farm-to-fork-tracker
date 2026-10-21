@@ -24,9 +24,12 @@ import {
   ExternalLink,
   AlertCircle,
   AlertTriangle,
-  Scale
+  Scale,
+  Download,
+  Copy,
+  Check
 } from "lucide-react"
-import { QRCodeSVG } from "qrcode.react"
+import { QRCodeCanvas } from "qrcode.react"
 import { Card } from "../components/ui/Card"
 import { Button } from "../components/ui/Button"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
@@ -503,6 +506,49 @@ export function DistributorDashboard() {
         loading: false,
         error: err.response?.data?.message || "Failed to generate delivery QR."
       }))
+    }
+  }
+
+  const [copiedDeliveryToken, setCopiedDeliveryToken] = useState(false)
+
+  const handleDownloadDeliveryQR = () => {
+    const canvas = document.getElementById("distributor-delivery-qr-canvas") as HTMLCanvasElement
+    if (canvas) {
+      const pngUrl = canvas.toDataURL("image/png")
+      const downloadLink = document.createElement("a")
+      downloadLink.href = pngUrl
+      const batchClean = (deliveryQrModal?.req?.batch_number || "BATCH").replace(/[^\w-]/g, "_")
+      const prodClean = (deliveryQrModal?.req?.product_name || "Delivery").replace(/[^\w-]/g, "_")
+      downloadLink.download = `Delivery_QR_${prodClean}_${batchClean}.png`
+      document.body.appendChild(downloadLink)
+      downloadLink.click()
+      document.body.removeChild(downloadLink)
+      return
+    }
+
+    const svg = document.getElementById("distributor-delivery-qr-svg")
+    if (svg) {
+      const svgData = new XMLSerializer().serializeToString(svg)
+      const c = document.createElement("canvas")
+      c.width = 440
+      c.height = 440
+      const ctx = c.getContext("2d")
+      if (ctx) {
+        const img = new Image()
+        img.onload = () => {
+          ctx.fillStyle = "#ffffff"
+          ctx.fillRect(0, 0, c.width, c.height)
+          ctx.drawImage(img, 0, 0, c.width, c.height)
+          const pngUrl = c.toDataURL("image/png")
+          const a = document.createElement("a")
+          a.href = pngUrl
+          a.download = `Delivery_QR_${(deliveryQrModal?.req?.batch_number || "BATCH").replace(/[^\w-]/g, "_")}.png`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+        }
+        img.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`
+      }
     }
   }
 
@@ -2890,16 +2936,33 @@ export function DistributorDashboard() {
             ) : (
               <div className="space-y-4">
                 <div className="flex flex-col items-center justify-center p-6 bg-purple-50/50 rounded-2xl border-2 border-purple-300">
-                  <QRCodeSVG
+                  <QRCodeCanvas
+                    id="distributor-delivery-qr-canvas"
                     value={deliveryQrModal.qrToken || `DLV_${deliveryQrModal.req?.id}`}
                     size={220}
                     level="H"
                     includeMargin={true}
+                    className="rounded-xl shadow-xs bg-white p-1"
                   />
-                  <div className="mt-3 text-center">
-                    <span className="font-mono text-xs font-bold text-purple-900 bg-white px-3 py-1 rounded-md border border-purple-300 select-all block">
-                      {deliveryQrModal.qrToken || `DLV_${deliveryQrModal.req?.id}`}
-                    </span>
+                  <div className="mt-3 text-center w-full max-w-xs">
+                    <div className="flex items-center justify-center gap-1.5 font-mono text-xs font-bold text-purple-900 bg-white px-3 py-1.5 rounded-lg border border-purple-300 shadow-xs">
+                      <span className="truncate select-all">
+                        {deliveryQrModal.qrToken || `DLV_${deliveryQrModal.req?.id}`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const val = deliveryQrModal.qrToken || `DLV_${deliveryQrModal.req?.id}`
+                          navigator.clipboard.writeText(val)
+                          setCopiedDeliveryToken(true)
+                          setTimeout(() => setCopiedDeliveryToken(false), 2000)
+                        }}
+                        title="Copy delivery token"
+                        className="text-purple-600 hover:text-purple-800 p-0.5 rounded cursor-pointer shrink-0"
+                      >
+                        {copiedDeliveryToken ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                     <p className="text-[11px] text-slate-500 mt-1">Delivery QR for Retailer Scan</p>
                   </div>
                 </div>
@@ -2932,12 +2995,22 @@ export function DistributorDashboard() {
                   </span>
                 </div>
 
-                <Button
-                  onClick={() => setDeliveryQrModal(null)}
-                  className="w-full rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs"
-                >
-                  Done (Keep Active)
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleDownloadDeliveryQR}
+                    className="flex-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs gap-1.5 shadow-sm cursor-pointer"
+                  >
+                    <Download className="h-4 w-4" /> Download QR (PNG)
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setDeliveryQrModal(null)}
+                    className="flex-1 rounded-xl border-purple-200 text-purple-900 hover:bg-purple-50 font-bold text-xs cursor-pointer"
+                  >
+                    Done (Keep Active)
+                  </Button>
+                </div>
               </div>
             )}
           </Card>

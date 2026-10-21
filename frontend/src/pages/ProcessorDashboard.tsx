@@ -3670,11 +3670,13 @@ export function ProcessorDashboard() {
               <div className="space-y-4">
                 {/* QR Code Container */}
                 <div className="flex flex-col items-center justify-center p-6 bg-emerald-50/40 rounded-2xl shadow-inner border-2 border-emerald-300">
-                  <QRCodeSVG
+                  <QRCodeCanvas
+                    id="processor-pickup-qr-canvas"
                     value={pickupModalData.qrData || pickupModalData.qrToken || ""}
                     size={220}
                     level="H"
                     includeMargin={true}
+                    className="rounded-xl shadow-xs bg-white p-1"
                   />
                   <div className="mt-3 text-center">
                     <span className="font-mono text-xs font-bold text-emerald-950 bg-white px-3 py-1.5 rounded-md border border-emerald-300 select-all block shadow-xs">
@@ -3732,15 +3734,32 @@ export function ProcessorDashboard() {
 
                 <div className="flex gap-2">
                   <Button
+                    onClick={() => {
+                      const canvas = document.getElementById("processor-pickup-qr-canvas") as HTMLCanvasElement
+                      if (!canvas) return
+                      const pngUrl = canvas.toDataURL("image/png")
+                      const downloadLink = document.createElement("a")
+                      downloadLink.href = pngUrl
+                      downloadLink.download = `Pickup_QR_${(pickupModalData.batch?.batchId || "Batch").replace(/[^\w-]/g, "_")}.png`
+                      document.body.appendChild(downloadLink)
+                      downloadLink.click()
+                      document.body.removeChild(downloadLink)
+                    }}
+                    className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Download QR (PNG)
+                  </Button>
+                  <Button
                     variant="outline"
                     onClick={() => window.print()}
-                    className="flex-1 rounded-xl border-emerald-200 text-emerald-800 hover:bg-emerald-50 text-xs gap-1.5 font-bold"
+                    className="rounded-xl border-emerald-200 text-emerald-800 hover:bg-emerald-50 text-xs gap-1.5 font-bold cursor-pointer"
                   >
-                    <Printer className="h-3.5 w-3.5" /> Print Tag
+                    <Printer className="h-3.5 w-3.5" /> Print
                   </Button>
                   <Button
                     onClick={() => setPickupModalData(null)}
-                    className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs"
+                    variant="outline"
+                    className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs"
                   >
                     Done
                   </Button>
