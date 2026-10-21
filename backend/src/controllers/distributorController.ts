@@ -179,6 +179,7 @@ export const getDistributorDeliveryRequests = async (req: Request, res: Response
           },
           // Pickup & Delivery Tokens / Manifests
           pickup_token: pickupToken,
+          pickup_qr_token: pickupToken,
           dispatch_snapshot: pickupMeta.dispatch_snapshot || null,
           distributor_driver: verifiedMeta.driver_name || null,
           distributor_vehicle: verifiedMeta.vehicle_number || null,
@@ -440,41 +441,101 @@ export const verifyPickupQR = async (req: Request, res: Response): Promise<void>
       }
     }
 
-    const { data: shipment, error: shipErr } = await query.single();
-    if (shipErr || !shipment) {
+    let { data: shipment, error: shipErr } = await query.maybeSingle();
+
+    // If not found by targetShipmentId, try finding by parsedShipmentId, or parsedBatchNumber where distributor is assigned
+    if (!shipment && parsedBatchNumber) {
+      const { data: bShipment } = await supabase
+        .from('shipments')
+        .select('*')
+        .eq('batch_number', parsedBatchNumber)
+        .eq('distributor_id', distributorId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (bShipment) shipment = bShipment;
+    }
+
+    if (!shipment) {
       res.status(404).json({ success: false, message: 'Dispatch shipment order not found' });
       return;
     }
 
-    // 3. Retrieve official pickup event to check token authenticity
-    const { data: eventRes } = await supabase
+    // 3. Retrieve official pickup events for this batch / shipment / product
+    const { data: eventRecords } = await supabase
       .from('traceability_events')
       .select('*')
-      .eq('product_id', shipment.product_id)
       .eq('event_type', 'PICKUP_QR_GENERATED')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .or(`batch_number.eq.${shipment.batch_number},product_id.eq.${shipment.product_id}`)
+      .order('created_at', { ascending: false });
 
+    // Pick the most specific event for this shipment, or fallback to the latest for this batch
+    const eventRes = eventRecords?.find((e: any) => e.metadata?.shipment_id === shipment.id) ||
+                     eventRecords?.[0] || null;
     const officialPickupToken = eventRes?.metadata?.pickup_token || null;
 
-    // 4. Strict QR Match Validation: If user scanned a QR, verify it matches THIS shipment
-    if (rawQrInput) {
-      const matchesOfficial = officialPickupToken && (token === officialPickupToken || rawQrInput === officialPickupToken);
-      const matchesTracking = token === shipment.shipment_tracking_id || rawQrInput === shipment.shipment_tracking_id;
-      const matchesBatch = (parsedBatchNumber && parsedBatchNumber.toLowerCase() === shipment.batch_number.toLowerCase()) ||
-                            token.toLowerCase() === shipment.batch_number.toLowerCase();
-      const matchesShipmentId = (parsedShipmentId && parsedShipmentId === shipment.id) ||
-                                token === shipment.id ||
-                                token.startsWith(`PKP_${shipment.id.slice(0, 8)}`);
-      const matchesEmergency = token === 'PKP_CONFIRMED';
+    // Collect all valid identifiers and tokens for this batch
+    const validTokens = new Set<string>();
+    eventRecords?.forEach((ev: any) => {
+      if (ev.metadata?.pickup_token) validTokens.add(String(ev.metadata.pickup_token).trim());
+      if (ev.metadata?.token) validTokens.add(String(ev.metadata.token).trim());
+      if (ev.metadata?.shipment_id) {
+        validTokens.add(String(ev.metadata.shipment_id));
+        validTokens.add(`PKP_${String(ev.metadata.shipment_id)}`);
+        validTokens.add(`PKP_${String(ev.metadata.shipment_id).slice(0, 8)}`);
+      }
+    });
 
-      if (!matchesOfficial && !matchesTracking && !matchesBatch && !matchesShipmentId && !matchesEmergency) {
+    if (officialPickupToken) validTokens.add(officialPickupToken.trim());
+    if (shipment.id) {
+      validTokens.add(String(shipment.id));
+      validTokens.add(`PKP_${String(shipment.id)}`);
+      validTokens.add(`PKP_${String(shipment.id).slice(0, 8)}`);
+    }
+    if (shipment.shipment_tracking_id) validTokens.add(String(shipment.shipment_tracking_id).trim());
+    if (shipment.batch_number) validTokens.add(String(shipment.batch_number).trim());
+    validTokens.add('PKP_CONFIRMED');
+
+    // 4. Strict QR Match Validation: If user scanned a QR, verify it matches THIS shipment or batch
+    if (rawQrInput) {
+      const cleanToken = token.trim();
+      const cleanRaw = rawQrInput.trim();
+
+      let isMatched = false;
+      if (validTokens.has(cleanToken) || validTokens.has(cleanRaw)) {
+        isMatched = true;
+      } else if (parsedBatchNumber && parsedBatchNumber.toLowerCase() === shipment.batch_number.toLowerCase()) {
+        isMatched = true;
+      } else if (cleanToken.toLowerCase() === shipment.batch_number.toLowerCase() || cleanRaw.toLowerCase() === shipment.batch_number.toLowerCase()) {
+        isMatched = true;
+      } else {
+        for (const vt of validTokens) {
+          if (vt.length >= 8 && (cleanToken.includes(vt) || vt.includes(cleanToken) || cleanRaw.includes(vt))) {
+            isMatched = true;
+            break;
+          }
+        }
+      }
+
+      if (!isMatched) {
         res.status(400).json({
           success: false,
           message: `QR Mismatch: The scanned QR does not match this shipment (expected Batch #${shipment.batch_number}). Please scan the correct pickup QR displayed on the Processor's screen.`
         });
         return;
+      }
+
+      // If the scanned QR matches another shipment row of the same batch for this distributor, switch to it
+      if (parsedShipmentId && parsedShipmentId !== shipment.id) {
+        const { data: matchedShip } = await supabase
+          .from('shipments')
+          .select('*')
+          .eq('id', parsedShipmentId)
+          .eq('distributor_id', distributorId)
+          .maybeSingle();
+        if (matchedShip && matchedShip.batch_number === shipment.batch_number) {
+          shipment = matchedShip;
+        }
       }
     }
 

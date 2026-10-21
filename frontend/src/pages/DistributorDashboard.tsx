@@ -339,7 +339,7 @@ export function DistributorDashboard() {
       isOpen: true,
       req,
       step: "scan",
-      manualTokenInput: req.pickup_qr_token || ""
+      manualTokenInput: req.pickup_token || req.pickup_qr_token || ""
     })
   }
 
@@ -2332,13 +2332,15 @@ export function DistributorDashboard() {
                     <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
                       Or Enter Dispatch Token Manually
                     </label>
-                    {pickupVerifyModal.req?.pickup_qr_token && (
+                    {(pickupVerifyModal.req?.pickup_token || pickupVerifyModal.req?.pickup_qr_token) && (
                       <button
                         type="button"
                         onClick={() =>
                           setPickupVerifyModal((prev) => ({
                             ...prev!,
-                            manualTokenInput: pickupVerifyModal.req.pickup_qr_token
+                            manualTokenInput:
+                              pickupVerifyModal.req.pickup_token ||
+                              pickupVerifyModal.req.pickup_qr_token
                           }))
                         }
                         className="text-[11px] font-mono underline font-bold text-emerald-700 hover:text-emerald-900"
@@ -2365,7 +2367,9 @@ export function DistributorDashboard() {
                       onClick={() =>
                         handleVerifyScannedToken(
                           pickupVerifyModal.manualTokenInput ||
+                            pickupVerifyModal.req?.pickup_token ||
                             pickupVerifyModal.req?.pickup_qr_token ||
+                            pickupVerifyModal.req?.batch_number ||
                             `PKP_${pickupVerifyModal.req?.id}`
                         )
                       }

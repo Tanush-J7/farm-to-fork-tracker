@@ -1116,12 +1116,14 @@ export function ProcessorDashboard() {
 
       if (genRes.data?.success) {
         const qrPayload = genRes.data.data
+        const tokenStr = qrPayload.pickup_token || qrPayload.pickup_qr_token || qrPayload.qr_payload;
+        const dataStr = qrPayload.qr_payload || qrPayload.pickup_qr_data || tokenStr;
         setPickupModalData({
           isOpen: true,
           loading: false,
           batch,
-          qrToken: qrPayload.pickup_qr_token,
-          qrData: qrPayload.pickup_qr_data,
+          qrToken: tokenStr,
+          qrData: dataStr,
           txHash: qrPayload.blockchain_hash
         })
 
@@ -1131,8 +1133,8 @@ export function ProcessorDashboard() {
             next[batch.batchId] = {
               ...next[batch.batchId],
               deliveryRequestStatus: "PICKUP_QR_GENERATED",
-              pickupQrToken: qrPayload.pickup_qr_token,
-              pickupQrData: qrPayload.pickup_qr_data,
+              pickupQrToken: tokenStr,
+              pickupQrData: dataStr,
               blockchainTx: qrPayload.blockchain_hash || next[batch.batchId].blockchainTx
             }
           }
@@ -3669,7 +3671,7 @@ export function ProcessorDashboard() {
                 {/* QR Code Container */}
                 <div className="flex flex-col items-center justify-center p-6 bg-emerald-50/40 rounded-2xl shadow-inner border-2 border-emerald-300">
                   <QRCodeSVG
-                    value={pickupModalData.qrToken || ""}
+                    value={pickupModalData.qrData || pickupModalData.qrToken || ""}
                     size={220}
                     level="H"
                     includeMargin={true}

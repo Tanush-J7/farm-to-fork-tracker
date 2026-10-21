@@ -772,7 +772,9 @@ export const getProcessorDeliveryRequests = async (req: Request, res: Response):
           },
           // Pickup & Dispatch QR details
           pickup_token: pickupToken,
+          pickup_qr_token: pickupToken,
           pickup_qr_payload: pickupQrPayload,
+          pickup_qr_data: pickupQrPayload,
           dispatch_snapshot: pickupMeta.dispatch_snapshot || null,
           // Collected Driver & Vehicle Details
           distributor_driver: verifiedMeta.driver_name || null,
@@ -978,7 +980,9 @@ export const generatePickupQR = async (req: Request, res: Response): Promise<voi
       message: 'Blockchain-backed Pickup QR generated successfully.',
       data: {
         pickup_token: pickupToken,
+        pickup_qr_token: pickupToken,
         qr_payload: qrPayload,
+        pickup_qr_data: qrPayload,
         dispatch_snapshot: dispatchSnapshot,
         blockchain_hash: txHash
       }
