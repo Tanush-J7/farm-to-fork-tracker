@@ -110,7 +110,7 @@ export function DistributorDashboard() {
   // Delivery Requests state (from Processors)
   const [deliveryRequests, setDeliveryRequests] = useState<any[]>([])
   const [loadingRequests, setLoadingRequests] = useState(false)
-  const [requestsFilter, setRequestsFilter] = useState<"ALL" | "REQUESTED" | "IN_TRANSIT" | "DECLINED">("ALL")
+  const [requestsFilter, setRequestsFilter] = useState<"ALL" | "REQUESTED" | "IN_TRANSIT" | "COMPLETED" | "DECLINED">("ALL")
   const [respondingRequestId, setRespondingRequestId] = useState<string | null>(null)
   const [declineModalRequest, setDeclineModalRequest] = useState<any | null>(null)
   const [selectedMapRequest, setSelectedMapRequest] = useState<any | null>(null)
@@ -574,7 +574,8 @@ export function DistributorDashboard() {
 
       const interval = setInterval(() => {
         fetchDeliveryRequests(true)
-      }, 10000)
+        fetchInventory()
+      }, 5000)
       return () => clearInterval(interval)
     }
   }, [token])
@@ -772,8 +773,14 @@ export function DistributorDashboard() {
   }
 
   // Stats calculations
-  const activeShipmentsCount = inventory.filter((p) => p.status === "In Transit").length
-  const deliveredCount = inventory.filter((p) => p.status === "At Retailer" || p.status === "Delivered").length
+  const activeLoadsList = deliveryRequests.filter(
+    (r) => r.status === "IN_TRANSIT" || r.status === "ARRIVED_AT_RETAILER"
+  )
+  const completedLoadsList = deliveryRequests.filter(
+    (r) => r.status === "COMPLETED" || r.status === "DELIVERED"
+  )
+  const activeShipmentsCount = activeLoadsList.length || inventory.filter((p) => p.status === "In Transit").length
+  const deliveredCount = completedLoadsList.length || inventory.filter((p) => p.status === "At Retailer" || p.status === "Delivered").length
   const pendingRequestsCount = deliveryRequests.filter((r) => r.status === "REQUESTED").length
 
   const quickDeclinePresets = [
@@ -1016,6 +1023,77 @@ export function DistributorDashboard() {
         </div>
       </div>
 
+      {/* RECENTLY COMPLETED DELIVERIES HUD */}
+      {completedLoadsList.length > 0 && (
+        <div className="p-6 rounded-3xl bg-white border border-emerald-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
+            <div>
+              <h4 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                Recently Completed & Delivered Cargo
+              </h4>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Deliveries successfully received and certified by retail store managers.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setRequestsFilter("COMPLETED")
+                handleTabSwitch("requests")
+              }}
+              className="rounded-xl text-xs border-emerald-300 text-emerald-800 hover:bg-emerald-50 font-bold cursor-pointer"
+            >
+              View All ({completedLoadsList.length})
+            </Button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {completedLoadsList.slice(0, 4).map((item) => (
+              <div
+                key={item.id}
+                className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 flex items-center justify-between gap-3"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-slate-900 text-sm">
+                      {item.product_name?.includes("Tomato")
+                        ? "🍅"
+                        : item.product_name?.includes("Mango")
+                        ? "🥭"
+                        : item.product_name?.includes("Apple")
+                        ? "🍎"
+                        : "📦"}{" "}
+                      {item.product_name}
+                    </span>
+                    <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
+                      {item.batch_number}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    <strong>{item.quantity} {item.unit || "kg"}</strong> delivered to <span className="font-semibold text-slate-900">{item.retailer?.destination_store || item.retailer?.name || "Retail Store"}</span>
+                  </p>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                    <CheckCircle2 className="h-3 w-3" /> Retailer Accepted • Job Completed
+                  </span>
+                </div>
+                {item.blockchain_hash && (
+                  <a
+                    href={`https://sepolia.etherscan.io/tx/${item.blockchain_hash}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] text-emerald-700 hover:underline font-mono shrink-0"
+                  >
+                    Sepolia TX ↗
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* QUICK LAUNCH TILES */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <button
@@ -1106,10 +1184,17 @@ export function DistributorDashboard() {
   // ==========================================
   const RequestsTab = () => {
     const pendingCount = deliveryRequests.filter((r) => r.status === "REQUESTED").length
+    const activeRequestsCount = deliveryRequests.filter(
+      (r) => r.status === "IN_TRANSIT" || r.status === "ACCEPTED" || r.status === "PICKUP_QR_GENERATED" || r.status === "ARRIVED_AT_RETAILER"
+    ).length
+    const completedCount = deliveryRequests.filter((r) => r.status === "COMPLETED" || r.status === "DELIVERED").length
+    const declinedCount = deliveryRequests.filter((r) => r.status === "DECLINED").length
+
     const filtered = deliveryRequests.filter((r) => {
       if (requestsFilter === "ALL") return true
       if (requestsFilter === "REQUESTED") return r.status === "REQUESTED"
-      if (requestsFilter === "IN_TRANSIT") return r.status === "IN_TRANSIT" || r.status === "ACCEPTED"
+      if (requestsFilter === "IN_TRANSIT") return r.status === "IN_TRANSIT" || r.status === "ACCEPTED" || r.status === "PICKUP_QR_GENERATED" || r.status === "ARRIVED_AT_RETAILER"
+      if (requestsFilter === "COMPLETED") return r.status === "COMPLETED" || r.status === "DELIVERED"
       if (requestsFilter === "DECLINED") return r.status === "DECLINED"
       return true
     })
@@ -1145,11 +1230,15 @@ export function DistributorDashboard() {
               { id: "REQUESTED", label: `Pending (${pendingCount})` },
               {
                 id: "IN_TRANSIT",
-                label: `Accepted (${deliveryRequests.filter((r) => r.status === "IN_TRANSIT" || r.status === "ACCEPTED").length})`
+                label: `In Transit (${activeRequestsCount})`
+              },
+              {
+                id: "COMPLETED",
+                label: `Delivered & Completed (${completedCount})`
               },
               {
                 id: "DECLINED",
-                label: `Declined (${deliveryRequests.filter((r) => r.status === "DECLINED").length})`
+                label: `Declined (${declinedCount})`
               }
             ].map((f) => (
               <button
@@ -1611,13 +1700,69 @@ export function DistributorDashboard() {
   // TAB 3: FLEET & IN-TRANSIT TRACKING
   // ==========================================
   const FleetTab = () => {
-    const inTransitBatches = inventory.filter((i) => i.status === "In Transit")
+    const activeRequests = deliveryRequests.filter(
+      (r) => r.status === "IN_TRANSIT" || r.status === "ARRIVED_AT_RETAILER"
+    )
+    const completedRequests = deliveryRequests.filter(
+      (r) => r.status === "COMPLETED" || r.status === "DELIVERED"
+    )
+
+    // Merge active requests with any local in-transit inventory item
+    const inTransitBatches = [
+      ...activeRequests.map((r) => ({
+        id: r.id,
+        name: r.product_name,
+        batch_number: r.batch_number,
+        quantity: r.quantity,
+        unit: r.unit || "kg",
+        product_id: r.product_id,
+        status: r.status === "ARRIVED_AT_RETAILER" ? "Arrived at Store" : "In Transit",
+        isArrivedAtStore: r.status === "ARRIVED_AT_RETAILER",
+        request: r
+      })),
+      ...inventory
+        .filter((i) => i.status === "In Transit" && !activeRequests.some((r) => r.batch_number === i.batch_number))
+        .map((i) => ({
+          ...i,
+          isArrivedAtStore: false,
+          request: deliveryRequests.find((r) => r.batch_number === i.batch_number)
+        }))
+    ]
+
     const readyAtProcessors = allProducts.filter(
       (p) => p.status === "Processed" || p.status === "Processed - Grade A"
     )
 
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
+        {/* FLEET CONTROLS & REFRESH */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-200 pb-3">
+          <div>
+            <h3 className="text-xl font-bold flex items-center gap-2 text-emerald-950">
+              <Truck className="h-5 w-5 text-emerald-600" />
+              Fleet Transit & Custody Operations
+            </h3>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Live cargo transport runs, store delivery handoffs, and confirmed completed trips.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                fetchDeliveryRequests(false)
+                fetchInventory()
+              }}
+              disabled={loadingRequests}
+              className="rounded-full text-xs h-8 px-3.5 gap-1.5 cursor-pointer shadow-xs border-emerald-200 text-slate-700 hover:bg-emerald-50 font-semibold"
+            >
+              <RefreshCw className={`h-3 w-3 ${loadingRequests ? "animate-spin text-emerald-600" : ""}`} />
+              Refresh Fleet Status
+            </Button>
+          </div>
+        </div>
+
         <div className="grid gap-6 lg:grid-cols-3">
           {/* ACTIVE IN-TRANSIT TABLE (White & Green) */}
           <div className="lg:col-span-2 p-6 rounded-3xl bg-white border border-emerald-200 shadow-sm space-y-4">
@@ -1631,84 +1776,138 @@ export function DistributorDashboard() {
                   Produce currently loaded in your fleet. Hand off to retailer upon arrival.
                 </p>
               </div>
-              <span className="text-xs font-bold px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-200">
+              <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
+                inTransitBatches.length > 0
+                  ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                  : "bg-slate-100 text-slate-600 border-slate-200"
+              }`}>
                 {inTransitBatches.length} Live Loads
               </span>
             </div>
 
             {inTransitBatches.length === 0 ? (
-              <div className="py-12 text-center text-slate-500 space-y-2">
-                <Truck className="h-10 w-10 mx-auto text-emerald-300" />
-                <p className="text-sm font-semibold">No cargo currently in transit.</p>
-                <p className="text-xs max-w-sm mx-auto text-slate-600">
-                  Accept an incoming processor dispatch manifest or scan a batch QR code in the "Smart Handoff" dock.
-                </p>
+              <div className="py-10 text-center text-slate-500 space-y-2.5">
+                {completedRequests.length > 0 ? (
+                  <>
+                    <div className="h-12 w-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto border border-emerald-200 shadow-inner">
+                      <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                    </div>
+                    <p className="text-base font-bold text-slate-900">All Assigned Cargo Delivered & Accepted!</p>
+                    <p className="text-xs max-w-sm mx-auto text-slate-600">
+                      All your deliveries have arrived at retail stores and have been accepted. Your vehicle is available for new trips.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Truck className="h-10 w-10 mx-auto text-emerald-300" />
+                    <p className="text-sm font-semibold">No cargo currently in transit.</p>
+                    <p className="text-xs max-w-sm mx-auto text-slate-600">
+                      Accept an incoming processor dispatch manifest or scan a batch QR code in the "Smart Handoff" dock.
+                    </p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
-                {inTransitBatches.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 text-base">{item.name}</span>
-                        <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold border border-emerald-300">
-                          {item.batch_number}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-600">
-                        Cargo Load: <strong>{item.quantity} kg</strong> • On-Chain ID: #{item.product_id || "N/A"}
-                      </p>
-                    </div>
+                {inTransitBatches.map((item) => {
+                  const matchingReq = item.request || deliveryRequests.find((r) => r.batch_number === item.batch_number || r.product_id === item.product_id)
+                  const isDockedAtStore = item.isArrivedAtStore || matchingReq?.status === "ARRIVED_AT_RETAILER"
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const matchingReq = deliveryRequests.find((r) => r.batch_number === item.batch_number)
-                          setSelectedMapRequest(
-                            matchingReq || {
-                              batch_number: item.batch_number,
-                              product_name: item.name,
-                              quantity: item.quantity,
-                              unit: "kg",
-                              processor: {
-                                facility_name: "Agro-Processing Facility",
-                                facility_location: "Agro-Processing Unit #4, Yeshwanthpur APMC Yard, Bengaluru 560022"
-                              },
-                              retailer: {
-                                destination_store: "Metro Fresh Mart Koramangala",
-                                store_location: "Metro Fresh Supermarket, 80 Feet Road, 4th Block, Koramangala, Bengaluru 560034"
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                        isDockedAtStore
+                          ? "border-purple-300 bg-purple-50/40"
+                          : "border-emerald-200 bg-emerald-50/40"
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-slate-900 text-base">{item.name}</span>
+                          <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold border border-emerald-300">
+                            {item.batch_number}
+                          </span>
+                          {isDockedAtStore && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-300 animate-pulse">
+                              <Store className="h-3 w-3" /> Docked at Retailer — QR Ready
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-600">
+                          Cargo Load: <strong>{item.quantity} {item.unit || "kg"}</strong> • Destination: <span className="font-semibold text-slate-800">{matchingReq?.retailer?.destination_store || "Retail Store"}</span>
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedMapRequest(
+                              matchingReq || {
+                                batch_number: item.batch_number,
+                                product_name: item.name,
+                                quantity: item.quantity,
+                                unit: item.unit || "kg",
+                                processor: {
+                                  facility_name: "Agro-Processing Facility",
+                                  facility_location: "Agro-Processing Unit #4, Yeshwanthpur APMC Yard, Bengaluru 560022"
+                                },
+                                retailer: {
+                                  destination_store: "Metro Fresh Mart Koramangala",
+                                  store_location: "Metro Fresh Supermarket, 80 Feet Road, 4th Block, Koramangala, Bengaluru 560034"
+                                }
                               }
-                            }
-                          )
-                        }}
-                        className="rounded-xl text-xs gap-1 border-emerald-300 text-emerald-800 hover:bg-emerald-100 cursor-pointer font-bold"
-                      >
-                        <Navigation className="h-3.5 w-3.5 text-emerald-600" />
-                        Route Map
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          const matchingReq = deliveryRequests.find((r) => r.batch_number === item.batch_number || r.product_id === item.product_id)
-                          if (matchingReq) {
-                            handleGenerateDeliveryQR(matchingReq)
-                          } else {
-                            setDeliveryModalItem(item)
-                          }
-                        }}
-                        className="rounded-xl text-xs gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer shadow-xs"
-                      >
-                        <Store className="h-3.5 w-3.5" />
-                        Deliver to Store
-                      </Button>
+                            )
+                          }}
+                          className="rounded-xl text-xs gap-1 border-emerald-300 text-emerald-800 hover:bg-emerald-100 cursor-pointer font-bold"
+                        >
+                          <Navigation className="h-3.5 w-3.5 text-emerald-600" />
+                          Route Map
+                        </Button>
+
+                        {isDockedAtStore ? (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              if (matchingReq) {
+                                setDeliveryQrModal({
+                                  isOpen: true,
+                                  loading: false,
+                                  req: matchingReq,
+                                  qrToken: matchingReq.delivery_qr_token || `DLV_${matchingReq.id}`,
+                                  qrData: matchingReq.delivery_qr_data || {}
+                                })
+                              } else {
+                                setDeliveryModalItem(item)
+                              }
+                            }}
+                            className="rounded-xl text-xs gap-1 bg-purple-600 hover:bg-purple-500 text-white font-bold cursor-pointer shadow-xs"
+                          >
+                            <QrCode className="h-3.5 w-3.5" />
+                            Show Delivery QR
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              if (matchingReq) {
+                                handleGenerateDeliveryQR(matchingReq)
+                              } else {
+                                setDeliveryModalItem(item)
+                              }
+                            }}
+                            className="rounded-xl text-xs gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer shadow-xs"
+                          >
+                            <Store className="h-3.5 w-3.5" />
+                            Deliver to Store
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -1722,11 +1921,19 @@ export function DistributorDashboard() {
             <div className="space-y-2 text-xs">
               <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-150 flex justify-between items-center">
                 <span className="text-slate-600">Transit Status</span>
-                <span className="font-bold text-emerald-800 font-mono text-sm">Active On Route</span>
+                <span className="font-bold text-emerald-800 font-mono text-sm">
+                  {inTransitBatches.length > 0
+                    ? `Active On Route (${inTransitBatches.length} Load${inTransitBatches.length > 1 ? "s" : ""})`
+                    : completedRequests.length > 0
+                    ? "All Trips Completed • Available"
+                    : "Available for Trip"}
+                </span>
               </div>
               <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-150 flex justify-between items-center">
                 <span className="text-slate-600">Engine Telematics</span>
-                <span className="font-bold text-emerald-700 font-mono text-sm">Operational (Zone 1)</span>
+                <span className="font-bold text-emerald-700 font-mono text-sm">
+                  {inTransitBatches.length > 0 ? "Operational (Zone 1)" : "Docked / Standby"}
+                </span>
               </div>
               <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-150 flex justify-between items-center">
                 <span className="text-slate-600">GPS Tracker Status</span>
@@ -1739,6 +1946,99 @@ export function DistributorDashboard() {
             </div>
           </div>
         </div>
+
+        {/* DELIVERED & COMPLETED ORDERS (Certified by Retailer) */}
+        {completedRequests.length > 0 && (
+          <div className="p-6 rounded-3xl bg-white border border-emerald-300 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-100 pb-3">
+              <div>
+                <h4 className="font-bold text-base text-emerald-950 flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  Delivered & Completed Cargo (Signed Off by Retailer)
+                </h4>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Consignments accepted and digitally verified by destination stores. Distributor role is completed!
+                </p>
+              </div>
+              <span className="text-xs font-bold px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full border border-emerald-300 self-start sm:self-center">
+                {completedRequests.length} Order{completedRequests.length > 1 ? "s" : ""} Completed
+              </span>
+            </div>
+
+            <div className="grid gap-3">
+              {completedRequests.map((item) => {
+                const destStoreName = item.retailer?.destination_store || item.retailer?.name || "Retail Supermarket"
+                const destStoreAddr = item.retailer?.store_location || item.retailer?.address || ""
+                const verifiedTime = item.delivery_verified_at || item.created_at
+
+                return (
+                  <div
+                    key={item.id}
+                    className="p-5 rounded-2xl border border-emerald-200 bg-emerald-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="font-black text-slate-900 text-base flex items-center gap-1.5">
+                          {item.product_name?.includes("Tomato")
+                            ? "🍅"
+                            : item.product_name?.includes("Mango")
+                            ? "🥭"
+                            : item.product_name?.includes("Apple")
+                            ? "🍎"
+                            : "📦"}{" "}
+                          {item.product_name}
+                        </span>
+                        <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
+                          Batch: {item.batch_number}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-600 text-white shadow-xs">
+                          <CheckCircle2 className="h-3 w-3" /> Retailer Accepted & Verified
+                        </span>
+                      </div>
+
+                      <div className="text-xs text-slate-600 space-y-1">
+                        <p>
+                          Delivered Cargo: <strong className="text-slate-900">{item.quantity} {item.unit || "kg"}</strong> • Tracking: <span className="font-mono">#{item.tracking_id || item.id?.slice(0, 8)}</span>
+                        </p>
+                        <p className="flex items-center gap-1 text-emerald-900 font-medium">
+                          <Store className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                          Handed off to: <strong>{destStoreName}</strong>
+                          {destStoreAddr && <span className="text-slate-500 truncate max-w-md">({destStoreAddr})</span>}
+                        </p>
+                        {verifiedTime && (
+                          <p className="text-[11px] text-slate-500">
+                            Completed on: {new Date(verifiedTime).toLocaleDateString()} at {new Date(verifiedTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col md:items-end gap-2 shrink-0">
+                      <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
+                        <Check className="h-4 w-4 text-emerald-600" />
+                        Distributor Role Completed
+                      </span>
+                      {item.blockchain_hash ? (
+                        <a
+                          href={`https://sepolia.etherscan.io/tx/${item.blockchain_hash}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] text-emerald-700 hover:text-emerald-900 hover:underline font-mono flex items-center gap-1"
+                        >
+                          Sepolia Hash: {item.blockchain_hash.slice(0, 10)}... <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        <span className="text-[11px] text-slate-500 font-mono">
+                          Cryptographic Receipt Verified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* READY AT PROCESSING PLANTS */}
         <div className="p-6 rounded-3xl bg-white border border-emerald-200 shadow-sm space-y-4">
