@@ -597,7 +597,7 @@ export const verifyPickupQR = async (req: Request, res: Response): Promise<void>
           quantity: shipment.quantity,
           unit: shipment.unit || 'kg',
           quality_score: product?.ai_quality_score || 94,
-          quality_label: product?.ai_quality_label || 'Grade A',
+          quality_label: (product?.ai_quality_label && product.ai_quality_label.toUpperCase() !== 'UNKNOWN') ? product.ai_quality_label : ((product?.ai_quality_score && product.ai_quality_score >= 85) ? 'Grade A' : 'Grade B'),
           expiry_date: product?.expiry_date,
           organic_status: product?.organic_status || false,
           image_url: product?.product_image_url
@@ -653,6 +653,7 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
 
     const pickup_token = req.body.pickup_token || req.body.qr_code || 'PKP_CONFIRMED';
     const notes = req.body.notes || req.body.inspection_notes || 'Physical items, crate count, and temperature SLA verified at loading bay.';
+    const remarks = (req.body.remarks || req.body.inspection_notes || notes || '').trim();
 
     if (!distributorId) {
       res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -687,6 +688,14 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
       return;
     }
 
+    // Determine verified scale quantity and any dock weight discrepancy
+    const manifestQuantity = Number(shipment.quantity) || 0;
+    const verifiedQuantity = req.body.verified_quantity !== undefined && !isNaN(Number(req.body.verified_quantity)) && Number(req.body.verified_quantity) > 0
+      ? Number(Number(req.body.verified_quantity).toFixed(2))
+      : manifestQuantity;
+    const weightDiscrepancy = Number((verifiedQuantity - manifestQuantity).toFixed(2));
+    const hasDiscrepancy = Math.abs(weightDiscrepancy) > 0.001;
+
     // 2. Fetch product, processor, retailer profiles
     const [prodRes, procProfile, retProfile, distProfile, distUser] = await Promise.all([
       supabase.from('products').select('*').eq('id', shipment.product_id).single(),
@@ -707,11 +716,12 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
     const cleanDepartureTemp = departure_temperature || '3.8°C Precision Chilled';
     const nowIso = new Date().toISOString();
 
-    // 3. Update shipment status to IN_TRANSIT
+    // 3. Update shipment status to IN_TRANSIT and save verified quantity
     const { error: shipUpdateErr } = await supabase
       .from('shipments')
       .update({
         status: 'IN_TRANSIT',
+        quantity: verifiedQuantity,
         updated_at: nowIso
       })
       .eq('id', shipment.id);
@@ -727,6 +737,7 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
         .from('products')
         .update({
           status: 'In Transit',
+          quantity: verifiedQuantity,
           current_owner_id: distributorId,
           updated_at: nowIso
         })
@@ -740,10 +751,11 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
     let txHash: string | null = null;
     if (product && product.product_id && Number(product.product_id) > 0 && blockchainRelayer.isConfigured()) {
       try {
+        const discText = hasDiscrepancy ? ` [Dock Scale: ${verifiedQuantity} kg, Discrepancy: ${weightDiscrepancy > 0 ? '+' : ''}${weightDiscrepancy} kg]` : '';
         const relayRes = await blockchainRelayer.updateStage(
           Number(product.product_id),
           'In Transit',
-          `Collected by Driver ${cleanDriverName}, Vehicle: ${cleanVehicleNumber} (${cleanDepartureTemp}). Dispatched from ${procName} to ${storeName}.`
+          `Collected by Driver ${cleanDriverName}, Vehicle: ${cleanVehicleNumber} (${cleanDepartureTemp}). Dispatched to ${storeName}.${discText} Remarks: ${remarks}`
         );
         txHash = relayRes.txHash;
         await supabase.from('products').update({ blockchain_hash: txHash }).eq('id', product.id);
@@ -766,13 +778,19 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
           tracking_id: shipment.shipment_tracking_id,
           pickup_token: pickup_token,
           pickup_verified_at: nowIso,
+          manifest_quantity: manifestQuantity,
+          verified_quantity: verifiedQuantity,
+          weight_discrepancy: weightDiscrepancy,
+          has_discrepancy: hasDiscrepancy,
+          unit: shipment.unit || 'kg',
+          remarks: remarks,
+          notes: remarks,
           driver_name: cleanDriverName,
           driver_phone: cleanDriverPhone,
           vehicle_number: cleanVehicleNumber,
           vehicle_type: vehicle_type || 'Refrigerated Reefer Truck',
           departure_temperature: cleanDepartureTemp,
-          inspection_confirmed: Boolean(inspection_confirmed),
-          notes: notes || 'Physical items, crate count, and temperature SLA verified at loading bay.'
+          inspection_confirmed: Boolean(inspection_confirmed)
         }
       },
       {
@@ -789,9 +807,12 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
           // Complete Product Details
           product_name: product?.name || 'Produce Batch',
           batch_number: shipment.batch_number,
-          quantity: shipment.quantity,
+          quantity: verifiedQuantity,
+          manifest_quantity: manifestQuantity,
+          weight_discrepancy: weightDiscrepancy,
+          has_discrepancy: hasDiscrepancy,
           unit: shipment.unit || 'kg',
-          quality_grade: product?.ai_quality_label || 'Grade A',
+          quality_grade: (product?.ai_quality_label && product.ai_quality_label.toUpperCase() !== 'UNKNOWN') ? product.ai_quality_label : 'Grade A',
           quality_score: product?.ai_quality_score || 94,
           expiry_date: product?.expiry_date,
           // Complete Processor Details
@@ -806,6 +827,7 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
           vehicle_number: cleanVehicleNumber,
           vehicle_type: vehicle_type || 'Refrigerated Reefer Truck',
           departure_temperature: cleanDepartureTemp,
+          remarks: remarks,
           // Destination Retailer
           destination_store: storeName,
           destination_address: retProfile?.address
@@ -815,11 +837,15 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
 
     // 8. AUTOMATIC NOTIFICATION TO RETAILER FROM PROCESSOR END
     if (shipment.receiver_id) {
+      const discNote = hasDiscrepancy
+        ? ` Note: Dock scale verified ${verifiedQuantity} ${shipment.unit || 'kg'} (Variance: ${weightDiscrepancy > 0 ? '+' : ''}${weightDiscrepancy} ${shipment.unit || 'kg'}). Remarks: "${remarks}".`
+        : ` Remarks: "${remarks}".`;
+
       await supabase.from('notifications').insert({
         user_id: shipment.receiver_id,
         type: 'INBOUND_DISPATCH_NOTICE',
         title: 'Produce Dispatched from Processor Facility',
-        message: `Processor ${procName} has dispatched ${shipment.quantity} ${shipment.unit || 'kg'} of ${product?.name || 'Produce'} (Batch #${shipment.batch_number}). Transported by ${carrierName} in Vehicle ${cleanVehicleNumber} (Driver: ${cleanDriverName}, Phone: ${cleanDriverPhone}).`,
+        message: `Processor ${procName} has dispatched ${verifiedQuantity} ${shipment.unit || 'kg'} of ${product?.name || 'Produce'} (Batch #${shipment.batch_number}). Transported by ${carrierName} in Vehicle ${cleanVehicleNumber} (Driver: ${cleanDriverName}, Phone: ${cleanDriverPhone}).${discNote}`,
         related_entity_type: 'shipment',
         related_entity_id: shipment.id
       });
@@ -827,11 +853,15 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
 
     // 9. Notify Processor
     if (shipment.sender_id) {
+      const discNote = hasDiscrepancy
+        ? ` Note: Driver observed scale variance (${verifiedQuantity} ${shipment.unit || 'kg'}, discrepancy: ${weightDiscrepancy > 0 ? '+' : ''}${weightDiscrepancy} ${shipment.unit || 'kg'}). Remarks: "${remarks}".`
+        : ` Remarks: "${remarks}".`;
+
       await supabase.from('notifications').insert({
         user_id: shipment.sender_id,
-        type: 'CARGO_COLLECTED',
-        title: 'Batch Picked Up & Dispatched',
-        message: `Carrier driver ${cleanDriverName} (Vehicle: ${cleanVehicleNumber}) verified and collected Batch #${shipment.batch_number}. In transit to ${storeName}.`,
+        type: 'PICKUP_COMPLETED',
+        title: 'Cargo Collected by Carrier',
+        message: `Carrier ${carrierName} (Driver: ${cleanDriverName}, Vehicle: ${cleanVehicleNumber}) has verified and taken custody of Batch #${shipment.batch_number} (${verifiedQuantity} ${shipment.unit || 'kg'}). In transit to ${storeName}.${discNote}`,
         related_entity_type: 'shipment',
         related_entity_id: shipment.id
       });

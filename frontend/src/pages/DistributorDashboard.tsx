@@ -22,7 +22,9 @@ import {
   Compass,
   CheckCircle,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle,
+  Scale
 } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { Card } from "../components/ui/Card"
@@ -136,6 +138,9 @@ export function DistributorDashboard() {
   const [inspectionVehicleNumber, setInspectionVehicleNumber] = useState("")
   const [inspectionVehicleType, setInspectionVehicleType] = useState("Refrigerated Reefer Van")
   const [inspectionDepartureTemp, setInspectionDepartureTemp] = useState("3.8°C")
+  const [inspectionVerifiedWeight, setInspectionVerifiedWeight] = useState<number | string>("")
+  const [inspectionWeightUnit, setInspectionWeightUnit] = useState("kg")
+  const [inspectionRemarks, setInspectionRemarks] = useState("Physical crates inspected, lot number & quantity verified, pre-cooling intact.")
   const [inspectionNotes, setInspectionNotes] = useState("Physical crates inspected, lot number & quantity verified, pre-cooling intact.")
   const [inspectionCheckboxes, setInspectionCheckboxes] = useState({
     cratesIntact: true,
@@ -329,6 +334,10 @@ export function DistributorDashboard() {
   const handleStartPickupVerification = (req: any) => {
     stopPickupCamera()
     setPickupCameraError("")
+    const initialQty = req.quantity || 200
+    setInspectionVerifiedWeight(initialQty)
+    setInspectionWeightUnit(req.unit || "kg")
+    setInspectionRemarks("Physical crates inspected, lot number & quantity verified, pre-cooling intact.")
     setInspectionDriverName(user?.name || "Carrier Driver")
     setInspectionDriverPhone((user as any)?.phone || "+91 98765 43210")
     setInspectionVehicleNumber((user as any)?.vehicle_number || "KA-04-E-2941")
@@ -360,6 +369,12 @@ export function DistributorDashboard() {
       )
       if (res.data?.success) {
         const vData = res.data.data
+        if (vData?.product?.quantity) {
+          setInspectionVerifiedWeight(vData.product.quantity)
+        }
+        if (vData?.product?.unit) {
+          setInspectionWeightUnit(vData.product.unit)
+        }
         if (vData?.carrier_defaults?.distributor_vehicle) {
           setInspectionVehicleNumber(vData.carrier_defaults.distributor_vehicle)
         }
@@ -397,6 +412,10 @@ export function DistributorDashboard() {
   const handleConfirmPickupTakeCustody = async () => {
     if (!pickupVerifyModal?.req) return
     setPickupVerifyModal((prev) => ({ ...prev!, loading: true, error: "" }))
+
+    const manifestQty = Number(pickupVerifyModal.verifiedData?.product?.quantity || pickupVerifyModal.req.quantity || 200)
+    const verifiedQty = Number(inspectionVerifiedWeight) || manifestQty
+
     try {
       const res = await axios.post(
         `${API_URL}/distributor/confirm-pickup`,
@@ -404,14 +423,19 @@ export function DistributorDashboard() {
           shipment_id: pickupVerifyModal.req.id,
           qr_code:
             pickupVerifyModal.verifiedData?.pickup_token ||
+            pickupVerifyModal.req.pickup_token ||
             pickupVerifyModal.req.pickup_qr_token ||
             "PKP_CONFIRMED",
+          verified_quantity: verifiedQty,
+          unit: inspectionWeightUnit,
+          remarks: inspectionRemarks || inspectionNotes,
+          inspection_notes: inspectionRemarks || inspectionNotes,
           driver_name: inspectionDriverName,
           driver_phone: inspectionDriverPhone,
           vehicle_number: inspectionVehicleNumber,
           vehicle_type: inspectionVehicleType,
           departure_temperature: inspectionDepartureTemp,
-          inspection_notes: inspectionNotes
+          inspection_confirmed: true
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -2401,237 +2425,395 @@ export function DistributorDashboard() {
             )}
 
             {/* STEP 2: VERIFY DETAILS & PHYSICAL CARGO INSPECTION */}
-            {pickupVerifyModal.step === "inspect" && (
-              <div className="space-y-4">
-                {/* Authenticated Confirmation Banner */}
-                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-xs space-y-1">
-                  <div className="font-bold text-emerald-900 flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                    <span>Pickup QR Authenticated • Match Confirmed</span>
-                    <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                      Sepolia On-Chain Validated
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-emerald-800">
-                    Dispatch authorization verified for Batch #{pickupVerifyModal.verifiedData?.batch_number || pickupVerifyModal.req?.batch_number}. Please inspect the physical items and verify information below.
-                  </p>
-                </div>
+            {pickupVerifyModal.step === "inspect" && (() => {
+              const manifestWeight = Number(pickupVerifyModal.verifiedData?.product?.quantity || pickupVerifyModal.req?.quantity || 200)
+              const verifiedWeightNum = Number(inspectionVerifiedWeight) || manifestWeight
+              const weightVariance = Math.round((verifiedWeightNum - manifestWeight) * 100) / 100
+              const hasWeightDiscrepancy = Math.abs(weightVariance) > 0.001
+              const rawQuality = pickupVerifyModal.verifiedData?.product?.quality_label || pickupVerifyModal.req?.product?.quality_label
+              const score = pickupVerifyModal.verifiedData?.product?.quality_score || 94
+              const displayQuality = (rawQuality && rawQuality.toUpperCase() !== "UNKNOWN")
+                ? rawQuality
+                : (score >= 85 ? "Grade A" : "Grade B")
 
-                {/* Product & Quality Manifest */}
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-                  <div className="font-bold text-slate-800 uppercase tracking-wider text-[11px] flex items-center justify-between">
-                    <span>Produce & Quality Manifest</span>
-                    <span className="font-mono text-emerald-700 font-bold">
-                      Batch #{pickupVerifyModal.verifiedData?.batch_number || pickupVerifyModal.req?.batch_number}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-700">
-                    <div className="p-2 rounded-xl bg-white border border-slate-200">
-                      <div className="text-[10px] text-slate-500 uppercase font-semibold">Commodity</div>
-                      <div className="font-bold text-slate-900 truncate">
-                        {pickupVerifyModal.verifiedData?.product?.name || pickupVerifyModal.req?.product_name}
-                      </div>
-                      <div className="text-[10px] text-slate-500">{pickupVerifyModal.verifiedData?.product?.category || "Perishables"}</div>
-                    </div>
-                    <div className="p-2 rounded-xl bg-white border border-slate-200">
-                      <div className="text-[10px] text-slate-500 uppercase font-semibold">Quantity</div>
-                      <div className="font-bold text-slate-900 font-mono text-emerald-700">
-                        {pickupVerifyModal.verifiedData?.product?.quantity || pickupVerifyModal.req?.quantity} {pickupVerifyModal.verifiedData?.product?.unit || pickupVerifyModal.req?.unit || "kg"}
-                      </div>
-                      <div className="text-[10px] text-slate-500">Certified Weight</div>
-                    </div>
-                    <div className="p-2 rounded-xl bg-white border border-slate-200">
-                      <div className="text-[10px] text-slate-500 uppercase font-semibold">AI Quality</div>
-                      <div className="font-bold text-emerald-700">
-                        {pickupVerifyModal.verifiedData?.product?.quality_label || "Grade A"}
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        {pickupVerifyModal.verifiedData?.product?.quality_score || 94}% AI Score
-                      </div>
-                    </div>
-                    <div className="p-2 rounded-xl bg-white border border-slate-200">
-                      <div className="text-[10px] text-slate-500 uppercase font-semibold">Cold Chain SLA</div>
-                      <div className="font-bold text-slate-900">2°C – 6°C</div>
-                      <div className="text-[10px] text-slate-500">Precision Chilled</div>
-                    </div>
-                  </div>
-                </div>
+              const presetRemarks = [
+                "✓ Crates & tamper seals intact",
+                "⚠️ Scale weight variance noted at dock",
+                "❄️ Pre-cooling SLA compliant (chilled)",
+                "📦 Certified crate count matched",
+                "📝 Dock tare weight accounted for"
+              ]
 
-                {/* Facility & Route Details */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                  <div className="p-3 rounded-2xl bg-white border border-slate-200 space-y-1">
-                    <div className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Origin Facility (Pickup)</div>
-                    <div className="font-bold text-slate-900">
-                      {pickupVerifyModal.verifiedData?.processor?.facility_name || pickupVerifyModal.req?.processor?.facility_name || "Agro-Processing Facility"}
-                    </div>
-                    <div className="text-[11px] text-slate-600">
-                      {pickupVerifyModal.verifiedData?.processor?.address || pickupVerifyModal.req?.processor?.facility_location}
-                    </div>
-                    {pickupVerifyModal.verifiedData?.processor?.license_number && (
-                      <div className="text-[10px] font-mono text-emerald-700 font-semibold">
-                        License: {pickupVerifyModal.verifiedData.processor.license_number}
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-3 rounded-2xl bg-white border border-slate-200 space-y-1">
-                    <div className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Destination Retailer (Delivery)</div>
-                    <div className="font-bold text-slate-900">
-                      {pickupVerifyModal.verifiedData?.retailer?.store_name || pickupVerifyModal.req?.retailer?.destination_store || "Retail Supermarket"}
-                    </div>
-                    <div className="text-[11px] text-slate-600">
-                      {pickupVerifyModal.verifiedData?.retailer?.address || pickupVerifyModal.req?.retailer?.destination_address || "Retail Receiving Dock"}
-                    </div>
-                    <div className="text-[10px] text-slate-500">Delivery Route SLA: Express Dispatch</div>
-                  </div>
-                </div>
+              const appendRemark = (chip: string) => {
+                const current = (inspectionRemarks || "").trim()
+                if (!current) {
+                  setInspectionRemarks(chip)
+                  setInspectionNotes(chip)
+                } else if (!current.includes(chip)) {
+                  const updated = `${current} | ${chip}`
+                  setInspectionRemarks(updated)
+                  setInspectionNotes(updated)
+                }
+              }
 
-                {/* PHYSICAL CARGO CHECKLIST */}
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                    1. Physical Verification Checklist
-                  </label>
-                  <div className="space-y-2 text-xs">
-                    <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-emerald-50/50 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={inspectionCheckboxes.cratesIntact}
-                        onChange={(e) =>
-                          setInspectionCheckboxes((prev) => ({ ...prev, cratesIntact: e.target.checked }))
-                        }
-                        className="rounded text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <span className="font-medium text-slate-800">Physical crates, packaging, and produce seals intact</span>
-                    </label>
-                    <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-emerald-50/50 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={inspectionCheckboxes.quantityMatched}
-                        onChange={(e) =>
-                          setInspectionCheckboxes((prev) => ({ ...prev, quantityMatched: e.target.checked }))
-                        }
-                        className="rounded text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <span className="font-medium text-slate-800">
-                        Net crate count & weight verified ({pickupVerifyModal.verifiedData?.product?.quantity || pickupVerifyModal.req?.quantity} {pickupVerifyModal.verifiedData?.product?.unit || pickupVerifyModal.req?.unit || "kg"})
+              return (
+                <div className="space-y-4">
+                  {/* Authenticated Confirmation Banner */}
+                  <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-xs space-y-1">
+                    <div className="font-bold text-emerald-900 flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span>Pickup QR Authenticated • Match Confirmed</span>
+                      <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Sepolia On-Chain Validated
                       </span>
-                    </label>
-                    <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-emerald-50/50 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={inspectionCheckboxes.tempCompliant}
-                        onChange={(e) =>
-                          setInspectionCheckboxes((prev) => ({ ...prev, tempCompliant: e.target.checked }))
-                        }
-                        className="rounded text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <span className="font-medium text-slate-800">Pre-cooling temperature meets SLA (Chilled)</span>
-                    </label>
+                    </div>
+                    <p className="text-[11px] text-emerald-800">
+                      Dispatch authorization verified for Batch #{pickupVerifyModal.verifiedData?.batch_number || pickupVerifyModal.req?.batch_number}. Please inspect the physical items and verify information below.
+                    </p>
                   </div>
-                </div>
 
-                {/* DRIVER & VEHICLE REGISTRATION INPUTS */}
-                <div className="space-y-3">
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                    2. Assigned Driver & Vehicle Registration
-                  </label>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <span className="text-[11px] text-slate-500 block mb-1">Driver Name</span>
-                      <input
-                        type="text"
-                        value={inspectionDriverName}
-                        onChange={(e) => setInspectionDriverName(e.target.value)}
-                        placeholder="Driver Name"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white"
-                      />
+                  {/* Product & Quality Manifest */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                    <div className="font-bold text-slate-800 uppercase tracking-wider text-[11px] flex items-center justify-between">
+                      <span>Produce & Quality Manifest</span>
+                      <span className="font-mono text-emerald-700 font-bold">
+                        Batch #{pickupVerifyModal.verifiedData?.batch_number || pickupVerifyModal.req?.batch_number}
+                      </span>
                     </div>
-                    <div>
-                      <span className="text-[11px] text-slate-500 block mb-1">Driver Phone</span>
-                      <input
-                        type="text"
-                        value={inspectionDriverPhone}
-                        onChange={(e) => setInspectionDriverPhone(e.target.value)}
-                        placeholder="Phone Number"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-[11px] text-slate-500 block mb-1">Vehicle Registration # *</span>
-                      <input
-                        type="text"
-                        value={inspectionVehicleNumber}
-                        onChange={(e) => setInspectionVehicleNumber(e.target.value)}
-                        placeholder="e.g. KA-04-E-2941"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl font-mono uppercase font-bold focus:ring-2 focus:ring-emerald-500 bg-white"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-[11px] text-slate-500 block mb-1">Departure Temp (°C)</span>
-                      <input
-                        type="text"
-                        value={inspectionDepartureTemp}
-                        onChange={(e) => setInspectionDepartureTemp(e.target.value)}
-                        placeholder="e.g. 3.8°C"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-[11px] text-slate-500 block mb-1">Inspection Notes & Findings</span>
-                      <input
-                        type="text"
-                        value={inspectionNotes}
-                        onChange={(e) => setInspectionNotes(e.target.value)}
-                        placeholder="Physical cargo findings..."
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 text-xs bg-white"
-                      />
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-700">
+                      <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                        <div className="text-[10px] text-slate-500 uppercase font-semibold">Commodity</div>
+                        <div className="font-bold text-slate-900 truncate">
+                          {pickupVerifyModal.verifiedData?.product?.name || pickupVerifyModal.req?.product_name}
+                        </div>
+                        <div className="text-[10px] text-slate-500">{pickupVerifyModal.verifiedData?.product?.category || "Perishables"}</div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                        <div className="text-[10px] text-slate-500 uppercase font-semibold">Manifest Weight</div>
+                        <div className="font-bold text-slate-900 font-mono text-emerald-700">
+                          {manifestWeight} {inspectionWeightUnit}
+                        </div>
+                        <div className="text-[10px] text-slate-500">Facility Documented</div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                        <div className="text-[10px] text-slate-500 uppercase font-semibold">AI Quality</div>
+                        <div className="font-bold text-emerald-700">
+                          {displayQuality}
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                          {score}% AI Score
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                        <div className="text-[10px] text-slate-500 uppercase font-semibold">Cold Chain SLA</div>
+                        <div className="font-bold text-slate-900">2°C – 6°C</div>
+                        <div className="text-[10px] text-slate-500">Precision Chilled</div>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="p-3 bg-cyan-50 border border-cyan-200 rounded-xl text-xs text-cyan-900 flex items-start gap-2">
-                  <ShieldCheck className="h-4 w-4 shrink-0 text-cyan-600 mt-0.5" />
-                  <span>
-                    Upon custody handover confirmation, these driver & vehicle details are cryptographically dispatched to the Retailer from the Processor's end before transit begins.
-                  </span>
-                </div>
+                  {/* DOCK SCALE WEIGHT VERIFICATION & CARGO ADJUSTMENT */}
+                  <div className="p-3.5 rounded-2xl bg-white border border-emerald-200 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-800">
+                          <Scale className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                            <span>Dock Scale Weight Verification</span>
+                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              Distributor Custody Check
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            Cross-check actual platform scale weight against the manifest. Update if any tare variance or discrepancy exists.
+                          </p>
+                        </div>
+                      </div>
+                      {hasWeightDiscrepancy && (
+                        <button
+                          type="button"
+                          onClick={() => setInspectionVerifiedWeight(manifestWeight)}
+                          className="text-[10px] text-slate-500 hover:text-emerald-700 underline font-medium cursor-pointer"
+                        >
+                          Reset to Manifest
+                        </button>
+                      )}
+                    </div>
 
-                {pickupVerifyModal.error && (
-                  <div className="p-3 bg-rose-50 text-rose-800 border border-rose-200 rounded-xl text-xs">
-                    {pickupVerifyModal.error}
-                  </div>
-                )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Manifest Reference Card */}
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                        <div className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Origin Manifest Weight</div>
+                        <div className="text-base font-bold font-mono text-slate-800">
+                          {manifestWeight} <span className="text-xs font-normal text-slate-500">{inspectionWeightUnit}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">Recorded by Processor facility</div>
+                      </div>
 
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      setPickupVerifyModal((prev) => ({ ...prev!, step: "scan" }))
-                    }
-                    className="flex-1 rounded-xl text-xs border-slate-300 text-slate-700 hover:bg-slate-100"
-                  >
-                    Back to Scan
-                  </Button>
-                  <Button
-                    disabled={
-                      pickupVerifyModal.loading ||
-                      !inspectionCheckboxes.cratesIntact ||
-                      !inspectionCheckboxes.quantityMatched ||
-                      !inspectionVehicleNumber.trim()
-                    }
-                    onClick={handleConfirmPickupTakeCustody}
-                    className="flex-1 rounded-xl text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5 cursor-pointer shadow-sm"
-                  >
-                    {pickupVerifyModal.loading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {/* Weighed Quantity Input */}
+                      <div className="p-2.5 rounded-xl bg-emerald-50/40 border border-emerald-300 text-xs space-y-1">
+                        <label className="text-[10px] uppercase font-bold text-emerald-900 block">
+                          Actual Weighed Quantity (Scale Reading) *
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0.1"
+                            value={inspectionVerifiedWeight}
+                            onChange={(e) => setInspectionVerifiedWeight(e.target.value)}
+                            placeholder={String(manifestWeight)}
+                            className="flex-1 px-3 py-1.5 text-sm font-bold font-mono bg-white border border-emerald-400 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                          <select
+                            value={inspectionWeightUnit}
+                            onChange={(e) => setInspectionWeightUnit(e.target.value)}
+                            className="px-2 py-1.5 text-xs font-semibold bg-white border border-emerald-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          >
+                            <option value="kg">kg</option>
+                            <option value="crates">crates</option>
+                            <option value="boxes">boxes</option>
+                            <option value="tons">tons</option>
+                            <option value="units">units</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Live Discrepancy Status Indicator */}
+                    {hasWeightDiscrepancy ? (
+                      <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-900 flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="space-y-0.5">
+                          <div className="font-bold flex items-center gap-1.5">
+                            <span>Weight Variance Detected:</span>
+                            <span className="font-mono px-1.5 py-0.5 rounded bg-amber-200/80 text-amber-950 font-black">
+                              {weightVariance > 0 ? `+${weightVariance}` : weightVariance} {inspectionWeightUnit}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-amber-800 leading-relaxed">
+                            Verified loading weight ({verifiedWeightNum} {inspectionWeightUnit}) will update the transit manifest, be immutably recorded on blockchain, and notified to Retailer prior to departure.
+                          </p>
+                        </div>
+                      </div>
                     ) : (
-                      <Truck className="h-4 w-4" />
+                      <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        <span className="text-[11px] font-medium">
+                          Scale weight perfectly matches the manifest ({manifestWeight} {inspectionWeightUnit}, 0 variance).
+                        </span>
+                      </div>
                     )}
-                    Approve Pickup & Take Custody
-                  </Button>
+                  </div>
+
+                  {/* Facility & Route Details */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                    <div className="p-3 rounded-2xl bg-white border border-slate-200 space-y-1">
+                      <div className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Origin Facility (Pickup)</div>
+                      <div className="font-bold text-slate-900">
+                        {pickupVerifyModal.verifiedData?.processor?.facility_name || pickupVerifyModal.req?.processor?.facility_name || "Agro-Processing Facility"}
+                      </div>
+                      <div className="text-[11px] text-slate-600">
+                        {pickupVerifyModal.verifiedData?.processor?.address || pickupVerifyModal.req?.processor?.facility_location}
+                      </div>
+                      {pickupVerifyModal.verifiedData?.processor?.license_number && (
+                        <div className="text-[10px] font-mono text-emerald-700 font-semibold">
+                          License: {pickupVerifyModal.verifiedData.processor.license_number}
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3 rounded-2xl bg-white border border-slate-200 space-y-1">
+                      <div className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Destination Retailer (Delivery)</div>
+                      <div className="font-bold text-slate-900">
+                        {pickupVerifyModal.verifiedData?.retailer?.store_name || pickupVerifyModal.req?.retailer?.destination_store || "Retail Supermarket"}
+                      </div>
+                      <div className="text-[11px] text-slate-600">
+                        {pickupVerifyModal.verifiedData?.retailer?.address || pickupVerifyModal.req?.retailer?.destination_address || "Retail Receiving Dock"}
+                      </div>
+                      <div className="text-[10px] text-slate-500">Delivery Route SLA: Express Dispatch</div>
+                    </div>
+                  </div>
+
+                  {/* 1. PHYSICAL CARGO CHECKLIST */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                      1. Physical Verification Checklist
+                    </label>
+                    <div className="space-y-2 text-xs">
+                      <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-emerald-50/50 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={inspectionCheckboxes.cratesIntact}
+                          onChange={(e) =>
+                            setInspectionCheckboxes((prev) => ({ ...prev, cratesIntact: e.target.checked }))
+                          }
+                          className="rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span className="font-medium text-slate-800">Physical crates, packaging, and produce seals intact</span>
+                      </label>
+                      <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-emerald-50/50 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={inspectionCheckboxes.quantityMatched}
+                          onChange={(e) =>
+                            setInspectionCheckboxes((prev) => ({ ...prev, quantityMatched: e.target.checked }))
+                          }
+                          className="rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span className="font-medium text-slate-800">
+                          Net crate count & scale weight verified (Actual: {verifiedWeightNum} {inspectionWeightUnit}
+                          {hasWeightDiscrepancy && (
+                            <span className={weightVariance < 0 ? "text-amber-700 font-bold ml-1" : "text-emerald-700 font-bold ml-1"}>
+                              [{weightVariance > 0 ? `+${weightVariance}` : weightVariance} {inspectionWeightUnit} variance]
+                            </span>
+                          )})
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-emerald-50/50 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={inspectionCheckboxes.tempCompliant}
+                          onChange={(e) =>
+                            setInspectionCheckboxes((prev) => ({ ...prev, tempCompliant: e.target.checked }))
+                          }
+                          className="rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span className="font-medium text-slate-800">Pre-cooling temperature meets SLA (Chilled)</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* 2. DRIVER & VEHICLE REGISTRATION INPUTS */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                      2. Assigned Driver & Vehicle Registration
+                    </label>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-[11px] text-slate-500 block mb-1">Driver Name</span>
+                        <input
+                          type="text"
+                          value={inspectionDriverName}
+                          onChange={(e) => setInspectionDriverName(e.target.value)}
+                          placeholder="Driver Name"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-slate-500 block mb-1">Driver Phone</span>
+                        <input
+                          type="text"
+                          value={inspectionDriverPhone}
+                          onChange={(e) => setInspectionDriverPhone(e.target.value)}
+                          placeholder="Phone Number"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-slate-500 block mb-1">Vehicle Registration # *</span>
+                        <input
+                          type="text"
+                          value={inspectionVehicleNumber}
+                          onChange={(e) => setInspectionVehicleNumber(e.target.value)}
+                          placeholder="e.g. KA-04-E-2941"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl font-mono uppercase font-bold focus:ring-2 focus:ring-emerald-500 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-slate-500 block mb-1">Departure Temp (°C)</span>
+                        <input
+                          type="text"
+                          value={inspectionDepartureTemp}
+                          onChange={(e) => setInspectionDepartureTemp(e.target.value)}
+                          placeholder="e.g. 3.8°C"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. INSPECTION REMARKS & OBSERVATIONS SECTION */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                        3. Remarks & Discrepancy Observations
+                      </label>
+                      <span className="text-[11px] text-slate-400">Recorded on manifest & sent to Retailer</span>
+                    </div>
+
+                    {/* Quick Preset Chips */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {presetRemarks.map((chip, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => appendRemark(chip)}
+                          className="text-[10px] px-2.5 py-1 rounded-full bg-slate-100 hover:bg-emerald-100 hover:text-emerald-800 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
+                        >
+                          {chip}
+                        </button>
+                      ))}
+                    </div>
+
+                    <textarea
+                      rows={3}
+                      value={inspectionRemarks}
+                      onChange={(e) => {
+                        setInspectionRemarks(e.target.value)
+                        setInspectionNotes(e.target.value)
+                      }}
+                      placeholder="Add inspection observations, seal numbers, scale tare notes, or reasons for weight mismatch..."
+                      className="w-full p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 text-xs bg-white resize-none text-slate-800 leading-relaxed"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-cyan-50 border border-cyan-200 rounded-xl text-xs text-cyan-900 flex items-start gap-2">
+                    <ShieldCheck className="h-4 w-4 shrink-0 text-cyan-600 mt-0.5" />
+                    <span>
+                      Upon custody handover confirmation, verified quantity ({verifiedWeightNum} {inspectionWeightUnit}), remarks, and driver/vehicle details are cryptographically dispatched to Retailer prior to departure.
+                    </span>
+                  </div>
+
+                  {pickupVerifyModal.error && (
+                    <div className="p-3 bg-rose-50 text-rose-800 border border-rose-200 rounded-xl text-xs">
+                      {pickupVerifyModal.error}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        setPickupVerifyModal((prev) => ({ ...prev!, step: "scan" }))
+                      }
+                      className="flex-1 rounded-xl text-xs border-slate-300 text-slate-700 hover:bg-slate-100"
+                    >
+                      Back to Scan
+                    </Button>
+                    <Button
+                      disabled={
+                        pickupVerifyModal.loading ||
+                        !inspectionCheckboxes.cratesIntact ||
+                        !inspectionCheckboxes.quantityMatched ||
+                        !inspectionVehicleNumber.trim()
+                      }
+                      onClick={handleConfirmPickupTakeCustody}
+                      className="flex-1 rounded-xl text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5 cursor-pointer shadow-sm"
+                    >
+                      {pickupVerifyModal.loading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Truck className="h-4 w-4" />
+                      )}
+                      Approve Pickup & Take Custody
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {/* STEP 3: SUCCESS */}
             {pickupVerifyModal.step === "success" && (
