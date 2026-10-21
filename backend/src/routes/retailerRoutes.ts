@@ -1,6 +1,24 @@
 import { Router } from 'express';
 import { protect, authorize } from '../middleware/auth';
-import { createProductRequest, getMyRequests, getRetailerShipments, verifyBatch, receiveProduct, getRetailerInventory, recordSale, getSales, reportWastage, getWastage, getBatchTraceability, processReturn, getReturns, getDashboardData } from '../controllers/retailerController';
+import {
+  createProductRequest,
+  getMyRequests,
+  getRetailerShipments,
+  verifyBatch,
+  receiveProduct,
+  getRetailerInventory,
+  recordSale,
+  getSales,
+  reportWastage,
+  getWastage,
+  getBatchTraceability,
+  processReturn,
+  getReturns,
+  getDashboardData,
+  verifyDeliveryQR,
+  confirmRetailerDelivery,
+  rejectRetailerDelivery
+} from '../controllers/retailerController';
 
 const router = Router();
 
@@ -26,5 +44,10 @@ router.get('/traceability/:batch_number', getBatchTraceability);
 router.post('/returns', processReturn);
 router.get('/returns', getReturns);
 router.get('/dashboard', getDashboardData);
+
+// Multi-party Physical-Digital Handover Endpoints
+router.post('/verify-delivery-qr', verifyDeliveryQR);
+router.post('/confirm-delivery', confirmRetailerDelivery);
+router.post('/reject-delivery', rejectRetailerDelivery);
 
 export default router;

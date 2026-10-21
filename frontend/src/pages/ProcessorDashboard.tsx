@@ -100,8 +100,12 @@ interface ProcessingBatch {
   destinationStore?: string
   blockchainTx?: string
   trackingId?: string
-  deliveryRequestStatus?: "REQUESTED" | "ACCEPTED" | "DECLINED" | "IN_TRANSIT"
+  deliveryRequestStatus?: "REQUESTED" | "ACCEPTED" | "PICKUP_QR_GENERATED" | "IN_TRANSIT" | "ARRIVED_AT_RETAILER" | "COMPLETED" | "DECLINED" | "DISPUTED"
   declineReason?: string
+  driverName?: string
+  driverPhone?: string
+  pickupQrToken?: string
+  pickupQrData?: any
   packagingFormat?: string
   storageTemp?: string
   logisticsMode?: string
@@ -292,6 +296,17 @@ export function ProcessorDashboard() {
     tracking_id: string
     blockchain_hash: string | null
     message: string
+  } | null>(null)
+
+  // Pickup QR Modal state
+  const [pickupModalData, setPickupModalData] = useState<{
+    isOpen: boolean
+    loading: boolean
+    qrToken?: string
+    qrData?: any
+    batch?: ProcessingBatch
+    txHash?: string
+    error?: string
   } | null>(null)
 
   const formatToDdMmYyyy = (dateStr: string) => {
@@ -1034,12 +1049,18 @@ export function ProcessorDashboard() {
           Object.keys(nextBatches).forEach((batchId) => {
             const b = nextBatches[batchId]
             const matchedReq = serverRequests.find(
-              (r) => r.batch_number === b.batchId || r.product_id === b.productId
+              (r) =>
+                r.batch_number === b.batchId ||
+                r.product_id === b.productId ||
+                r.tracking_id === b.trackingId ||
+                r.id === b.trackingId
             )
             if (matchedReq) {
               if (
                 b.deliveryRequestStatus !== matchedReq.status ||
-                (matchedReq.status === "DECLINED" && b.declineReason !== matchedReq.decline_reason)
+                (matchedReq.status === "DECLINED" && b.declineReason !== matchedReq.decline_reason) ||
+                b.pickupQrToken !== matchedReq.pickup_qr_token ||
+                b.driverName !== matchedReq.driver_name
               ) {
                 hasChanges = true
                 nextBatches[batchId] = {
@@ -1048,7 +1069,13 @@ export function ProcessorDashboard() {
                   declineReason: matchedReq.decline_reason,
                   distributorName: matchedReq.distributor?.name || b.distributorName,
                   distributorId: matchedReq.distributor?.id || b.distributorId,
-                  trackingId: matchedReq.tracking_id || b.trackingId
+                  trackingId: matchedReq.tracking_id || matchedReq.id || b.trackingId,
+                  distributorVehicle: matchedReq.vehicle_number || matchedReq.distributor?.vehicle_number || b.distributorVehicle,
+                  blockchainTx: matchedReq.blockchain_hash || b.blockchainTx,
+                  driverName: matchedReq.driver_name,
+                  driverPhone: matchedReq.driver_phone,
+                  pickupQrToken: matchedReq.pickup_qr_token,
+                  pickupQrData: matchedReq.pickup_qr_data
                 }
               }
             }
@@ -1062,6 +1089,78 @@ export function ProcessorDashboard() {
       }
     } catch {
       // silent
+    }
+  }
+
+  const handleGeneratePickupQR = async (batch: ProcessingBatch) => {
+    setPickupModalData({ isOpen: true, loading: true, batch })
+    try {
+      const reqRes = await axios.get(`${API}/processor/delivery-requests`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const requests = reqRes.data?.data || []
+      const matched = requests.find(
+        (r: any) =>
+          r.batch_number === batch.batchId ||
+          r.product_id === batch.productId ||
+          r.id === batch.trackingId ||
+          r.shipment_tracking_id === batch.trackingId
+      )
+      const targetId = matched?.id || batch.trackingId
+
+      const genRes = await axios.post(
+        `${API}/processor/delivery-requests/${targetId}/generate-pickup-qr`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+
+      if (genRes.data?.success) {
+        const qrPayload = genRes.data.data
+        setPickupModalData({
+          isOpen: true,
+          loading: false,
+          batch,
+          qrToken: qrPayload.pickup_qr_token,
+          qrData: qrPayload.pickup_qr_data,
+          txHash: qrPayload.blockchain_hash
+        })
+
+        setBatches((prevBatches) => {
+          const next = { ...prevBatches }
+          if (next[batch.batchId]) {
+            next[batch.batchId] = {
+              ...next[batch.batchId],
+              deliveryRequestStatus: "PICKUP_QR_GENERATED",
+              pickupQrToken: qrPayload.pickup_qr_token,
+              pickupQrData: qrPayload.pickup_qr_data,
+              blockchainTx: qrPayload.blockchain_hash || next[batch.batchId].blockchainTx
+            }
+          }
+          localStorage.setItem("processor_batches", JSON.stringify(next))
+          return next
+        })
+
+        addLog(
+          `Generated Blockchain Pickup QR for Batch ${batch.batchId}`,
+          "Transferred",
+          batch.productId,
+          batch.batchId
+        )
+      } else {
+        setPickupModalData({
+          isOpen: true,
+          loading: false,
+          batch,
+          error: genRes.data?.message || "Failed to generate pickup QR."
+        })
+      }
+    } catch (err: any) {
+      setPickupModalData({
+        isOpen: true,
+        loading: false,
+        batch,
+        error: err.response?.data?.message || "Failed to generate pickup QR on server."
+      })
     }
   }
 
@@ -1923,8 +2022,141 @@ export function ProcessorDashboard() {
                                   </p>
                                 )}
                               </div>
+                            ) : b.deliveryRequestStatus === "ACCEPTED" ? (
+                              /* State 3: ACCEPTED by Distributor -> Action: Generate Blockchain Pickup QR */
+                              <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 space-y-3 text-xs">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <span className="font-bold text-indigo-400 flex items-center gap-1.5">
+                                    <CheckCircle2 className="h-4 w-4 text-indigo-400" />
+                                    Carrier Accepted Request — Action: Generate Blockchain Pickup QR
+                                  </span>
+                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                    Carrier: {b.distributorName}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground pt-1">
+                                  <div>Vehicle: <strong className="text-foreground">{b.distributorVehicle || "Reefer Fleet"}</strong></div>
+                                  <div>Destination: <strong className="text-foreground">{b.destinationStore}</strong></div>
+                                  <div>Next Step: <span className="text-indigo-400 font-semibold">Generate Pickup Pass</span></div>
+                                </div>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                                  <p className="text-[11px] text-zinc-400">
+                                    Generate a cryptographically-signed pickup QR for the driver to scan upon arriving at your facility.
+                                  </p>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleGeneratePickupQR(b)}
+                                    className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs h-8 px-4 font-bold shrink-0 gap-1.5 shadow-md"
+                                  >
+                                    <QrCode className="h-4 w-4" />
+                                    Generate Pickup QR
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : b.deliveryRequestStatus === "PICKUP_QR_GENERATED" ? (
+                              /* State 4: PICKUP_QR_GENERATED -> Ready for Driver Arrival & Scan */
+                              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-3 text-xs">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                                    <QrCode className="h-4 w-4 text-emerald-400 animate-pulse" />
+                                    Blockchain Pickup QR Active — Awaiting Carrier Arrival
+                                  </span>
+                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                    Token: {b.pickupQrToken?.slice(0, 16) || "PKP_ACTIVE"}...
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground pt-1">
+                                  <div>Carrier: <strong className="text-foreground">{b.distributorName}</strong> ({b.distributorVehicle})</div>
+                                  <div>Destination: <strong className="text-foreground">{b.destinationStore}</strong></div>
+                                  <div>Status: <span className="text-emerald-400 font-semibold">Ready for Driver Scan</span></div>
+                                </div>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                                  <p className="text-[11px] text-zinc-400">
+                                    Display this QR to the driver when they reach your dock. They will scan to verify manifest & confirm custody.
+                                  </p>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => {
+                                      setPickupModalData({
+                                        isOpen: true,
+                                        loading: false,
+                                        batch: b,
+                                        qrToken: b.pickupQrToken || `PKP_${b.trackingId}`,
+                                        qrData: b.pickupQrData || {},
+                                        txHash: b.blockchainTx
+                                      })
+                                    }}
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs h-8 px-4 font-bold shrink-0 gap-1.5 shadow-md"
+                                  >
+                                    <QrCode className="h-4 w-4" />
+                                    View / Display Pickup QR
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : b.deliveryRequestStatus === "IN_TRANSIT" ? (
+                              /* State 5: IN_TRANSIT -> Cargo Collected, Driver en route */
+                              <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 space-y-2 text-xs">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <span className="font-bold text-cyan-400 flex items-center gap-1.5">
+                                    <Truck className="h-4 w-4 text-cyan-400 animate-bounce" />
+                                    Cargo Picked Up & In Transit to Retailer
+                                  </span>
+                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                                    Vehicle: {b.distributorVehicle || "Reefer Van"}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground pt-1">
+                                  <div>Driver: <strong className="text-foreground">{b.driverName || b.distributorName}</strong> {b.driverPhone ? `(${b.driverPhone})` : ''}</div>
+                                  <div>Destination: <strong className="text-foreground">{b.destinationStore}</strong></div>
+                                  <div>Retailer Status: <span className="text-cyan-400 font-semibold">Notified with Manifest & Reg #</span></div>
+                                </div>
+                                <p className="text-[11px] text-cyan-300/80 italic">
+                                  Cargo collected after physical QR inspection. Destination retailer received produce manifest & carrier vehicle number.
+                                </p>
+                              </div>
+                            ) : b.deliveryRequestStatus === "ARRIVED_AT_RETAILER" ? (
+                              /* State 6: ARRIVED_AT_RETAILER */
+                              <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/30 space-y-2 text-xs">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <span className="font-bold text-purple-400 flex items-center gap-1.5">
+                                    <Store className="h-4 w-4 text-purple-400" />
+                                    Arrived at Retailer Dock — Handoff QR Scanned & Verifying
+                                  </span>
+                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                    Store: {b.destinationStore}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-zinc-400">
+                                  Distributor vehicle has docked at the retailer supermarket. Store officer is performing digital-physical side-by-side inspection.
+                                </p>
+                              </div>
+                            ) : b.deliveryRequestStatus === "COMPLETED" ? (
+                              /* State 7: COMPLETED */
+                              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2 text-xs">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                                    <CheckCircle className="h-4 w-4 text-emerald-400" />
+                                    Delivery Verified & Accepted by Retailer — Job Completed
+                                  </span>
+                                  {b.blockchainTx && (
+                                    <a
+                                      href={`https://sepolia.etherscan.io/tx/${b.blockchainTx}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:underline flex items-center gap-1"
+                                    >
+                                      Sepolia: {b.blockchainTx.slice(0, 10)}... <ExternalLink className="h-3 w-3 inline" />
+                                    </a>
+                                  )}
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground pt-1">
+                                  <div>Carrier: <strong className="text-foreground">{b.distributorName}</strong> ({b.distributorVehicle})</div>
+                                  <div>Received by: <strong className="text-foreground">{b.destinationStore}</strong></div>
+                                  <div>Distributor Role: <span className="text-emerald-400 font-bold">Successfully Completed</span></div>
+                                </div>
+                              </div>
                             ) : b.distributorName ? (
-                              /* State 3: ACCEPTED / In Transit */
+                              /* State 8: General Carrier Accepted fallback */
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                                 <div className="space-y-0.5">
                                   <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
@@ -3346,6 +3578,133 @@ export function ProcessorDashboard() {
                         Send Delivery Request to Distributor
                       </>
                     )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+      {/* BLOCKCHAIN-BACKED PICKUP DISPATCH QR MODAL */}
+      {pickupModalData?.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <Card className="max-w-lg w-full rounded-3xl border border-emerald-500/30 bg-zinc-900 text-white shadow-2xl p-6 space-y-5 my-8">
+            <div className="flex justify-between items-start border-b border-zinc-800 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+                    <QrCode className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg font-bold text-white">Blockchain Pickup Dispatch Pass</CardTitle>
+                    <p className="text-zinc-400 text-xs">Processor Facility Cargo Handover</p>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setPickupModalData(null)}
+                className="p-1 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {pickupModalData.loading ? (
+              <div className="p-12 text-center space-y-3">
+                <Loader2 className="h-10 w-10 text-emerald-400 animate-spin mx-auto" />
+                <p className="text-sm font-semibold text-zinc-300">Generating cryptographic dispatch token & anchoring to blockchain...</p>
+              </div>
+            ) : pickupModalData.error ? (
+              <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-3 text-red-300">
+                <div className="flex items-center gap-2 font-bold text-red-400">
+                  <AlertCircle className="h-5 w-5" />
+                  <span>Could Not Generate Pickup QR</span>
+                </div>
+                <p className="text-xs">{pickupModalData.error}</p>
+                <Button
+                  onClick={() => pickupModalData.batch && handleGeneratePickupQR(pickupModalData.batch)}
+                  className="bg-red-600 hover:bg-red-500 text-white text-xs rounded-xl"
+                >
+                  Try Again
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* QR Code Container */}
+                <div className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl shadow-inner border-2 border-emerald-400/40">
+                  <QRCodeSVG
+                    value={pickupModalData.qrToken || ""}
+                    size={220}
+                    level="H"
+                    includeMargin={true}
+                  />
+                  <div className="mt-3 text-center">
+                    <span className="font-mono text-xs font-bold text-zinc-900 bg-zinc-100 px-3 py-1 rounded-md border border-zinc-300 select-all block">
+                      {pickupModalData.qrToken}
+                    </span>
+                    <p className="text-[11px] text-zinc-500 mt-1">Cryptographically-signed Pickup Dispatch Token</p>
+                  </div>
+                </div>
+
+                {/* Produce & Carrier Details Snapshot */}
+                <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-2 text-xs">
+                  <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+                    <span className="text-zinc-400">Batch Number:</span>
+                    <span className="font-mono font-bold text-emerald-400">{pickupModalData.batch?.batchId}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+                    <span className="text-zinc-400">Produce & Quantity:</span>
+                    <span className="font-bold text-white">
+                      {pickupModalData.batch?.originalProduct?.name || "Certified Produce"} — {pickupModalData.batch?.processedQuantity || pickupModalData.batch?.originalProduct.quantity} kg
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+                    <span className="text-zinc-400">Authorized Carrier:</span>
+                    <span className="font-bold text-emerald-400">
+                      {pickupModalData.batch?.distributorName || pickupModalData.batch?.distributor} ({pickupModalData.batch?.distributorVehicle || "Reefer Reefer"})
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+                    <span className="text-zinc-400">Destination Retailer:</span>
+                    <span className="font-bold text-white text-right max-w-[200px] truncate">
+                      {pickupModalData.batch?.destinationStore || "Retail Store"}
+                    </span>
+                  </div>
+                  {pickupModalData.txHash && (
+                    <div className="flex justify-between items-center pt-1">
+                      <span className="text-zinc-400">Blockchain Hash:</span>
+                      <a
+                        href={`https://sepolia.etherscan.io/tx/${pickupModalData.txHash}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-emerald-400 underline hover:text-emerald-300 flex items-center gap-1"
+                      >
+                        {pickupModalData.txHash.slice(0, 10)}... <ExternalLink className="h-3 w-3 inline" />
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-start gap-2">
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                  <span>
+                    <strong>Driver Pickup Instructions:</strong> When the distributor arrives at your facility, have them open their dashboard scanner and scan this QR code. Once scanned, they will inspect the physical crates, record their vehicle registration number, and confirm collection.
+                  </span>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => window.print()}
+                    className="flex-1 rounded-xl border-zinc-700 text-zinc-300 hover:text-white text-xs gap-1.5"
+                  >
+                    <Printer className="h-3.5 w-3.5" /> Print Tag
+                  </Button>
+                  <Button
+                    onClick={() => setPickupModalData(null)}
+                    className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs"
+                  >
+                    Done
                   </Button>
                 </div>
               </div>

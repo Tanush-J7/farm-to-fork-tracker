@@ -20,8 +20,11 @@ import {
   Navigation,
   ChevronRight,
   Compass,
-  CheckCircle
+  CheckCircle,
+  ExternalLink,
+  AlertCircle
 } from "lucide-react"
+import { QRCodeSVG } from "qrcode.react"
 import { Card } from "../components/ui/Card"
 import { Button } from "../components/ui/Button"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
@@ -112,6 +115,41 @@ export function DistributorDashboard() {
   const [statusLoading, setStatusLoading] = useState(false)
   const [statusSuccess, setStatusSuccess] = useState(false)
 
+  // Pickup Verification Modal state (Processor Facility Handover)
+  const [pickupVerifyModal, setPickupVerifyModal] = useState<{
+    isOpen: boolean
+    req: any
+    step: "scan" | "inspect" | "success"
+    verifiedData?: any
+    loading?: boolean
+    error?: string
+    txHash?: string
+    manualTokenInput?: string
+  } | null>(null)
+
+  const [inspectionDriverName, setInspectionDriverName] = useState("")
+  const [inspectionDriverPhone, setInspectionDriverPhone] = useState("")
+  const [inspectionVehicleNumber, setInspectionVehicleNumber] = useState("")
+  const [inspectionVehicleType, setInspectionVehicleType] = useState("Refrigerated Reefer Van")
+  const [inspectionDepartureTemp, setInspectionDepartureTemp] = useState("3.8°C")
+  const [inspectionNotes, setInspectionNotes] = useState("Physical crates inspected, lot number & quantity verified, pre-cooling intact.")
+  const [inspectionCheckboxes, setInspectionCheckboxes] = useState({
+    cratesIntact: true,
+    quantityMatched: true,
+    tempCompliant: true
+  })
+
+  // Delivery Handoff QR Modal state (Retailer Store Dock)
+  const [deliveryQrModal, setDeliveryQrModal] = useState<{
+    isOpen: boolean
+    req: any
+    qrToken?: string
+    qrData?: any
+    loading?: boolean
+    error?: string
+    txHash?: string
+  } | null>(null)
+
   const updateStatus = async (status: string) => {
     setStatusLoading(true)
     setStatusSuccess(false)
@@ -170,6 +208,142 @@ export function DistributorDashboard() {
     } finally {
       setRespondingRequestId(null)
       setDeclineModalRequest(null)
+    }
+  }
+
+  // Pickup Verification Handlers (Processor Facility Handover)
+  const handleStartPickupVerification = (req: any) => {
+    setInspectionDriverName(user?.name || "Carrier Driver")
+    setInspectionDriverPhone((user as any)?.phone || "+91 98765 43210")
+    setInspectionVehicleNumber((user as any)?.vehicle_number || "KA-04-E-2941")
+    setInspectionVehicleType((user as any)?.vehicle_type || "Refrigerated Reefer Van")
+    setInspectionDepartureTemp("3.8°C")
+    setInspectionCheckboxes({ cratesIntact: true, quantityMatched: true, tempCompliant: true })
+    setPickupVerifyModal({
+      isOpen: true,
+      req,
+      step: "scan",
+      manualTokenInput: req.pickup_qr_token || ""
+    })
+  }
+
+  const handleVerifyScannedToken = async (tokenToVerify: string) => {
+    if (!pickupVerifyModal?.req) return
+    setPickupVerifyModal((prev) => ({ ...prev!, loading: true, error: "" }))
+    try {
+      const res = await axios.post(
+        `${API_URL}/distributor/verify-pickup-qr`,
+        { qr_code: tokenToVerify, shipment_id: pickupVerifyModal.req.id },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (res.data?.success) {
+        setPickupVerifyModal((prev) => ({
+          ...prev!,
+          loading: false,
+          step: "inspect",
+          verifiedData: res.data.data
+        }))
+      } else {
+        setPickupVerifyModal((prev) => ({
+          ...prev!,
+          loading: false,
+          error: res.data?.message || "Invalid QR Code token for this shipment."
+        }))
+      }
+    } catch (err: any) {
+      setPickupVerifyModal((prev) => ({
+        ...prev!,
+        loading: false,
+        error: err.response?.data?.message || "Failed to verify pickup QR on server."
+      }))
+    }
+  }
+
+  const handleConfirmPickupTakeCustody = async () => {
+    if (!pickupVerifyModal?.req) return
+    setPickupVerifyModal((prev) => ({ ...prev!, loading: true, error: "" }))
+    try {
+      const res = await axios.post(
+        `${API_URL}/distributor/confirm-pickup`,
+        {
+          shipment_id: pickupVerifyModal.req.id,
+          qr_code:
+            pickupVerifyModal.verifiedData?.pickup_token ||
+            pickupVerifyModal.req.pickup_qr_token ||
+            "PKP_CONFIRMED",
+          driver_name: inspectionDriverName,
+          driver_phone: inspectionDriverPhone,
+          vehicle_number: inspectionVehicleNumber,
+          vehicle_type: inspectionVehicleType,
+          departure_temperature: inspectionDepartureTemp,
+          inspection_notes: inspectionNotes
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (res.data?.success) {
+        const txHash = res.data.data?.blockchain_hash
+        setPickupVerifyModal((prev) => ({
+          ...prev!,
+          loading: false,
+          step: "success",
+          txHash: txHash
+        }))
+        await fetchDeliveryRequests(true)
+        await fetchInventory()
+        window.dispatchEvent(new Event("distributor_updated"))
+      } else {
+        setPickupVerifyModal((prev) => ({
+          ...prev!,
+          loading: false,
+          error: res.data?.message || "Could not confirm pickup."
+        }))
+      }
+    } catch (err: any) {
+      setPickupVerifyModal((prev) => ({
+        ...prev!,
+        loading: false,
+        error: err.response?.data?.message || "Failed to confirm pickup."
+      }))
+    }
+  }
+
+  // Delivery Handoff QR Generation (Retailer Dock)
+  const handleGenerateDeliveryQR = async (req: any) => {
+    setDeliveryQrModal({ isOpen: true, loading: true, req })
+    try {
+      const res = await axios.post(
+        `${API_URL}/distributor/delivery-requests/${req.id}/generate-delivery-qr`,
+        {
+          driver_name: inspectionDriverName || user?.name || "Carrier Driver",
+          driver_phone: inspectionDriverPhone || (user as any)?.phone || "+91 98765 43210",
+          vehicle_number: inspectionVehicleNumber || (user as any)?.vehicle_number || "KA-04-E-2941"
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (res.data?.success) {
+        const dlvData = res.data.data
+        setDeliveryQrModal({
+          isOpen: true,
+          loading: false,
+          req,
+          qrToken: dlvData.delivery_qr_token,
+          qrData: dlvData.delivery_qr_data,
+          txHash: dlvData.blockchain_hash
+        })
+        await fetchDeliveryRequests(true)
+      } else {
+        setDeliveryQrModal((prev) => ({
+          ...prev!,
+          loading: false,
+          error: res.data?.message || "Failed to generate delivery QR."
+        }))
+      }
+    } catch (err: any) {
+      setDeliveryQrModal((prev) => ({
+        ...prev!,
+        loading: false,
+        error: err.response?.data?.message || "Failed to generate delivery QR."
+      }))
     }
   }
 
@@ -796,8 +970,12 @@ export function DistributorDashboard() {
           <div className="grid gap-5">
             {filtered.map((req) => {
               const isPending = req.status === "REQUESTED"
-              const isAccepted = req.status === "IN_TRANSIT" || req.status === "ACCEPTED"
+              const isAwaitingPickup = req.status === "ACCEPTED" || req.status === "PICKUP_QR_GENERATED"
+              const isInTransit = req.status === "IN_TRANSIT"
+              const isArrivedAtStore = req.status === "ARRIVED_AT_RETAILER"
+              const isCompleted = req.status === "COMPLETED"
               const isDeclined = req.status === "DECLINED"
+              const isDisputed = req.status === "DISPUTED"
               const isActioning = respondingRequestId === req.id
 
               const sourceLocation =
@@ -816,7 +994,13 @@ export function DistributorDashboard() {
                   className={`rounded-3xl border transition-all overflow-hidden p-6 space-y-5 bg-white shadow-sm ${
                     isPending
                       ? "border-emerald-300 ring-2 ring-emerald-500/10 hover:border-emerald-500"
-                      : isAccepted
+                      : isAwaitingPickup
+                      ? "border-indigo-300 ring-2 ring-indigo-500/10 hover:border-indigo-500"
+                      : isInTransit
+                      ? "border-cyan-300 ring-2 ring-cyan-500/10 hover:border-cyan-500"
+                      : isArrivedAtStore
+                      ? "border-purple-300 ring-2 ring-purple-500/10 hover:border-purple-500"
+                      : isCompleted
                       ? "border-emerald-200 hover:border-emerald-400"
                       : "border-slate-200 opacity-80"
                   }`}
@@ -851,15 +1035,43 @@ export function DistributorDashboard() {
                       className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
                         isPending
                           ? "bg-amber-100 text-amber-800 border border-amber-300 animate-pulse"
-                          : isAccepted
+                          : req.status === "ACCEPTED"
+                          ? "bg-blue-100 text-blue-800 border border-blue-300"
+                          : req.status === "PICKUP_QR_GENERATED"
+                          ? "bg-indigo-100 text-indigo-800 border border-indigo-300 animate-pulse"
+                          : isInTransit
+                          ? "bg-cyan-100 text-cyan-800 border border-cyan-300"
+                          : isArrivedAtStore
+                          ? "bg-purple-100 text-purple-800 border border-purple-300 animate-pulse"
+                          : isCompleted
                           ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                          : isDisputed
+                          ? "bg-rose-100 text-rose-800 border border-rose-300"
                           : "bg-slate-100 text-slate-700 border border-slate-300"
                       }`}
                     >
                       {isPending && <Clock className="h-3.5 w-3.5" />}
-                      {isAccepted && <CheckCircle2 className="h-3.5 w-3.5" />}
+                      {req.status === "ACCEPTED" && <Clock className="h-3.5 w-3.5 text-blue-600" />}
+                      {req.status === "PICKUP_QR_GENERATED" && <QrCode className="h-3.5 w-3.5 text-indigo-600" />}
+                      {isInTransit && <Truck className="h-3.5 w-3.5 text-cyan-600" />}
+                      {isArrivedAtStore && <Store className="h-3.5 w-3.5 text-purple-600" />}
+                      {isCompleted && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
                       {isDeclined && <X className="h-3.5 w-3.5" />}
-                      {isPending ? "Pending Your Review" : isAccepted ? "Accepted & In Transit" : "Declined"}
+                      {isPending
+                        ? "Pending Review"
+                        : req.status === "ACCEPTED"
+                        ? "Accepted — Awaiting Pickup QR"
+                        : req.status === "PICKUP_QR_GENERATED"
+                        ? "Pickup QR Ready at Processor"
+                        : isInTransit
+                        ? "In Transit to Retailer"
+                        : isArrivedAtStore
+                        ? "At Retailer Dock — Delivery QR Ready"
+                        : isCompleted
+                        ? "Delivery Completed & Signed Off"
+                        : isDisputed
+                        ? "Dispute Reported by Store"
+                        : "Declined"}
                     </span>
                   </div>
 
@@ -1021,20 +1233,77 @@ export function DistributorDashboard() {
                       </div>
                     )}
 
-                    {isAccepted && (
+                    {isAwaitingPickup && (
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-emerald-700 font-bold flex items-center gap-1.5">
-                          <CheckCircle2 className="h-4 w-4" />
-                          Custody active in your fleet!
+                        <Button
+                          size="sm"
+                          onClick={() => handleStartPickupVerification(req)}
+                          className="rounded-xl text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer shadow-sm"
+                        >
+                          <QrCode className="h-4 w-4" />
+                          Scan Pickup QR & Inspect Cargo
+                        </Button>
+                      </div>
+                    )}
+
+                    {isInTransit && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-cyan-800 font-bold flex items-center gap-1.5">
+                          <Truck className="h-4 w-4 text-cyan-600" />
+                          In Transit with Reefer Telematics
                         </span>
                         <Button
                           size="sm"
-                          onClick={() => handleTabSwitch("fleet")}
-                          className="rounded-xl text-xs gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer shadow-xs"
+                          onClick={() => handleGenerateDeliveryQR(req)}
+                          className="rounded-xl text-xs gap-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold cursor-pointer shadow-sm"
                         >
-                          <Truck className="h-3.5 w-3.5" />
-                          Deliver to Store Dock
+                          <Store className="h-4 w-4" />
+                          Arrived at Store — Generate Delivery QR
                         </Button>
+                      </div>
+                    )}
+
+                    {isArrivedAtStore && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-purple-800 font-bold flex items-center gap-1.5">
+                          <Store className="h-4 w-4 text-purple-600 animate-pulse" />
+                          Docked at Store — Awaiting Retailer Scan
+                        </span>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setDeliveryQrModal({
+                              isOpen: true,
+                              loading: false,
+                              req,
+                              qrToken: req.delivery_qr_token || `DLV_${req.id}`,
+                              qrData: req.delivery_qr_data || {}
+                            })
+                          }}
+                          className="rounded-xl text-xs gap-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold cursor-pointer shadow-sm"
+                        >
+                          <QrCode className="h-4 w-4" />
+                          View Delivery Handoff QR
+                        </Button>
+                      </div>
+                    )}
+
+                    {isCompleted && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-emerald-800 font-bold flex items-center gap-1.5 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-300">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                          Delivery Completed — Handover Certified
+                        </span>
+                        {req.blockchain_hash && (
+                          <a
+                            href={`https://sepolia.etherscan.io/tx/${req.blockchain_hash}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[11px] text-emerald-700 hover:underline flex items-center gap-1 font-mono"
+                          >
+                            Sepolia: {req.blockchain_hash.slice(0, 8)}... <ExternalLink className="h-3 w-3 inline" />
+                          </a>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1205,7 +1474,14 @@ export function DistributorDashboard() {
                       </Button>
                       <Button
                         size="sm"
-                        onClick={() => setDeliveryModalItem(item)}
+                        onClick={() => {
+                          const matchingReq = deliveryRequests.find((r) => r.batch_number === item.batch_number || r.product_id === item.product_id)
+                          if (matchingReq) {
+                            handleGenerateDeliveryQR(matchingReq)
+                          } else {
+                            setDeliveryModalItem(item)
+                          }
+                        }}
                         className="rounded-xl text-xs gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer shadow-xs"
                       >
                         <Store className="h-3.5 w-3.5" />
@@ -1774,6 +2050,404 @@ export function DistributorDashboard() {
                 Confirm & Sign on Blockchain
               </Button>
             </div>
+          </Card>
+        </div>
+      )}
+
+      {/* PICKUP QR SCAN & PHYSICAL INSPECTION MODAL (Processor Handover) */}
+      {pickupVerifyModal?.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <Card className="max-w-xl w-full rounded-3xl border border-emerald-200 shadow-2xl p-6 bg-white text-slate-900 space-y-5 my-8 animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-start border-b border-emerald-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700">
+                  <QrCode className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">
+                    {pickupVerifyModal.step === "scan"
+                      ? "Scan Processor Pickup QR"
+                      : pickupVerifyModal.step === "inspect"
+                      ? "Physical Cargo Inspection & Handover"
+                      : "Cargo Custody Confirmed!"}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Batch #{pickupVerifyModal.req?.batch_number} • {pickupVerifyModal.req?.product_name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPickupVerifyModal(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* STEP 1: SCAN QR CODE */}
+            {pickupVerifyModal.step === "scan" && (
+              <div className="space-y-4">
+                <p className="text-xs text-slate-600">
+                  Scan the blockchain pickup QR code displayed on the Processor's screen, or enter the signed dispatch token below.
+                </p>
+
+                {/* Manual Input or Quick Fill */}
+                <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-3">
+                  <label className="text-xs font-bold text-emerald-950 uppercase tracking-wider block">
+                    Dispatch Token / QR String
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={pickupVerifyModal.manualTokenInput || ""}
+                      onChange={(e) =>
+                        setPickupVerifyModal((prev) => ({
+                          ...prev!,
+                          manualTokenInput: e.target.value
+                        }))
+                      }
+                      placeholder="PKP_... or scan with camera"
+                      className="flex-1 px-3 py-2 text-xs border border-emerald-300 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <Button
+                      onClick={() =>
+                        handleVerifyScannedToken(
+                          pickupVerifyModal.manualTokenInput ||
+                            pickupVerifyModal.req?.pickup_qr_token ||
+                            `PKP_${pickupVerifyModal.req?.id}`
+                        )
+                      }
+                      disabled={pickupVerifyModal.loading}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold px-4"
+                    >
+                      {pickupVerifyModal.loading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Verify Token"
+                      )}
+                    </Button>
+                  </div>
+
+                  {pickupVerifyModal.req?.pickup_qr_token && (
+                    <div className="flex items-center justify-between text-[11px] text-emerald-800 pt-1">
+                      <span>Processor Generated Token:</span>
+                      <button
+                        onClick={() =>
+                          setPickupVerifyModal((prev) => ({
+                            ...prev!,
+                            manualTokenInput: pickupVerifyModal.req.pickup_qr_token
+                          }))
+                        }
+                        className="font-mono underline font-bold hover:text-emerald-950"
+                      >
+                        Auto-fill "{pickupVerifyModal.req.pickup_qr_token.slice(0, 16)}..."
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {pickupVerifyModal.error && (
+                  <div className="p-3 bg-rose-50 text-rose-800 border border-rose-200 rounded-xl text-xs flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>{pickupVerifyModal.error}</span>
+                  </div>
+                )}
+
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 space-y-1">
+                  <div className="font-semibold text-slate-700">Origin Processor Facility:</div>
+                  <div>{pickupVerifyModal.req?.processor?.facility_name || "Agro-Processing Facility"}</div>
+                  <div className="text-[11px]">{pickupVerifyModal.req?.processor?.facility_location}</div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: PHYSICAL INSPECTION & DRIVER CONFIRMATION */}
+            {pickupVerifyModal.step === "inspect" && (
+              <div className="space-y-4">
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs space-y-1.5">
+                  <div className="font-bold text-emerald-900 flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    Processor Dispatch Record Verified on Blockchain
+                  </div>
+                  <p className="text-[11px] text-emerald-800">
+                    Product: <strong>{pickupVerifyModal.req?.product_name}</strong> • Quantity: <strong>{pickupVerifyModal.req?.quantity} {pickupVerifyModal.req?.unit || "kg"}</strong>
+                  </p>
+                  <p className="text-[11px] text-emerald-800">
+                    Facility: {pickupVerifyModal.verifiedData?.dispatch_snapshot?.processor?.business_name || pickupVerifyModal.req?.processor?.facility_name}
+                  </p>
+                </div>
+
+                {/* PHYSICAL CARGO CHECKLIST */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                    1. Physical Verification Checklist
+                  </label>
+                  <div className="space-y-2 text-xs">
+                    <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={inspectionCheckboxes.cratesIntact}
+                        onChange={(e) =>
+                          setInspectionCheckboxes((prev) => ({ ...prev, cratesIntact: e.target.checked }))
+                        }
+                        className="rounded text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className="font-medium text-slate-800">Physical crates, packaging, and produce seals intact</span>
+                    </label>
+                    <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={inspectionCheckboxes.quantityMatched}
+                        onChange={(e) =>
+                          setInspectionCheckboxes((prev) => ({ ...prev, quantityMatched: e.target.checked }))
+                        }
+                        className="rounded text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className="font-medium text-slate-800">
+                        Net crate count & weight verified ({pickupVerifyModal.req?.quantity} {pickupVerifyModal.req?.unit || "kg"})
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={inspectionCheckboxes.tempCompliant}
+                        onChange={(e) =>
+                          setInspectionCheckboxes((prev) => ({ ...prev, tempCompliant: e.target.checked }))
+                        }
+                        className="rounded text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className="font-medium text-slate-800">Pre-cooling temperature meets SLA (Chilled)</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* DRIVER & VEHICLE REGISTRATION INPUTS */}
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                    2. Assigned Driver & Vehicle Registration
+                  </label>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-[11px] text-slate-500 block mb-1">Driver Name</span>
+                      <input
+                        type="text"
+                        value={inspectionDriverName}
+                        onChange={(e) => setInspectionDriverName(e.target.value)}
+                        placeholder="Driver Name"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-slate-500 block mb-1">Driver Phone</span>
+                      <input
+                        type="text"
+                        value={inspectionDriverPhone}
+                        onChange={(e) => setInspectionDriverPhone(e.target.value)}
+                        placeholder="Phone Number"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-slate-500 block mb-1">Vehicle Registration #</span>
+                      <input
+                        type="text"
+                        value={inspectionVehicleNumber}
+                        onChange={(e) => setInspectionVehicleNumber(e.target.value)}
+                        placeholder="e.g. KA-04-E-2941"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl font-mono uppercase font-bold focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-slate-500 block mb-1">Departure Temp (°C)</span>
+                      <input
+                        type="text"
+                        value={inspectionDepartureTemp}
+                        onChange={(e) => setInspectionDepartureTemp(e.target.value)}
+                        placeholder="e.g. 3.8°C"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-[11px] text-slate-500 block mb-1">Inspection Notes & Findings</span>
+                      <input
+                        type="text"
+                        value={inspectionNotes}
+                        onChange={(e) => setInspectionNotes(e.target.value)}
+                        placeholder="Physical cargo findings..."
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-cyan-50 border border-cyan-200 rounded-xl text-xs text-cyan-900 flex items-start gap-2">
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-cyan-600 mt-0.5" />
+                  <span>
+                    Upon confirmation, these driver & vehicle details are cryptographically dispatched to the Retailer from the Processor's end before transit begins.
+                  </span>
+                </div>
+
+                {pickupVerifyModal.error && (
+                  <div className="p-3 bg-rose-50 text-rose-800 border border-rose-200 rounded-xl text-xs">
+                    {pickupVerifyModal.error}
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      setPickupVerifyModal((prev) => ({ ...prev!, step: "scan" }))
+                    }
+                    className="flex-1 rounded-xl text-xs border-slate-300 text-slate-700 hover:bg-slate-100"
+                  >
+                    Back to Scan
+                  </Button>
+                  <Button
+                    disabled={
+                      pickupVerifyModal.loading ||
+                      !inspectionCheckboxes.cratesIntact ||
+                      !inspectionCheckboxes.quantityMatched ||
+                      !inspectionVehicleNumber
+                    }
+                    onClick={handleConfirmPickupTakeCustody}
+                    className="flex-1 rounded-xl text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5 cursor-pointer shadow-sm"
+                  >
+                    {pickupVerifyModal.loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4" />
+                    )}
+                    Approve Pickup & Begin Transit
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: SUCCESS */}
+            {pickupVerifyModal.step === "success" && (
+              <div className="space-y-4 text-center py-4">
+                <div className="h-16 w-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                  <CheckCircle className="h-8 w-8 text-emerald-600" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-lg font-bold text-slate-900">Cargo Custody Authorized!</h4>
+                  <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                    You have taken custody of Batch #{pickupVerifyModal.req?.batch_number}. Complete produce manifest and your vehicle ({inspectionVehicleNumber}) have been dispatched to Retailer {pickupVerifyModal.req?.retailer?.destination_store || "Store"}.
+                  </p>
+                </div>
+
+                {pickupVerifyModal.txHash && (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-700">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Sepolia Blockchain Hash</span>
+                    <a
+                      href={`https://sepolia.etherscan.io/tx/${pickupVerifyModal.txHash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-emerald-700 underline hover:text-emerald-900"
+                    >
+                      {pickupVerifyModal.txHash}
+                    </a>
+                  </div>
+                )}
+
+                <Button
+                  onClick={() => {
+                    setPickupVerifyModal(null)
+                    handleTabSwitch("fleet")
+                  }}
+                  className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs"
+                >
+                  View Active Trip & GPS Navigation
+                </Button>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* DELIVERY HANDOFF QR MODAL (Retailer Store Dock) */}
+      {deliveryQrModal?.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <Card className="max-w-md w-full rounded-3xl border border-purple-200 shadow-2xl p-6 bg-white text-slate-900 space-y-5 my-8 animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-start border-b border-purple-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-purple-100 text-purple-700">
+                  <Store className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">Retailer Dock Delivery Handoff</h3>
+                  <p className="text-xs text-slate-500">
+                    Batch #{deliveryQrModal.req?.batch_number} • {deliveryQrModal.req?.product_name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDeliveryQrModal(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {deliveryQrModal.loading ? (
+              <div className="p-12 text-center space-y-3">
+                <Loader2 className="h-8 w-8 text-purple-600 animate-spin mx-auto" />
+                <p className="text-xs text-slate-600">Generating delivery handoff QR...</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-col items-center justify-center p-6 bg-purple-50/50 rounded-2xl border-2 border-purple-300">
+                  <QRCodeSVG
+                    value={deliveryQrModal.qrToken || `DLV_${deliveryQrModal.req?.id}`}
+                    size={220}
+                    level="H"
+                    includeMargin={true}
+                  />
+                  <div className="mt-3 text-center">
+                    <span className="font-mono text-xs font-bold text-purple-900 bg-white px-3 py-1 rounded-md border border-purple-300 select-all block">
+                      {deliveryQrModal.qrToken || `DLV_${deliveryQrModal.req?.id}`}
+                    </span>
+                    <p className="text-[11px] text-slate-500 mt-1">Delivery QR for Retailer Scan</p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Destination Store:</span>
+                    <span className="font-bold text-slate-900">
+                      {deliveryQrModal.req?.retailer?.destination_store || "Retail Store"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Arrived Vehicle:</span>
+                    <span className="font-mono font-bold text-purple-700">
+                      {deliveryQrModal.req?.vehicle_number || inspectionVehicleNumber || "KA-04-E-2941"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Net Cargo:</span>
+                    <span className="font-bold text-slate-900">
+                      {deliveryQrModal.req?.quantity} {deliveryQrModal.req?.unit || "kg"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 text-xs text-purple-900 flex items-start gap-2">
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-purple-600 mt-0.5" />
+                  <span>
+                    <strong>Next Step:</strong> Have the store receiving dock officer scan this Delivery QR from their Retailer Dashboard. They will cross-verify cargo against the Processor's earlier dispatch notice and confirm acceptance.
+                  </span>
+                </div>
+
+                <Button
+                  onClick={() => setDeliveryQrModal(null)}
+                  className="w-full rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs"
+                >
+                  Done (Keep Active)
+                </Button>
+              </div>
+            )}
           </Card>
         </div>
       )}

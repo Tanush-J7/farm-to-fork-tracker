@@ -8,7 +8,9 @@ import {
   getAvailableDistributors,
   assignDistributor,
   sendDeliveryRequest,
-  getProcessorDeliveryRequests
+  getProcessorDeliveryRequests,
+  generatePickupQR,
+  confirmProcessorDispatch
 } from '../controllers/processorController';
 
 const router = Router();
@@ -26,6 +28,8 @@ router.get('/distributors', authorize('processor', 'admin'), getAvailableDistrib
 router.post('/assign-distributor', authorize('processor', 'admin'), assignDistributor);
 router.post('/request-delivery', authorize('processor', 'admin'), sendDeliveryRequest);
 router.get('/delivery-requests', authorize('processor', 'admin'), getProcessorDeliveryRequests);
+router.post('/delivery-requests/:id/generate-pickup-qr', authorize('processor', 'admin'), generatePickupQR);
+router.post('/delivery-requests/:id/confirm-dispatch', authorize('processor', 'admin'), confirmProcessorDispatch);
 
 // Farmer-accessible procurement demand orders
 router.get('/farmer-sourcing', authorize('farmer', 'processor', 'admin'), getFarmerSourcingOrders);
