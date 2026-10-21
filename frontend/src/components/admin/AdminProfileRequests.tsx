@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Store,
   Warehouse,
+  Truck,
   MessageSquare
 } from "lucide-react"
 import { Card, CardContent, CardHeader } from "../ui/Card"
@@ -261,6 +262,7 @@ export function AdminProfileRequests() {
             const isApproved = req.status === "APPROVED"
             const isRejected = req.status === "REJECTED"
             const isProc = req.user_role === "processor"
+            const isDist = req.user_role === "distributor"
 
             const requested = req.requested_changes
             const prev = req.previous_profile || {}
@@ -285,10 +287,18 @@ export function AdminProfileRequests() {
                         className={`p-2.5 rounded-xl shrink-0 ${
                           isProc
                             ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                            : isDist
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                             : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
                         }`}
                       >
-                        {isProc ? <Warehouse className="h-5 w-5" /> : <Store className="h-5 w-5" />}
+                        {isProc ? (
+                          <Warehouse className="h-5 w-5" />
+                        ) : isDist ? (
+                          <Truck className="h-5 w-5" />
+                        ) : (
+                          <Store className="h-5 w-5" />
+                        )}
                       </div>
 
                       <div>
@@ -300,6 +310,8 @@ export function AdminProfileRequests() {
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                               isProc
                                 ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                                : isDist
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
                                 : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
                             }`}
                           >

@@ -17,6 +17,7 @@ import {
   Info,
   Warehouse,
   Store,
+  Truck,
   UserCheck
 } from "lucide-react"
 import { Button } from "../ui/Button"
@@ -101,6 +102,7 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
 
   const isProcessor = role === "processor"
   const isRetailer = role === "retailer"
+  const isDistributor = role === "distributor"
 
   const fetchProfileData = async () => {
     try {
@@ -123,11 +125,25 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
           setCity(active_profile.city || "Bengaluru")
           setState(active_profile.state || "Karnataka")
           setPincode(active_profile.pincode || "560022")
-          setFacilityType(active_profile.facility_type || (isRetailer ? "Direct Retail Supermarket" : "Chilled Cold-Storage Depot"))
-          setOperatingHours(active_profile.operating_hours || "06:00 AM - 10:00 PM")
+          setFacilityType(
+            active_profile.facility_type ||
+              (isDistributor
+                ? "Refrigerated Fleet Depot & Transit Logistics Hub"
+                : isRetailer
+                ? "Direct Retail Supermarket"
+                : "Chilled Cold-Storage Depot")
+          )
+          setOperatingHours(active_profile.operating_hours || (isDistributor ? "24/7 Logistics Operation" : "06:00 AM - 10:00 PM"))
           setContactPerson(active_profile.contact_person_name || user?.name || "")
           setContactEmail(active_profile.contact_email || user?.email || "")
-          setStorageCapacity(active_profile.storage_capacity || (isRetailer ? "120 Metric Tons Retail Shelf" : "500 Metric Tons Chilled"))
+          setStorageCapacity(
+            active_profile.storage_capacity ||
+              (isDistributor
+                ? "20 Reefer Trucks & 400 MT Cold Bay"
+                : isRetailer
+                ? "120 Metric Tons Retail Shelf"
+                : "500 Metric Tons Chilled")
+          )
           if (active_profile.coordinates) {
             setLat(active_profile.coordinates.lat || 13.0285)
             setLng(active_profile.coordinates.lng || 77.5456)
@@ -267,17 +283,25 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            {isProcessor ? (
+            {isDistributor ? (
+              <Truck className="h-6 w-6 text-emerald-600" />
+            ) : isProcessor ? (
               <Warehouse className="h-6 w-6 text-emerald-600" />
             ) : (
               <Store className="h-6 w-6 text-emerald-600" />
             )}
             <h2 className="text-2xl font-bold tracking-tight text-slate-900">
-              {isProcessor ? "Processor Facility Profile & Logistics Hub" : "Retailer Store Profile & Receiving Dock"}
+              {isDistributor
+                ? "Distributor Fleet Depot & Logistics Profile"
+                : isProcessor
+                ? "Processor Facility Profile & Logistics Hub"
+                : "Retailer Store Profile & Receiving Dock"}
             </h2>
           </div>
           <p className="text-sm text-slate-600 mt-1">
-            Manage your legal entity, FSSAI / trade license, and physical location. This verified location is strictly used for distributor delivery routes.
+            {isDistributor
+              ? "Manage your transport logistics license, fleet dispatch base, and contact details. This verified location defines your operating depot and dispatch center."
+              : "Manage your legal entity, FSSAI / trade license, and physical location. This verified location is strictly used for distributor delivery routes."}
           </p>
         </div>
 
@@ -442,7 +466,7 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
             <div className="p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-100">
               <span className="text-slate-500 uppercase text-[10px] font-bold block mb-1">
-                {isProcessor ? "Facility Name" : "Store / Supermarket Name"}
+                {isDistributor ? "Distributor Entity / Fleet Hub" : isProcessor ? "Facility Name" : "Store / Supermarket Name"}
               </span>
               <span className="font-bold text-slate-900 text-sm block">{activeProfile.business_name}</span>
               <div className="text-slate-600 text-[11px] mt-1.5 flex items-center gap-1.5">
@@ -452,7 +476,7 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
 
             <div className="p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-100">
               <span className="text-slate-500 uppercase text-[10px] font-bold block mb-1">
-                Food Safety / Trade License
+                {isDistributor ? "Transport / Carrier License" : "Food Safety / Trade License"}
               </span>
               <span className="font-mono font-bold text-emerald-800 text-sm block">
                 {activeProfile.license_number}
@@ -500,7 +524,11 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
           <div>
             <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <Building2 className="h-5 w-5 text-emerald-600" />
-              Edit Facility & Store Details
+              {isDistributor
+                ? "Edit Distributor Fleet & Depot Details"
+                : isProcessor
+                ? "Edit Facility Details"
+                : "Edit Store Details"}
             </h3>
             <p className="text-xs text-slate-600 mt-0.5">
               Submit updates to your business name, license, address, and dock operating hours.
@@ -517,13 +545,23 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Building2 className="h-3.5 w-3.5 text-emerald-600" />
-                Legal Facility / Business Name *
+                {isDistributor
+                  ? "Distributor Entity / Fleet Base Name *"
+                  : isProcessor
+                  ? "Legal Facility / Business Name *"
+                  : "Legal Store / Business Name *"}
               </label>
               <input
                 type="text"
                 value={businessName}
                 onChange={(e) => setBusinessName(e.target.value)}
-                placeholder={isProcessor ? "e.g. Agro-Processing Unit #4" : "e.g. Metro Fresh Supermarket"}
+                placeholder={
+                  isDistributor
+                    ? "e.g. Karnataka Cold-Haul Logistics & Dispatch Depot"
+                    : isProcessor
+                    ? "e.g. Agro-Processing Unit #4"
+                    : "e.g. Metro Fresh Supermarket"
+                }
                 className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 font-semibold"
                 required
               />
@@ -536,18 +574,20 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <FileText className="h-3.5 w-3.5 text-emerald-600" />
-                Food Safety / FSSAI / Trade License Number *
+                {isDistributor
+                  ? "Transport Fleet / Carrier License (MVA/FSSAI) *"
+                  : "Food Safety / FSSAI / Trade License Number *"}
               </label>
               <input
                 type="text"
                 value={licenseNumber}
                 onChange={(e) => setLicenseNumber(e.target.value)}
-                placeholder="e.g. FSSAI-11223344556677"
+                placeholder={isDistributor ? "e.g. MVA-KA-LOG-98214" : "e.g. FSSAI-11223344556677"}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 font-mono font-bold"
                 required
               />
               <span className="text-[11px] text-slate-500 block">
-                Subject to administrative validation against the Food Safety register.
+                Subject to administrative validation against the Food Safety & Transport register.
               </span>
             </div>
 
@@ -566,7 +606,9 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                 required
               />
               <span className="text-[11px] text-slate-500 block">
-                Used by distributor drivers for gate access and handover coordination.
+                {isDistributor
+                  ? "Used by dispatchers, processors, and retailers for route and delivery coordination."
+                  : "Used by distributor drivers for gate access and handover coordination."}
               </span>
             </div>
 
@@ -574,14 +616,21 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Warehouse className="h-3.5 w-3.5 text-emerald-600" />
-                Facility / Store Classification
+                {isDistributor ? "Fleet & Logistics Classification" : "Facility / Store Classification"}
               </label>
               <select
                 value={facilityType}
                 onChange={(e) => setFacilityType(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 font-medium"
               >
-                {isProcessor ? (
+                {isDistributor ? (
+                  <>
+                    <option value="Refrigerated Fleet Depot & Transit Logistics Hub">Refrigerated Fleet Depot & Transit Logistics Hub</option>
+                    <option value="Interstate Multi-Temperature Reefer Fleet">Interstate Multi-Temperature Reefer Fleet</option>
+                    <option value="Last-Mile Retail Fast-Fulfillment Center">Last-Mile Retail Fast-Fulfillment Center</option>
+                    <option value="Agricultural Cold-Chain Freight Depot">Agricultural Cold-Chain Freight Depot</option>
+                  </>
+                ) : isProcessor ? (
                   <>
                     <option value="Chilled Cold-Storage & Agro-Processing Warehouse">Chilled Cold-Storage & Agro-Processing Warehouse</option>
                     <option value="Grain Milling & Secondary Processing Unit">Grain Milling & Secondary Processing Unit</option>
@@ -635,7 +684,9 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
               required
             />
             <span className="text-[11px] text-slate-500 block">
-              Distributor vehicles will be navigated directly to this street address for cargo pickup and delivery.
+              {isDistributor
+                ? "Your primary logistics headquarters, fleet maintenance depot, and dispatch hub address."
+                : "Distributor vehicles will be navigated directly to this street address for cargo pickup and delivery."}
             </span>
           </div>
 
@@ -728,13 +779,19 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-800">
-                Storage / Dock Capacity
+                {isDistributor ? "Fleet Capacity & Active Vehicles" : isRetailer ? "Store Shelf & Receiving Capacity" : "Storage / Dock Capacity"}
               </label>
               <input
                 type="text"
                 value={storageCapacity}
                 onChange={(e) => setStorageCapacity(e.target.value)}
-                placeholder="e.g. 500 Metric Tons Chilled"
+                placeholder={
+                  isDistributor
+                    ? "e.g. 20 Reefer Trucks (10T each), 400 MT Cold Bay"
+                    : isRetailer
+                    ? "e.g. 120 Metric Tons Retail Shelf"
+                    : "e.g. 500 Metric Tons Chilled"
+                }
                 className="w-full px-3.5 py-2 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm font-medium"
               />
             </div>

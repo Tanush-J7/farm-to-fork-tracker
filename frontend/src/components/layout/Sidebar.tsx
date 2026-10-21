@@ -30,6 +30,7 @@ const roleNavMap: Record<string, { name: string; path: string; icon: React.Eleme
   ],
   distributor: [
     { name: "Command Overview", path: "/distributor?tab=overview", icon: Sparkles },
+    { name: "Distributor Profile", path: "/distributor?tab=profile", icon: ShieldCheck },
     { name: "Delivery Requests", path: "/distributor?tab=requests", icon: Clock },
     { name: "Active Fleet & Routes", path: "/distributor?tab=fleet", icon: Truck },
     { name: "Cargo Manifest", path: "/distributor?tab=inventory", icon: Package },

@@ -30,6 +30,7 @@ import { Html5Qrcode } from "html5-qrcode"
 import jsQR from "jsqr"
 import { RouteMapModal } from "../components/distributor/RouteMapModal"
 import { getGoogleMapsDestinationUrl } from "../utils"
+import { ProfileManagementSection } from "../components/profile/ProfileManagementSection"
 
 const API_URL = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
@@ -43,24 +44,26 @@ const routePerformanceData = [
   { day: "Sun", deliveries: 6, onTime: 6 },
 ]
 
+export type DistributorTab = "overview" | "requests" | "fleet" | "inventory" | "blockchain" | "profile"
+
 export function DistributorDashboard() {
   const { user, token, updateUser } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = (searchParams.get("tab") as any) || "overview"
-  const [activeTab, setActiveTab] = useState<"overview" | "requests" | "fleet" | "inventory" | "blockchain">(
-    ["overview", "requests", "fleet", "inventory", "blockchain"].includes(tabParam) ? tabParam : "overview"
+  const [activeTab, setActiveTab] = useState<DistributorTab>(
+    ["overview", "requests", "fleet", "inventory", "blockchain", "profile"].includes(tabParam) ? tabParam : "overview"
   )
 
   useEffect(() => {
     const t = searchParams.get("tab")
-    if (t && ["overview", "requests", "fleet", "inventory", "blockchain"].includes(t)) {
+    if (t && ["overview", "requests", "fleet", "inventory", "blockchain", "profile"].includes(t)) {
       setActiveTab(t as any)
     } else if (!t) {
       setActiveTab("overview")
     }
   }, [searchParams])
 
-  const handleTabSwitch = (t: "overview" | "requests" | "fleet" | "inventory" | "blockchain") => {
+  const handleTabSwitch = (t: DistributorTab) => {
     setActiveTab(t)
     if (t === "overview") {
       setSearchParams({})
@@ -621,7 +624,27 @@ export function DistributorDashboard() {
       </div>
 
       {/* QUICK LAUNCH TILES */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <button
+          onClick={() => handleTabSwitch("profile")}
+          className="p-5 rounded-3xl bg-white border border-emerald-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all text-left group cursor-pointer"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-700 group-hover:scale-105 transition-transform">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              Verified Base
+            </span>
+          </div>
+          <h4 className="font-bold text-slate-900 text-sm group-hover:text-emerald-700 transition-colors">
+            Distributor Profile & Depot
+          </h4>
+          <p className="text-xs text-slate-600 mt-1">
+            Manage your fleet hub location, transport license, and dispatch coordinates.
+          </p>
+        </button>
+
         <button
           onClick={() => handleTabSwitch("requests")}
           className="p-5 rounded-3xl bg-white border border-emerald-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all text-left group cursor-pointer"
@@ -1546,6 +1569,14 @@ export function DistributorDashboard() {
               <span className="text-xs text-slate-600 font-mono">
                 Operator: <strong className="text-emerald-950 font-bold">{user?.name || "Logistics Fleet"}</strong>
               </span>
+              <button
+                onClick={() => handleTabSwitch("profile")}
+                className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 transition-all shadow-xs cursor-pointer"
+                title="View & Edit Verified Depot Profile"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                Fleet Profile
+              </button>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
               Fleet Operations & Distribution
@@ -1596,6 +1627,7 @@ export function DistributorDashboard() {
       {/* ACTIVE TAB CONTENT VIEW */}
       <div>
         {activeTab === "overview" && <OverviewTab />}
+        {activeTab === "profile" && <ProfileManagementSection role="distributor" />}
         {activeTab === "requests" && <RequestsTab />}
         {activeTab === "fleet" && <FleetTab />}
         {activeTab === "inventory" && <InventoryTab />}
