@@ -48,16 +48,68 @@ export function getProcessorLocation(processorNameOrEmail?: string): string {
       const userProfiles = JSON.parse(localStorage.getItem("registered_user_profiles") || "{}")
       const key = processorNameOrEmail.toLowerCase().trim()
       if (userProfiles[key]?.address) return userProfiles[key].address
+      for (const val of Object.values(userProfiles) as any[]) {
+        if (
+          val.address &&
+          (val.email?.toLowerCase().includes(key) ||
+            val.name?.toLowerCase().includes(key) ||
+            key.includes(val.name?.toLowerCase() || ""))
+        ) {
+          return val.address
+        }
+      }
     } catch {}
   }
 
   try {
     const savedProcessorAddress = localStorage.getItem("processor_address")
-    if (savedProcessorAddress) return savedProcessorAddress
+    if (savedProcessorAddress && savedProcessorAddress !== "Processing Facility") return savedProcessorAddress
 
     const storedUser = JSON.parse(localStorage.getItem("farmchain_user") || "{}")
-    if (storedUser && storedUser.role === "processor" && storedUser.address) return storedUser.address
+    if (storedUser && storedUser.role === "processor" && storedUser.address && storedUser.address !== "Processing Facility") {
+      return storedUser.address
+    }
   } catch {}
 
-  return "Certified Processing Facility"
+  return "Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru, Karnataka 560022"
+}
+
+export function getRetailerLocation(retailerNameOrEmail?: string): string {
+  if (retailerNameOrEmail) {
+    try {
+      const userProfiles = JSON.parse(localStorage.getItem("registered_user_profiles") || "{}")
+      const key = retailerNameOrEmail.toLowerCase().trim()
+      if (userProfiles[key]?.address) return userProfiles[key].address
+      for (const val of Object.values(userProfiles) as any[]) {
+        if (
+          val.address &&
+          (val.email?.toLowerCase().includes(key) ||
+            val.name?.toLowerCase().includes(key) ||
+            key.includes(val.name?.toLowerCase() || ""))
+        ) {
+          return val.address
+        }
+      }
+    } catch {}
+  }
+
+  try {
+    const savedRetailerAddress = localStorage.getItem("retailer_address")
+    if (savedRetailerAddress) return savedRetailerAddress
+
+    const storedUser = JSON.parse(localStorage.getItem("farmchain_user") || "{}")
+    if (storedUser && storedUser.role === "retailer" && storedUser.address) {
+      return storedUser.address
+    }
+  } catch {}
+
+  return "Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru, Karnataka 560034"
+}
+
+export function getGoogleMapsRouteUrl(origin: string, destination: string): string {
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`
+}
+
+export function getGoogleMapsDestinationUrl(destination: string): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`
 }

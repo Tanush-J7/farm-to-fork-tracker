@@ -39,6 +39,8 @@ export function LoginPage() {
             localStorage.setItem("farmer_address", u.address)
           } else if (u.role === "processor" && u.address) {
             localStorage.setItem("processor_address", u.address)
+          } else if (u.role === "retailer" && u.address) {
+            localStorage.setItem("retailer_address", u.address)
           }
         } catch {}
 

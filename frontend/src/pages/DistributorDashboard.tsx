@@ -3,7 +3,7 @@ import axios from "axios"
 import {
   Package, Truck, CheckCircle, Zap, TrendingUp, QrCode,
   SplitSquareHorizontal, Clock, ShieldCheck, Camera, Upload, X, Loader2,
-  CheckCircle2, Store, Thermometer, RefreshCw
+  CheckCircle2, Store, Thermometer, RefreshCw, Navigation, MapPin, ExternalLink
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/Card"
 import { Button } from "../components/ui/Button"
@@ -11,6 +11,8 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useAuth } from "../context/AuthContext"
 import { Html5Qrcode } from "html5-qrcode"
 import jsQR from "jsqr"
+import { RouteMapModal } from "../components/distributor/RouteMapModal"
+import { getGoogleMapsDestinationUrl } from "../utils"
 
 const API_URL = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
@@ -60,6 +62,7 @@ export function DistributorDashboard() {
   const [requestsFilter, setRequestsFilter] = useState<"ALL" | "REQUESTED" | "IN_TRANSIT" | "DECLINED">("ALL")
   const [respondingRequestId, setRespondingRequestId] = useState<string | null>(null)
   const [declineModalRequest, setDeclineModalRequest] = useState<any | null>(null)
+  const [selectedMapRequest, setSelectedMapRequest] = useState<any | null>(null)
   const [declineReasonInput, setDeclineReasonInput] = useState("Vehicle capacity currently booked on another route")
 
   const fetchDeliveryRequests = async () => {
@@ -463,10 +466,35 @@ export function DistributorDashboard() {
                         <Button
                           size="sm"
                           onClick={() => setDeliveryModalItem(item)}
-                          className="rounded-xl text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
                         >
                           <Store className="h-3.5 w-3.5" />
                           Deliver to Store
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const matchingReq = deliveryRequests.find(r => r.batch_number === item.batch_number)
+                            setSelectedMapRequest(matchingReq || {
+                              batch_number: item.batch_number,
+                              product_name: item.name,
+                              quantity: item.quantity,
+                              unit: "kg",
+                              processor: {
+                                facility_name: "Agro-Processing Facility",
+                                facility_location: "Agro-Processing Unit #4, Yeshwanthpur APMC Yard, Bengaluru 560022"
+                              },
+                              retailer: {
+                                destination_store: "Metro Fresh Mart Koramangala",
+                                store_location: "Metro Fresh Supermarket, 80 Feet Road, 4th Block, Koramangala, Bengaluru 560034"
+                              },
+                              cold_chain_sla: { temperature_control: "2°C to 6°C Precision Chilled" }
+                            })
+                          }}
+                          className="rounded-xl text-xs gap-1 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 ml-2"
+                        >
+                          <Navigation className="h-3 w-3" />
+                          Route Map
                         </Button>
                       </td>
                     </tr>
@@ -1027,6 +1055,63 @@ export function DistributorDashboard() {
                     </div>
                   </div>
 
+                  {/* Verified Profile Locations & Navigation Waypoints */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    {/* Source Pickup (Processor Profile Location) */}
+                    <div className="p-3.5 rounded-2xl bg-zinc-900/60 border border-zinc-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                          <MapPin className="h-3 w-3" /> 1. Source (Processor Pickup Facility)
+                        </span>
+                        <span className="text-[10px] text-zinc-500 font-mono">Origin Depot</span>
+                      </div>
+                      <div className="font-bold text-sm text-foreground">
+                        {req.processor?.facility_name || "Agro-Processing Facility"}
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        {req.processor?.facility_location || req.processor?.facility_name || "Agro-Processing Unit #4, Yeshwanthpur APMC Yard, Bengaluru 560022"}
+                      </p>
+                      <div className="pt-1 flex items-center gap-3">
+                        <a
+                          href={getGoogleMapsDestinationUrl(req.processor?.facility_location || req.processor?.facility_name || "Agro-Processing Unit #4, Yeshwanthpur APMC Yard, Bengaluru 560022")}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold"
+                        >
+                          <Navigation className="h-3 w-3" /> GPS to Pickup Facility
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Destination Delivery (Retailer Profile Location) */}
+                    <div className="p-3.5 rounded-2xl bg-zinc-900/60 border border-zinc-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                          <Store className="h-3 w-3" /> 2. Destination (Retailer Delivery Store)
+                        </span>
+                        <span className="text-[10px] text-zinc-500 font-mono">Final Store Dock</span>
+                      </div>
+                      <div className="font-bold text-sm text-foreground">
+                        {req.retailer?.destination_store || "Retail Supermarket"}
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        {req.retailer?.store_location || req.retailer?.destination_store || "Metro Fresh Supermarket, 80 Feet Road, 4th Block, Koramangala, Bengaluru 560034"}
+                      </p>
+                      <div className="pt-1 flex items-center gap-3">
+                        <a
+                          href={getGoogleMapsDestinationUrl(req.retailer?.store_location || req.retailer?.destination_store || "Metro Fresh Supermarket, 80 Feet Road, 4th Block, Koramangala, Bengaluru 560034")}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 font-semibold"
+                        >
+                          <Navigation className="h-3 w-3" /> GPS to Retailer Store
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Processor Notes Strip */}
                   {req.processor_notes && (
                     <div className="p-3 rounded-xl bg-card border text-xs text-muted-foreground italic flex items-start gap-2">
@@ -1043,8 +1128,18 @@ export function DistributorDashboard() {
                   )}
 
                   {/* Actions Bar */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedMapRequest(req)}
+                      className="w-full sm:w-auto rounded-xl text-xs gap-1.5 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 font-bold"
+                    >
+                      <Navigation className="h-3.5 w-3.5" />
+                      View Route & Navigation Map
+                    </Button>
                   {isPending && (
-                    <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2 border-t">
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
                       <Button
                         variant="outline"
                         size="sm"
@@ -1077,7 +1172,7 @@ export function DistributorDashboard() {
                   )}
 
                   {isAccepted && (
-                    <div className="flex items-center justify-between pt-2 border-t text-xs">
+                    <div className="flex items-center gap-2">
                       <span className="text-emerald-400 font-medium flex items-center gap-1.5">
                         <CheckCircle2 className="h-4 w-4" />
                         Custody accepted! This cargo is in your transit inventory.
@@ -1093,6 +1188,7 @@ export function DistributorDashboard() {
                       </Button>
                     </div>
                   )}
+                  </div>
                 </Card>
               )
             })}
@@ -1395,6 +1491,13 @@ export function DistributorDashboard() {
           </Card>
         </div>
       )}
+
+      {/* ROUTE & NAVIGATION MAP MODAL */}
+      <RouteMapModal
+        isOpen={Boolean(selectedMapRequest)}
+        onClose={() => setSelectedMapRequest(null)}
+        request={selectedMapRequest}
+      />
     </div>
   )
 }

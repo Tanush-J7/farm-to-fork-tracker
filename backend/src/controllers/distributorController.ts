@@ -88,13 +88,31 @@ export const getDistributorDeliveryRequests = async (req: Request, res: Response
           id: processor?.id,
           name: processor?.name || 'Processing Facility Admin',
           email: processor?.email,
-          facility_name: metadata.pickup_location || 'Agro-Processing Depot Koramangala'
+          facility_name: (metadata.pickup_location && metadata.pickup_location !== 'Processing Facility' && metadata.pickup_location !== 'Processor Processing Facility')
+            ? metadata.pickup_location
+            : (processor?.name ? `${processor.name} Agro-Processing Depot, APMC Yard, Yeshwanthpur, Bengaluru 560022` : 'Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru, Karnataka 560022'),
+          facility_location: (metadata.pickup_location && metadata.pickup_location !== 'Processing Facility' && metadata.pickup_location !== 'Processor Processing Facility')
+            ? metadata.pickup_location
+            : (processor?.name ? `${processor.name} Agro-Processing Depot, APMC Yard, Yeshwanthpur, Bengaluru 560022` : 'Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru, Karnataka 560022'),
+          coordinates: { lat: 13.0285, lng: 77.5456 }
         },
         retailer: {
           id: retailer?.id,
           name: retailer?.name || 'Retail Supermarket',
           email: retailer?.email,
-          destination_store: metadata.destination_store || 'Metro Fresh Mart Koramangala Store #104'
+          destination_store: (metadata.destination_store && metadata.destination_store !== 'John')
+            ? metadata.destination_store
+            : (retailer?.name ? `${retailer.name}'s Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru 560034` : 'Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru 560034'),
+          store_location: (metadata.destination_store && metadata.destination_store !== 'John')
+            ? metadata.destination_store
+            : (retailer?.name ? `${retailer.name}'s Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru 560034` : 'Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru 560034'),
+          coordinates: { lat: 12.9345, lng: 77.6200 }
+        },
+        route_details: {
+          distance_km: 16.4,
+          estimated_travel_time: '35 mins',
+          source_label: 'Processor Cold-Storage Facility (Yeshwanthpur APMC)',
+          destination_label: 'Retail Receiving Dock (Koramangala 4th Block)'
         },
         cold_chain_sla: {
           temperature_control: metadata.temperature_sla || '2°C to 6°C Precision Chilled',

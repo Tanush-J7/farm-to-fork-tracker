@@ -70,7 +70,7 @@ export function RegisterPage() {
     setError("")
     setSuccessMsg("")
 
-    if ((formData.role === "farmer" || formData.role === "processor") && !formData.address.trim()) {
+    if ((formData.role === "farmer" || formData.role === "processor" || formData.role === "retailer") && !formData.address.trim()) {
       setError('Please set your location using the "Use Current Location" button.')
       return
     }
@@ -97,6 +97,8 @@ export function RegisterPage() {
           localStorage.setItem("farmer_address", formData.address)
         } else if (formData.role === "processor" && formData.address) {
           localStorage.setItem("processor_address", formData.address)
+        } else if (formData.role === "retailer" && formData.address) {
+          localStorage.setItem("retailer_address", formData.address)
         }
       } catch (err) {
         console.warn("Could not save to registered_user_profiles", err)
@@ -257,11 +259,11 @@ export function RegisterPage() {
             </select>
           </div>
 
-          {(formData.role === "farmer" || formData.role === "processor") && (
+          {(formData.role === "farmer" || formData.role === "processor" || formData.role === "retailer") && (
             <div className="space-y-4 pt-3 border-t border-emerald-100">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                  {formData.role === "farmer" ? "Farmer Details" : "Processor Details"}
+                  {formData.role === "farmer" ? "Farmer Details" : formData.role === "retailer" ? "Retailer Store Details" : "Processor Details"}
                 </span>
               </div>
 
@@ -284,7 +286,7 @@ export function RegisterPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium text-slate-700">
-                    {formData.role === "farmer" ? "Farm Address" : "Processor Address"}
+                    {formData.role === "farmer" ? "Farm Address" : formData.role === "retailer" ? "Retail Store Address" : "Processor Facility Address"}
                   </label>
                   <button
                     type="button"

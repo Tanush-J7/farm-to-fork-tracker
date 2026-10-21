@@ -6,12 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../co
 import {
   Factory, AlertCircle, Search, ShieldCheck, Camera, Brain, Clock, User, MapPin,
   Star, Package, Truck, Loader2, QrCode, Upload, Printer, Video, VideoOff, Download, X,
-  Trash2, Scale, Lock, CheckCircle, Store, Thermometer, Phone, ExternalLink, CheckCircle2, Send
+  Trash2, Scale, Lock, CheckCircle, Store, Thermometer, Phone, ExternalLink, CheckCircle2, Send,
+  Locate
 } from "lucide-react"
 import { Html5Qrcode } from "html5-qrcode"
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
 import jsQR from "jsqr"
-import { getFarmerLocation } from "../utils"
+import { getFarmerLocation, getProcessorLocation, getRetailerLocation } from "../utils"
 import { RetailerDemandDesk } from "../components/processor/RetailerDemandDesk"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
@@ -283,6 +284,9 @@ export function ProcessorDashboard() {
   const [selectedDistributorId, setSelectedDistributorId] = useState("")
   const [selectedRetailerId, setSelectedRetailerId] = useState("")
   const [selectedDestinationStore, setSelectedDestinationStore] = useState("")
+  const [destinationStoreAddress, setDestinationStoreAddress] = useState("")
+  const [processorPickupLocation, setProcessorPickupLocation] = useState("")
+  const [detectingGps, setDetectingGps] = useState(false)
   const [dispatchNotesInput, setDispatchNotesInput] = useState("")
   const [dispatchLoading, setDispatchLoading] = useState(false)
   const [dispatchSuccessResult, setDispatchSuccessResult] = useState<{
@@ -1062,6 +1066,28 @@ export function ProcessorDashboard() {
     }
   }
 
+  const handleDetectProcessorGps = () => {
+    if (!navigator.geolocation) return
+    setDetectingGps(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`)
+          const data = await res.json()
+          if (data.display_name) {
+            setProcessorPickupLocation(data.display_name)
+            localStorage.setItem("processor_address", data.display_name)
+          }
+        } catch {
+        } finally {
+          setDetectingGps(false)
+        }
+      },
+      () => setDetectingGps(false),
+      { enableHighAccuracy: true, timeout: 8000 }
+    )
+  }
+
   const openDispatchModal = (batch: ProcessingBatch) => {
     setDispatchModalBatch(batch)
     setDispatchSuccessResult(null)
@@ -1071,11 +1097,18 @@ export function ProcessorDashboard() {
       const avail = availableDistributors.find(d => d.current_status === "AVAILABLE") || availableDistributors[0]
       setSelectedDistributorId(avail.id)
     }
+
+    const defaultProcLoc = getProcessorLocation(user?.email || user?.name)
+    setProcessorPickupLocation(defaultProcLoc)
+
     if (availableRetailers.length > 0) {
-      setSelectedRetailerId(availableRetailers[0].id)
-      setSelectedDestinationStore(availableRetailers[0].name)
+      const firstRet = availableRetailers[0]
+      setSelectedRetailerId(firstRet.id)
+      setSelectedDestinationStore(firstRet.name)
+      setDestinationStoreAddress(getRetailerLocation(firstRet.email || firstRet.name))
     } else {
-      setSelectedDestinationStore("Metro Fresh Mart Koramangala Store #104")
+      setSelectedDestinationStore("Metro Fresh Mart (Koramangala)")
+      setDestinationStoreAddress(getRetailerLocation("retailer@gmail.com"))
     }
   }
 
@@ -1085,7 +1118,10 @@ export function ProcessorDashboard() {
     try {
       const chosenDist = availableDistributors.find((d) => d.id === selectedDistributorId)
       const chosenRet = availableRetailers.find((r) => r.id === selectedRetailerId)
-      const targetStoreName = selectedDestinationStore || chosenRet?.name || "Metro Fresh Mart Koramangala Store #104"
+      const storeName = selectedDestinationStore || chosenRet?.name || "Metro Fresh Mart"
+      const storeLoc = destinationStoreAddress || getRetailerLocation(chosenRet?.email || chosenRet?.name)
+      const targetStoreWithAddress = `${storeName} — ${storeLoc}`
+      const targetStoreName = targetStoreWithAddress
 
       let trackingId = `REQ-${Date.now()}`
 
@@ -1097,8 +1133,8 @@ export function ProcessorDashboard() {
             product_id: dispatchModalBatch.productId,
             distributor_id: selectedDistributorId,
             retailer_id: selectedRetailerId || undefined,
-            destination_store: targetStoreName,
-            pickup_location: processorAddress || "Processor Processing Facility",
+            destination_store: targetStoreWithAddress,
+            pickup_location: processorPickupLocation || processorAddress,
             required_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split("T")[0],
             temperature_sla: "2°C to 6°C Precision Chilled",
             dispatch_notes: dispatchNotesInput,
@@ -3158,43 +3194,95 @@ export function ProcessorDashboard() {
                   )}
                 </div>
 
-                {/* Section 2: Destination Retailer */}
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                    <Store className="h-3.5 w-3.5 text-emerald-400" />
-                    2. Destination Retailer Store
-                  </label>
-                  {availableRetailers.length > 0 ? (
-                    <select
-                      value={selectedRetailerId}
-                      onChange={(e) => {
-                        setSelectedRetailerId(e.target.value)
-                        const ret = availableRetailers.find(r => r.id === e.target.value)
-                        if (ret) setSelectedDestinationStore(ret.name)
-                      }}
-                      className="w-full h-11 px-3 rounded-xl border border-zinc-700 bg-zinc-950 text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                {/* Section 2: Source Pickup Location (Processor Profile) */}
+                <div className="space-y-1.5 p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5 text-emerald-400" />
+                      2. Source: Processor Facility Pickup Location
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleDetectProcessorGps}
+                      disabled={detectingGps}
+                      className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50"
                     >
-                      {availableRetailers.map(r => (
-                        <option key={r.id} value={r.id}>
-                          {r.name} ({r.email})
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
+                      {detectingGps ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Detecting GPS...
+                        </>
+                      ) : (
+                        <>
+                          <Locate className="h-3 w-3" />
+                          Auto-Detect GPS
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={processorPickupLocation}
+                    onChange={(e) => setProcessorPickupLocation(e.target.value)}
+                    placeholder="e.g. Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru 560022"
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-800 bg-zinc-900 text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                  />
+                  <p className="text-[10px] text-zinc-500">
+                    This verified facility address is shared with the distributor for depot cargo pickup.
+                  </p>
+                </div>
+
+                {/* Section 3: Destination Retailer Store & Address (From Profile) */}
+                <div className="space-y-2 p-3 rounded-2xl bg-zinc-950 border border-zinc-800">
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                    <Store className="h-3.5 w-3.5 text-blue-400" />
+                    3. Destination: Retailer Store & Delivery Location
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {availableRetailers.length > 0 && (
+                      <select
+                        value={selectedRetailerId}
+                        onChange={(e) => {
+                          setSelectedRetailerId(e.target.value)
+                          const ret = availableRetailers.find(r => r.id === e.target.value)
+                          if (ret) {
+                            setSelectedDestinationStore(ret.name)
+                            setDestinationStoreAddress(getRetailerLocation(ret.email || ret.name))
+                          }
+                        }}
+                        className="w-full h-10 px-3 rounded-xl border border-zinc-700 bg-zinc-900 text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                      >
+                        {availableRetailers.map(r => (
+                          <option key={r.id} value={r.id}>
+                            {r.name} ({r.email})
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     <input
                       type="text"
                       value={selectedDestinationStore}
                       onChange={(e) => setSelectedDestinationStore(e.target.value)}
-                      placeholder="e.g. Metro Fresh Mart Koramangala Store #104"
-                      className="w-full h-11 px-3 rounded-xl border border-zinc-700 bg-zinc-950 text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                      placeholder="Store Name (e.g. Metro Fresh Mart Koramangala)"
+                      className="w-full h-10 px-3 rounded-xl border border-zinc-700 bg-zinc-900 text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
                     />
-                  )}
+                  </div>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-500" />
+                    <input
+                      type="text"
+                      value={destinationStoreAddress}
+                      onChange={(e) => setDestinationStoreAddress(e.target.value)}
+                      placeholder="Full Destination Retail Store Address for Delivery"
+                      className="w-full pl-9 pr-3 py-2 rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-200 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                    />
+                  </div>
                 </div>
 
-                {/* Section 3: Dispatch & Cold-Chain SLA Notes */}
+                {/* Section 4: Dispatch & Cold-Chain SLA Notes */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                    3. Dispatch Handover Notes & Handling SLA
+                    4. Dispatch Handover Notes & Handling SLA
                   </label>
                   <textarea
                     rows={2}

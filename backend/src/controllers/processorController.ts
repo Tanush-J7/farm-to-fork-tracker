@@ -537,8 +537,16 @@ export const sendDeliveryRequest = async (req: Request, res: Response): Promise<
     }
 
     const trackingId = `REQ-${Date.now()}`;
-    const targetStore = destination_store || 'Metro Fresh Mart Koramangala Store #104';
-    const pickupLoc = pickup_location || processor?.address || 'Processor Central Processing Hub';
+    const cleanPickup = (!pickup_location || pickup_location === 'Processing Facility' || pickup_location === 'Processor Processing Facility')
+      ? (processor?.name ? `${processor.name} Agro-Processing Depot, APMC Yard, Yeshwanthpur, Bengaluru 560022` : 'Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru, Karnataka 560022')
+      : pickup_location;
+
+    const cleanTargetStore = (!destination_store || destination_store === 'John')
+      ? "John's Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru, Karnataka 560034"
+      : destination_store;
+
+    const targetStore = cleanTargetStore;
+    const pickupLoc = cleanPickup;
     const tempSla = temperature_sla || '2°C to 6°C Precision Chilled';
     const notes = dispatch_notes || 'Cold-chain SLA verified. Quality certified batch ready for cargo transfer.';
 
@@ -683,8 +691,12 @@ export const getProcessorDeliveryRequests = async (req: Request, res: Response):
           name: dist?.name || 'Distributor',
           email: dist?.email
         },
-        destination_store: meta.destination_store || 'Metro Fresh Mart Koramangala Store #104',
-        pickup_location: meta.pickup_location || 'Processor Processing Facility',
+        destination_store: (meta.destination_store && meta.destination_store !== 'John')
+          ? meta.destination_store
+          : "John's Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru 560034",
+        pickup_location: (meta.pickup_location && meta.pickup_location !== 'Processing Facility' && meta.pickup_location !== 'Processor Processing Facility')
+          ? meta.pickup_location
+          : 'Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru 560022',
         temperature_sla: meta.temperature_sla || '2°C to 6°C Precision Chilled',
         dispatch_notes: meta.dispatch_notes,
         decline_reason: declineEvent?.metadata?.decline_reason || null
