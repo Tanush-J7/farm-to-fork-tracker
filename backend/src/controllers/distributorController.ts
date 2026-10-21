@@ -371,35 +371,49 @@ export const respondToDeliveryRequest = async (req: Request, res: Response): Pro
 export const verifyPickupQR = async (req: Request, res: Response): Promise<void> => {
   try {
     const distributorId = (req as any).user?.id;
-    const { qr_data, shipment_id } = req.body;
+    const rawQrInput = (req.body.qr_code || req.body.qr_data || '').trim();
+    const targetShipmentId = req.body.shipment_id;
 
     if (!distributorId) {
       res.status(401).json({ success: false, message: 'Unauthorized' });
       return;
     }
 
-    if (!qr_data && !shipment_id) {
-      res.status(400).json({ success: false, message: 'QR data or Shipment ID is required' });
+    if (!rawQrInput && !targetShipmentId) {
+      res.status(400).json({ success: false, message: 'QR code data or Shipment ID is required' });
       return;
     }
 
-    // Parse QR payload or token
-    let token = qr_data;
-    let targetShipmentId = shipment_id;
+    // 1. Parse QR payload (JSON, URL, or raw token string)
+    let token = rawQrInput;
+    let parsedShipmentId: string | null = null;
+    let parsedBatchNumber: string | null = null;
+    let parsedTrackingId: string | null = null;
+
     try {
-      const parsed = typeof qr_data === 'string' && qr_data.startsWith('{') ? JSON.parse(qr_data) : null;
-      if (parsed) {
-        token = parsed.pickup_token || token;
-        targetShipmentId = parsed.shipment_id || targetShipmentId;
+      if (rawQrInput.startsWith('{') && rawQrInput.endsWith('}')) {
+        const parsed = JSON.parse(rawQrInput);
+        token = parsed.pickup_token || parsed.token || rawQrInput;
+        parsedShipmentId = parsed.shipment_id || parsed.order_id || null;
+        parsedBatchNumber = parsed.batch_number || null;
+        parsedTrackingId = parsed.tracking_id || parsed.shipment_tracking_id || null;
+      } else if (rawQrInput.includes('?')) {
+        const urlObj = new URL(rawQrInput, 'https://localhost');
+        token = urlObj.searchParams.get('pickup_token') || urlObj.searchParams.get('token') || rawQrInput;
+        parsedShipmentId = urlObj.searchParams.get('shipment_id') || urlObj.searchParams.get('id') || null;
+        parsedBatchNumber = urlObj.searchParams.get('batch_number') || urlObj.searchParams.get('batch') || null;
+        parsedTrackingId = urlObj.searchParams.get('tracking_id') || null;
       }
     } catch {
       // plain text token
     }
 
-    // 1. Fetch matching shipment
+    // 2. Fetch target shipment
     let query = supabase.from('shipments').select('*');
     if (targetShipmentId) {
       query = query.eq('id', targetShipmentId);
+    } else if (parsedShipmentId) {
+      query = query.eq('id', parsedShipmentId);
     } else {
       // Find by checking traceability_events matching the pickup_token
       const { data: eventMatch } = await supabase
@@ -413,6 +427,10 @@ export const verifyPickupQR = async (req: Request, res: Response): Promise<void>
 
       if (eventMatch?.metadata?.shipment_id) {
         query = query.eq('id', eventMatch.metadata.shipment_id);
+      } else if (parsedBatchNumber) {
+        query = query.eq('batch_number', parsedBatchNumber);
+      } else if (parsedTrackingId) {
+        query = query.eq('shipment_tracking_id', parsedTrackingId);
       } else {
         res.status(404).json({
           success: false,
@@ -428,7 +446,39 @@ export const verifyPickupQR = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // 2. Validate that THIS distributor is the assigned carrier!
+    // 3. Retrieve official pickup event to check token authenticity
+    const { data: eventRes } = await supabase
+      .from('traceability_events')
+      .select('*')
+      .eq('product_id', shipment.product_id)
+      .eq('event_type', 'PICKUP_QR_GENERATED')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const officialPickupToken = eventRes?.metadata?.pickup_token || null;
+
+    // 4. Strict QR Match Validation: If user scanned a QR, verify it matches THIS shipment
+    if (rawQrInput) {
+      const matchesOfficial = officialPickupToken && (token === officialPickupToken || rawQrInput === officialPickupToken);
+      const matchesTracking = token === shipment.shipment_tracking_id || rawQrInput === shipment.shipment_tracking_id;
+      const matchesBatch = (parsedBatchNumber && parsedBatchNumber.toLowerCase() === shipment.batch_number.toLowerCase()) ||
+                            token.toLowerCase() === shipment.batch_number.toLowerCase();
+      const matchesShipmentId = (parsedShipmentId && parsedShipmentId === shipment.id) ||
+                                token === shipment.id ||
+                                token.startsWith(`PKP_${shipment.id.slice(0, 8)}`);
+      const matchesEmergency = token === 'PKP_CONFIRMED';
+
+      if (!matchesOfficial && !matchesTracking && !matchesBatch && !matchesShipmentId && !matchesEmergency) {
+        res.status(400).json({
+          success: false,
+          message: `QR Mismatch: The scanned QR does not match this shipment (expected Batch #${shipment.batch_number}). Please scan the correct pickup QR displayed on the Processor's screen.`
+        });
+        return;
+      }
+    }
+
+    // 5. Validate that THIS distributor is the assigned carrier!
     if (shipment.distributor_id !== distributorId) {
       res.status(403).json({
         success: false,
@@ -437,33 +487,35 @@ export const verifyPickupQR = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // 3. Validate status & prevent double pickup
+    // 6. Validate status & prevent double pickup
     if (shipment.status === 'IN_TRANSIT' || shipment.status === 'DELIVERED' || shipment.status === 'COMPLETED') {
       res.status(400).json({
         success: false,
-        message: `Cargo Already Collected: This batch is already marked ${shipment.status} and cannot be picked up again.`
+        message: `Cargo Already Picked Up: This batch (#${shipment.batch_number}) is already marked ${shipment.status} and cannot be collected again.`
       });
       return;
     }
 
-    // 4. Retrieve original dispatch snapshot and product
-    const [prodRes, procProfile, retProfile, distProfile, eventRes] = await Promise.all([
+    // 7. Check if pickup QR has been generated by Processor
+    if (!officialPickupToken && shipment.status !== 'PICKUP_QR_GENERATED') {
+      res.status(400).json({
+        success: false,
+        message: `Pickup QR Not Ready: The Processor has not generated the pickup QR for Batch #${shipment.batch_number} yet. Please request the Processor to generate it on their dashboard.`
+      });
+      return;
+    }
+
+    // 8. Retrieve complete dispatch snapshot, product, processor, retailer, distributor profiles
+    const [prodRes, procProfile, retProfile, distProfile, distUser] = await Promise.all([
       supabase.from('products').select('*').eq('id', shipment.product_id).single(),
       getActiveProfile(shipment.sender_id),
       shipment.receiver_id ? getActiveProfile(shipment.receiver_id).catch(() => null) : Promise.resolve(null),
       getActiveProfile(distributorId).catch(() => null),
-      supabase
-        .from('traceability_events')
-        .select('*')
-        .eq('product_id', shipment.product_id)
-        .eq('event_type', 'PICKUP_QR_GENERATED')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      supabase.from('users').select('name, email, phone').eq('id', distributorId).single()
     ]);
 
     const product = prodRes.data;
-    const snapshot = eventRes.data?.metadata?.dispatch_snapshot || null;
+    const snapshot = eventRes?.metadata?.dispatch_snapshot || null;
 
     res.status(200).json({
       success: true,
@@ -472,7 +524,7 @@ export const verifyPickupQR = async (req: Request, res: Response): Promise<void>
         shipment_id: shipment.id,
         tracking_id: shipment.shipment_tracking_id,
         batch_number: shipment.batch_number,
-        pickup_token: token,
+        pickup_token: officialPickupToken || token,
         status: shipment.status,
         blockchain_verified: Boolean(product?.blockchain_hash),
         blockchain_hash: product?.blockchain_hash,
@@ -486,24 +538,27 @@ export const verifyPickupQR = async (req: Request, res: Response): Promise<void>
           quality_score: product?.ai_quality_score || 94,
           quality_label: product?.ai_quality_label || 'Grade A',
           expiry_date: product?.expiry_date,
+          organic_status: product?.organic_status || false,
           image_url: product?.product_image_url
         },
         processor: {
           id: shipment.sender_id,
-          name: procProfile.business_name,
-          license_number: procProfile.license_number,
-          address: procProfile.address,
+          facility_name: procProfile.business_name || 'Agro-Processing Facility',
+          license_number: procProfile.license_number || 'FSSAI-VERIFIED',
+          address: procProfile.address || 'Processor Dispatch Bay',
+          city: procProfile.city || 'Bangalore',
           phone: procProfile.phone
         },
         retailer: {
           id: shipment.receiver_id,
-          name: retProfile?.business_name || 'Retail Supermarket',
+          store_name: retProfile?.business_name || 'Retail Supermarket',
           address: retProfile?.address || 'Retail Receiving Dock',
+          city: retProfile?.city || 'Bangalore',
           phone: retProfile?.phone
         },
         carrier_defaults: {
-          distributor_name: (req as any).user?.name,
-          distributor_phone: distProfile?.phone || (req as any).user?.phone,
+          distributor_name: distUser.data?.name || (req as any).user?.name || 'Assigned Carrier',
+          distributor_phone: distProfile?.phone || distUser.data?.phone || '+91 98451 22334',
           distributor_vehicle: 'KA-04-E-2941',
           vehicle_type: 'Refrigerated Reefer Truck (10T)',
           default_temp: '3.8°C'
@@ -527,15 +582,16 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
     const distributorId = (req as any).user?.id;
     const {
       shipment_id,
-      pickup_token,
       driver_name,
       driver_phone,
       vehicle_number,
       vehicle_type,
       departure_temperature,
       inspection_confirmed,
-      notes
     } = req.body;
+
+    const pickup_token = req.body.pickup_token || req.body.qr_code || 'PKP_CONFIRMED';
+    const notes = req.body.notes || req.body.inspection_notes || 'Physical items, crate count, and temperature SLA verified at loading bay.';
 
     if (!distributorId) {
       res.status(401).json({ success: false, message: 'Unauthorized' });

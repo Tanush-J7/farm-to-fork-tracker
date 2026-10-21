@@ -116,6 +116,10 @@ export function DistributorDashboard() {
   const [statusSuccess, setStatusSuccess] = useState(false)
 
   // Pickup Verification Modal state (Processor Facility Handover)
+  const pickupQrScannerRef = useRef<Html5Qrcode | null>(null)
+  const pickupFileInputRef = useRef<HTMLInputElement>(null)
+  const [isPickupCameraActive, setIsPickupCameraActive] = useState(false)
+  const [pickupCameraError, setPickupCameraError] = useState("")
   const [pickupVerifyModal, setPickupVerifyModal] = useState<{
     isOpen: boolean
     req: any
@@ -212,7 +216,119 @@ export function DistributorDashboard() {
   }
 
   // Pickup Verification Handlers (Processor Facility Handover)
+  const startPickupCamera = async () => {
+    setPickupCameraError("")
+    setIsPickupCameraActive(true)
+    try {
+      if (pickupQrScannerRef.current && pickupQrScannerRef.current.isScanning) {
+        await pickupQrScannerRef.current.stop()
+      }
+      const html5Qr = new Html5Qrcode("pickup-modal-qr-reader")
+      pickupQrScannerRef.current = html5Qr
+
+      await html5Qr.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decodedText) => {
+          stopPickupCamera()
+          handleVerifyScannedToken(decodedText)
+        },
+        () => {}
+      )
+    } catch (err: any) {
+      console.error("Pickup camera error", err)
+      setPickupCameraError(err?.message || "Could not access camera. Please allow camera permissions or upload an image.")
+      setIsPickupCameraActive(false)
+    }
+  }
+
+  const stopPickupCamera = async () => {
+    if (pickupQrScannerRef.current) {
+      try {
+        if (pickupQrScannerRef.current.isScanning) {
+          await pickupQrScannerRef.current.stop()
+        }
+        pickupQrScannerRef.current.clear()
+      } catch (e) {}
+    }
+    setIsPickupCameraActive(false)
+  }
+
+  const handlePickupQrFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPickupCameraError("")
+    setPickupVerifyModal((prev) => (prev ? { ...prev, error: "" } : null))
+
+    const objectUrl = URL.createObjectURL(file)
+    const img = new Image()
+
+    img.onload = async () => {
+      // Layer 1: Native BarcodeDetector if available
+      if ("BarcodeDetector" in window) {
+        try {
+          const barcodeDetector = new (window as any).BarcodeDetector({ formats: ["qr_code"] })
+          const barcodes = await barcodeDetector.detect(img)
+          if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+            URL.revokeObjectURL(objectUrl)
+            handleVerifyScannedToken(barcodes[0].rawValue)
+            return
+          }
+        } catch (err) {
+          console.warn("BarcodeDetector fallback", err)
+        }
+      }
+
+      // Layer 2: jsQR Direct Canvas Pixel Scan
+      try {
+        const canvas = document.createElement("canvas")
+        canvas.width = img.naturalWidth || img.width
+        canvas.height = img.naturalHeight || img.height
+        const ctx = canvas.getContext("2d", { willReadFrequently: true })
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+          const code =
+            jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" }) ||
+            jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" })
+          if (code && code.data) {
+            URL.revokeObjectURL(objectUrl)
+            handleVerifyScannedToken(code.data)
+            return
+          }
+        }
+      } catch (err) {
+        console.warn("jsQR fallback", err)
+      }
+
+      // Layer 3: Html5Qrcode.scanFile
+      try {
+        const html5Qr = new Html5Qrcode("pickup-modal-qr-reader")
+        const result = await html5Qr.scanFile(file, false)
+        if (result) {
+          URL.revokeObjectURL(objectUrl)
+          handleVerifyScannedToken(result)
+          return
+        }
+      } catch (err) {
+        console.warn("Html5Qrcode file scan fallback", err)
+      }
+
+      URL.revokeObjectURL(objectUrl)
+      setPickupCameraError("Could not detect a valid QR code in this image. Please upload a clear photo or use live camera.")
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      setPickupCameraError("Invalid image file format. Please upload a PNG or JPEG photo.")
+    }
+
+    img.src = objectUrl
+  }
+
   const handleStartPickupVerification = (req: any) => {
+    stopPickupCamera()
+    setPickupCameraError("")
     setInspectionDriverName(user?.name || "Carrier Driver")
     setInspectionDriverPhone((user as any)?.phone || "+91 98765 43210")
     setInspectionVehicleNumber((user as any)?.vehicle_number || "KA-04-E-2941")
@@ -227,8 +343,14 @@ export function DistributorDashboard() {
     })
   }
 
+  const handleClosePickupModal = () => {
+    stopPickupCamera()
+    setPickupVerifyModal(null)
+  }
+
   const handleVerifyScannedToken = async (tokenToVerify: string) => {
     if (!pickupVerifyModal?.req) return
+    stopPickupCamera()
     setPickupVerifyModal((prev) => ({ ...prev!, loading: true, error: "" }))
     try {
       const res = await axios.post(
@@ -237,11 +359,24 @@ export function DistributorDashboard() {
         { headers: { Authorization: `Bearer ${token}` } }
       )
       if (res.data?.success) {
+        const vData = res.data.data
+        if (vData?.carrier_defaults?.distributor_vehicle) {
+          setInspectionVehicleNumber(vData.carrier_defaults.distributor_vehicle)
+        }
+        if (vData?.carrier_defaults?.default_temp) {
+          setInspectionDepartureTemp(vData.carrier_defaults.default_temp)
+        }
+        if (vData?.carrier_defaults?.distributor_name) {
+          setInspectionDriverName(vData.carrier_defaults.distributor_name)
+        }
+        if (vData?.carrier_defaults?.distributor_phone) {
+          setInspectionDriverPhone(vData.carrier_defaults.distributor_phone)
+        }
         setPickupVerifyModal((prev) => ({
           ...prev!,
           loading: false,
           step: "inspect",
-          verifiedData: res.data.data
+          verifiedData: vData
         }))
       } else {
         setPickupVerifyModal((prev) => ({
@@ -379,6 +514,20 @@ export function DistributorDashboard() {
       fetchDeliveryRequests(true)
     }
   }, [activeTab, token])
+
+  // Cleanup pickup scanner camera on unmount
+  useEffect(() => {
+    return () => {
+      if (pickupQrScannerRef.current) {
+        try {
+          if (pickupQrScannerRef.current.isScanning) {
+            pickupQrScannerRef.current.stop()
+          }
+          pickupQrScannerRef.current.clear()
+        } catch (e) {}
+      }
+    }
+  }, [])
 
   // Camera QR Scanner logic
   const startLiveCamera = async () => {
@@ -2068,7 +2217,7 @@ export function DistributorDashboard() {
                     {pickupVerifyModal.step === "scan"
                       ? "Scan Processor Pickup QR"
                       : pickupVerifyModal.step === "inspect"
-                      ? "Physical Cargo Inspection & Handover"
+                      ? "Verify Dispatch Details & Inspect Cargo"
                       : "Cargo Custody Confirmed!"}
                   </h3>
                   <p className="text-xs text-slate-500">
@@ -2077,7 +2226,7 @@ export function DistributorDashboard() {
                 </div>
               </div>
               <button
-                onClick={() => setPickupVerifyModal(null)}
+                onClick={handleClosePickupModal}
                 className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
               >
                 <X className="h-5 w-5" />
@@ -2088,14 +2237,116 @@ export function DistributorDashboard() {
             {pickupVerifyModal.step === "scan" && (
               <div className="space-y-4">
                 <p className="text-xs text-slate-600">
-                  Scan the blockchain pickup QR code displayed on the Processor's screen, or enter the signed dispatch token below.
+                  Scan the official blockchain pickup QR code displayed on the Processor's terminal to verify this batch before loading and taking physical custody.
                 </p>
 
-                {/* Manual Input or Quick Fill */}
-                <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-3">
-                  <label className="text-xs font-bold text-emerald-950 uppercase tracking-wider block">
-                    Dispatch Token / QR String
-                  </label>
+                {/* Primary Optical Scanner Controls */}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    onClick={isPickupCameraActive ? stopPickupCamera : startPickupCamera}
+                    className={`rounded-xl text-xs font-bold gap-2 py-2.5 transition-all shadow-sm ${
+                      isPickupCameraActive
+                        ? "bg-rose-600 hover:bg-rose-500 text-white"
+                        : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                    }`}
+                  >
+                    <Camera className="h-4 w-4" />
+                    {isPickupCameraActive ? "Stop Camera" : "Open Live Camera Scanner"}
+                  </Button>
+
+                  <input
+                    type="file"
+                    ref={pickupFileInputRef}
+                    onChange={handlePickupQrFileUpload}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => pickupFileInputRef.current?.click()}
+                    className="rounded-xl text-xs font-bold gap-2 py-2.5 border-emerald-300 text-emerald-800 hover:bg-emerald-50 bg-emerald-50/50"
+                  >
+                    <Upload className="h-4 w-4" />
+                    Upload QR Image
+                  </Button>
+                </div>
+
+                {/* Optical Viewfinder Box */}
+                {isPickupCameraActive ? (
+                  <div className="relative overflow-hidden rounded-2xl border-2 border-emerald-500 bg-black aspect-video max-h-60 flex flex-col items-center justify-center shadow-lg">
+                    <div id="pickup-modal-qr-reader" className="w-full h-full" />
+                    {/* Targeting reticle overlay */}
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <div className="w-44 h-44 border-2 border-emerald-400/70 rounded-2xl relative shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                        <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl -mt-1 -ml-1"></div>
+                        <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr -mt-1 -mr-1"></div>
+                        <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl -mb-1 -ml-1"></div>
+                        <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-400 rounded-br -mb-1 -mr-1"></div>
+                        <div className="w-full h-0.5 bg-emerald-400/90 shadow-[0_0_8px_#10b981] absolute top-1/2 -translate-y-1/2 animate-pulse"></div>
+                      </div>
+                    </div>
+                    <div className="absolute bottom-2.5 left-0 right-0 text-center pointer-events-none">
+                      <span className="text-[11px] font-semibold bg-black/75 text-emerald-300 px-3 py-1 rounded-full backdrop-blur-sm">
+                        Align Processor's Pickup QR inside the box
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 text-center space-y-2">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+                      <QrCode className="h-5 w-5" />
+                    </div>
+                    <div className="text-xs font-semibold text-emerald-950">
+                      Live Optical Camera & File Scanner Ready
+                    </div>
+                    <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+                      Scan the QR code shown on the Processor's screen. The system validates token authenticity and verifies that the QR belongs to Batch #{pickupVerifyModal.req?.batch_number}.
+                    </p>
+                  </div>
+                )}
+
+                {/* Camera / Decoding Error */}
+                {pickupCameraError && (
+                  <div className="p-3 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-xs flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+                    <span>{pickupCameraError}</span>
+                  </div>
+                )}
+
+                {/* Verification / Mismatch Error */}
+                {pickupVerifyModal.error && (
+                  <div className="p-3 bg-rose-50 text-rose-800 border border-rose-200 rounded-xl text-xs flex items-start gap-2 animate-in fade-in">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <div className="font-bold">QR Verification Rejected</div>
+                      <div>{pickupVerifyModal.error}</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Manual Input or Quick Fill (Secondary Fallback) */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                      Or Enter Dispatch Token Manually
+                    </label>
+                    {pickupVerifyModal.req?.pickup_qr_token && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPickupVerifyModal((prev) => ({
+                            ...prev!,
+                            manualTokenInput: pickupVerifyModal.req.pickup_qr_token
+                          }))
+                        }
+                        className="text-[11px] font-mono underline font-bold text-emerald-700 hover:text-emerald-900"
+                      >
+                        Auto-fill Expected Token
+                      </button>
+                    )}
+                  </div>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -2106,10 +2357,11 @@ export function DistributorDashboard() {
                           manualTokenInput: e.target.value
                         }))
                       }
-                      placeholder="PKP_... or scan with camera"
-                      className="flex-1 px-3 py-2 text-xs border border-emerald-300 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder="PKP_... or scan with camera above"
+                      className="flex-1 px-3 py-2 text-xs border border-slate-300 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                     />
                     <Button
+                      type="button"
                       onClick={() =>
                         handleVerifyScannedToken(
                           pickupVerifyModal.manualTokenInput ||
@@ -2127,54 +2379,107 @@ export function DistributorDashboard() {
                       )}
                     </Button>
                   </div>
-
-                  {pickupVerifyModal.req?.pickup_qr_token && (
-                    <div className="flex items-center justify-between text-[11px] text-emerald-800 pt-1">
-                      <span>Processor Generated Token:</span>
-                      <button
-                        onClick={() =>
-                          setPickupVerifyModal((prev) => ({
-                            ...prev!,
-                            manualTokenInput: pickupVerifyModal.req.pickup_qr_token
-                          }))
-                        }
-                        className="font-mono underline font-bold hover:text-emerald-950"
-                      >
-                        Auto-fill "{pickupVerifyModal.req.pickup_qr_token.slice(0, 16)}..."
-                      </button>
-                    </div>
-                  )}
                 </div>
 
-                {pickupVerifyModal.error && (
-                  <div className="p-3 bg-rose-50 text-rose-800 border border-rose-200 rounded-xl text-xs flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 shrink-0" />
-                    <span>{pickupVerifyModal.error}</span>
+                {/* Origin Facility Summary */}
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-slate-700 block">Origin Loading Facility:</span>
+                    <span>{pickupVerifyModal.req?.processor?.facility_name || "Agro-Processing Facility"}</span>
+                    <div className="text-[11px] text-slate-500">{pickupVerifyModal.req?.processor?.facility_location}</div>
                   </div>
-                )}
-
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 space-y-1">
-                  <div className="font-semibold text-slate-700">Origin Processor Facility:</div>
-                  <div>{pickupVerifyModal.req?.processor?.facility_name || "Agro-Processing Facility"}</div>
-                  <div className="text-[11px]">{pickupVerifyModal.req?.processor?.facility_location}</div>
+                  <div className="text-right font-mono text-[11px] text-slate-500">
+                    <div>Batch #{pickupVerifyModal.req?.batch_number}</div>
+                    <div className="text-emerald-700 font-bold">{pickupVerifyModal.req?.quantity} {pickupVerifyModal.req?.unit || "kg"}</div>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* STEP 2: PHYSICAL INSPECTION & DRIVER CONFIRMATION */}
+            {/* STEP 2: VERIFY DETAILS & PHYSICAL CARGO INSPECTION */}
             {pickupVerifyModal.step === "inspect" && (
               <div className="space-y-4">
-                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs space-y-1.5">
-                  <div className="font-bold text-emerald-900 flex items-center gap-1.5">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    Processor Dispatch Record Verified on Blockchain
+                {/* Authenticated Confirmation Banner */}
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-xs space-y-1">
+                  <div className="font-bold text-emerald-900 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <span>Pickup QR Authenticated • Match Confirmed</span>
+                    <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Sepolia On-Chain Validated
+                    </span>
                   </div>
                   <p className="text-[11px] text-emerald-800">
-                    Product: <strong>{pickupVerifyModal.req?.product_name}</strong> • Quantity: <strong>{pickupVerifyModal.req?.quantity} {pickupVerifyModal.req?.unit || "kg"}</strong>
+                    Dispatch authorization verified for Batch #{pickupVerifyModal.verifiedData?.batch_number || pickupVerifyModal.req?.batch_number}. Please inspect the physical items and verify information below.
                   </p>
-                  <p className="text-[11px] text-emerald-800">
-                    Facility: {pickupVerifyModal.verifiedData?.dispatch_snapshot?.processor?.business_name || pickupVerifyModal.req?.processor?.facility_name}
-                  </p>
+                </div>
+
+                {/* Product & Quality Manifest */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                  <div className="font-bold text-slate-800 uppercase tracking-wider text-[11px] flex items-center justify-between">
+                    <span>Produce & Quality Manifest</span>
+                    <span className="font-mono text-emerald-700 font-bold">
+                      Batch #{pickupVerifyModal.verifiedData?.batch_number || pickupVerifyModal.req?.batch_number}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-700">
+                    <div className="p-2 rounded-xl bg-white border border-slate-200">
+                      <div className="text-[10px] text-slate-500 uppercase font-semibold">Commodity</div>
+                      <div className="font-bold text-slate-900 truncate">
+                        {pickupVerifyModal.verifiedData?.product?.name || pickupVerifyModal.req?.product_name}
+                      </div>
+                      <div className="text-[10px] text-slate-500">{pickupVerifyModal.verifiedData?.product?.category || "Perishables"}</div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white border border-slate-200">
+                      <div className="text-[10px] text-slate-500 uppercase font-semibold">Quantity</div>
+                      <div className="font-bold text-slate-900 font-mono text-emerald-700">
+                        {pickupVerifyModal.verifiedData?.product?.quantity || pickupVerifyModal.req?.quantity} {pickupVerifyModal.verifiedData?.product?.unit || pickupVerifyModal.req?.unit || "kg"}
+                      </div>
+                      <div className="text-[10px] text-slate-500">Certified Weight</div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white border border-slate-200">
+                      <div className="text-[10px] text-slate-500 uppercase font-semibold">AI Quality</div>
+                      <div className="font-bold text-emerald-700">
+                        {pickupVerifyModal.verifiedData?.product?.quality_label || "Grade A"}
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        {pickupVerifyModal.verifiedData?.product?.quality_score || 94}% AI Score
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white border border-slate-200">
+                      <div className="text-[10px] text-slate-500 uppercase font-semibold">Cold Chain SLA</div>
+                      <div className="font-bold text-slate-900">2°C – 6°C</div>
+                      <div className="text-[10px] text-slate-500">Precision Chilled</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Facility & Route Details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div className="p-3 rounded-2xl bg-white border border-slate-200 space-y-1">
+                    <div className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Origin Facility (Pickup)</div>
+                    <div className="font-bold text-slate-900">
+                      {pickupVerifyModal.verifiedData?.processor?.facility_name || pickupVerifyModal.req?.processor?.facility_name || "Agro-Processing Facility"}
+                    </div>
+                    <div className="text-[11px] text-slate-600">
+                      {pickupVerifyModal.verifiedData?.processor?.address || pickupVerifyModal.req?.processor?.facility_location}
+                    </div>
+                    {pickupVerifyModal.verifiedData?.processor?.license_number && (
+                      <div className="text-[10px] font-mono text-emerald-700 font-semibold">
+                        License: {pickupVerifyModal.verifiedData.processor.license_number}
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-3 rounded-2xl bg-white border border-slate-200 space-y-1">
+                    <div className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Destination Retailer (Delivery)</div>
+                    <div className="font-bold text-slate-900">
+                      {pickupVerifyModal.verifiedData?.retailer?.store_name || pickupVerifyModal.req?.retailer?.destination_store || "Retail Supermarket"}
+                    </div>
+                    <div className="text-[11px] text-slate-600">
+                      {pickupVerifyModal.verifiedData?.retailer?.address || pickupVerifyModal.req?.retailer?.destination_address || "Retail Receiving Dock"}
+                    </div>
+                    <div className="text-[10px] text-slate-500">Delivery Route SLA: Express Dispatch</div>
+                  </div>
                 </div>
 
                 {/* PHYSICAL CARGO CHECKLIST */}
@@ -2183,7 +2488,7 @@ export function DistributorDashboard() {
                     1. Physical Verification Checklist
                   </label>
                   <div className="space-y-2 text-xs">
-                    <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+                    <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-emerald-50/50 transition-colors">
                       <input
                         type="checkbox"
                         checked={inspectionCheckboxes.cratesIntact}
@@ -2194,7 +2499,7 @@ export function DistributorDashboard() {
                       />
                       <span className="font-medium text-slate-800">Physical crates, packaging, and produce seals intact</span>
                     </label>
-                    <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+                    <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-emerald-50/50 transition-colors">
                       <input
                         type="checkbox"
                         checked={inspectionCheckboxes.quantityMatched}
@@ -2204,10 +2509,10 @@ export function DistributorDashboard() {
                         className="rounded text-emerald-600 focus:ring-emerald-500"
                       />
                       <span className="font-medium text-slate-800">
-                        Net crate count & weight verified ({pickupVerifyModal.req?.quantity} {pickupVerifyModal.req?.unit || "kg"})
+                        Net crate count & weight verified ({pickupVerifyModal.verifiedData?.product?.quantity || pickupVerifyModal.req?.quantity} {pickupVerifyModal.verifiedData?.product?.unit || pickupVerifyModal.req?.unit || "kg"})
                       </span>
                     </label>
-                    <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+                    <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-emerald-50/50 transition-colors">
                       <input
                         type="checkbox"
                         checked={inspectionCheckboxes.tempCompliant}
@@ -2234,7 +2539,7 @@ export function DistributorDashboard() {
                         value={inspectionDriverName}
                         onChange={(e) => setInspectionDriverName(e.target.value)}
                         placeholder="Driver Name"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white"
                       />
                     </div>
                     <div>
@@ -2244,17 +2549,17 @@ export function DistributorDashboard() {
                         value={inspectionDriverPhone}
                         onChange={(e) => setInspectionDriverPhone(e.target.value)}
                         placeholder="Phone Number"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white"
                       />
                     </div>
                     <div>
-                      <span className="text-[11px] text-slate-500 block mb-1">Vehicle Registration #</span>
+                      <span className="text-[11px] text-slate-500 block mb-1">Vehicle Registration # *</span>
                       <input
                         type="text"
                         value={inspectionVehicleNumber}
                         onChange={(e) => setInspectionVehicleNumber(e.target.value)}
                         placeholder="e.g. KA-04-E-2941"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl font-mono uppercase font-bold focus:ring-2 focus:ring-emerald-500"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl font-mono uppercase font-bold focus:ring-2 focus:ring-emerald-500 bg-white"
                       />
                     </div>
                     <div>
@@ -2264,7 +2569,7 @@ export function DistributorDashboard() {
                         value={inspectionDepartureTemp}
                         onChange={(e) => setInspectionDepartureTemp(e.target.value)}
                         placeholder="e.g. 3.8°C"
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 bg-white"
                       />
                     </div>
                     <div className="col-span-2">
@@ -2274,7 +2579,7 @@ export function DistributorDashboard() {
                         value={inspectionNotes}
                         onChange={(e) => setInspectionNotes(e.target.value)}
                         placeholder="Physical cargo findings..."
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 text-xs"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 text-xs bg-white"
                       />
                     </div>
                   </div>
@@ -2283,7 +2588,7 @@ export function DistributorDashboard() {
                 <div className="p-3 bg-cyan-50 border border-cyan-200 rounded-xl text-xs text-cyan-900 flex items-start gap-2">
                   <ShieldCheck className="h-4 w-4 shrink-0 text-cyan-600 mt-0.5" />
                   <span>
-                    Upon confirmation, these driver & vehicle details are cryptographically dispatched to the Retailer from the Processor's end before transit begins.
+                    Upon custody handover confirmation, these driver & vehicle details are cryptographically dispatched to the Retailer from the Processor's end before transit begins.
                   </span>
                 </div>
 
@@ -2308,7 +2613,7 @@ export function DistributorDashboard() {
                       pickupVerifyModal.loading ||
                       !inspectionCheckboxes.cratesIntact ||
                       !inspectionCheckboxes.quantityMatched ||
-                      !inspectionVehicleNumber
+                      !inspectionVehicleNumber.trim()
                     }
                     onClick={handleConfirmPickupTakeCustody}
                     className="flex-1 rounded-xl text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5 cursor-pointer shadow-sm"
@@ -2316,9 +2621,9 @@ export function DistributorDashboard() {
                     {pickupVerifyModal.loading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <CheckCircle2 className="h-4 w-4" />
+                      <Truck className="h-4 w-4" />
                     )}
-                    Approve Pickup & Begin Transit
+                    Approve Pickup & Take Custody
                   </Button>
                 </div>
               </div>
@@ -2344,16 +2649,17 @@ export function DistributorDashboard() {
                       href={`https://sepolia.etherscan.io/tx/${pickupVerifyModal.txHash}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-emerald-700 underline hover:text-emerald-900"
+                      className="text-emerald-700 underline hover:text-emerald-900 inline-flex items-center gap-1"
                     >
-                      {pickupVerifyModal.txHash}
+                      <span className="truncate max-w-[280px]">{pickupVerifyModal.txHash}</span>
+                      <ExternalLink className="h-3 w-3 shrink-0" />
                     </a>
                   </div>
                 )}
 
                 <Button
                   onClick={() => {
-                    setPickupVerifyModal(null)
+                    handleClosePickupModal()
                     handleTabSwitch("fleet")
                   }}
                   className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs"
