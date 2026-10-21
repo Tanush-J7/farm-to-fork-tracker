@@ -1350,87 +1350,111 @@ export function ProcessorDashboard() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 pb-20 pt-6">
       {/* Header bar */}
-      <div className="border-b pb-5">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
-          {activeTab === "demands" ? <Store className="h-8 w-8 text-primary" /> : activeTab === "profile" ? <ShieldCheck className="h-8 w-8 text-emerald-500" /> : <Factory className="h-8 w-8 text-primary" />}
-          {activeTab === "browse" && "Dashboard"}
-          {activeTab === "pipeline" && "Processing Pipeline"}
-          {activeTab === "demands" && "Retailer Demand Desk"}
-          {activeTab === "history" && "Operational History"}
-          {activeTab === "profile" && "Facility Profile & Compliance"}
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {activeTab === "browse" && "Manage farmer products and processing operations."}
-          {activeTab === "pipeline" && "Track, receive, inspect, process, and transfer agricultural yields."}
-          {activeTab === "demands" && "Review incoming retailer purchase orders. Fulfill from warehouse stock or source fresh crops from farmers."}
-          {activeTab === "history" && "Chronological audit logs and history of all processor facility events."}
-          {activeTab === "profile" && "Manage verified legal facility name, FSSAI / trade license, and physical address for distributor delivery manifests."}
-        </p>
+      <div className="border-b border-emerald-200 pb-5">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-700 border border-emerald-200">
+            {activeTab === "demands" ? (
+              <Store className="h-7 w-7" />
+            ) : activeTab === "profile" ? (
+              <ShieldCheck className="h-7 w-7" />
+            ) : (
+              <Factory className="h-7 w-7" />
+            )}
+          </div>
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-emerald-950">
+              {activeTab === "browse" && "Processor Operations & Marketplace"}
+              {activeTab === "pipeline" && "Processing Pipeline & Dispatch"}
+              {activeTab === "demands" && "Retailer Demand Desk"}
+              {activeTab === "history" && "Operational History & Audit"}
+              {activeTab === "profile" && "Facility Profile & Compliance"}
+            </h1>
+            <p className="text-slate-600 text-sm mt-0.5 font-medium">
+              {activeTab === "browse" && "Browse, source, and inspect crops registered by local farmers."}
+              {activeTab === "pipeline" && "Track gate intake, AI quality inspection, crate packaging, and distributor handover."}
+              {activeTab === "demands" && "Review incoming retailer purchase orders. Fulfill from stock or broadcast to farmers."}
+              {activeTab === "history" && "Chronological audit logs and history of all processor facility transactions."}
+              {activeTab === "profile" && "Manage verified legal facility name, FSSAI / trade license, and physical pickup address."}
+            </p>
+          </div>
+        </div>
 
-        {/* Tab Quick Selector */}
-        <div className="flex overflow-x-auto gap-2 mt-4 pt-2">
-          <Button
-            variant={activeTab === "browse" ? "default" : "outline"}
-            size="sm"
+        {/* Tab Quick Selector (White & Green Theme) */}
+        <div className="flex overflow-x-auto gap-2 mt-5 pt-1 pb-1">
+          <button
             onClick={() => setActiveTab("browse")}
-            className="rounded-full px-5 text-xs font-semibold"
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "browse"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
+            }`}
           >
             Farmer Crops & Batches
-          </Button>
-          <Button
-            variant={activeTab === "pipeline" ? "default" : "outline"}
-            size="sm"
+          </button>
+          <button
             onClick={() => setActiveTab("pipeline")}
-            className="rounded-full px-5 text-xs font-semibold"
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "pipeline"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
+            }`}
           >
             Processing Pipeline
-          </Button>
-          <Button
-            variant={activeTab === "demands" ? "default" : "outline"}
-            size="sm"
+          </button>
+          <button
             onClick={() => setActiveTab("demands")}
-            className="rounded-full px-5 text-xs font-semibold"
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "demands"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
+            }`}
           >
-            <Store className="h-3.5 w-3.5 mr-1.5" />
+            <Store className="h-3.5 w-3.5" />
             Retailer Demand Desk
-          </Button>
-          <Button
-            variant={activeTab === "history" ? "default" : "outline"}
-            size="sm"
+          </button>
+          <button
             onClick={() => setActiveTab("history")}
-            className="rounded-full px-5 text-xs font-semibold"
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "history"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
+            }`}
           >
             Operational History
-          </Button>
-          <Button
-            variant={activeTab === "profile" ? "default" : "outline"}
-            size="sm"
+          </button>
+          <button
             onClick={() => setActiveTab("profile")}
-            className="rounded-full px-5 text-xs font-semibold gap-1.5"
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "profile"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
+            }`}
           >
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
             Facility Profile
-          </Button>
+          </button>
         </div>
       </div>
 
       {/* Tabs rendering */}
       {activeTab === "browse" && (
-        <Card className="rounded-3xl border shadow-sm overflow-hidden">
-          <CardHeader className="bg-card border-b py-5">
-            <CardTitle className="text-xl font-bold text-foreground">Available Farmer Products</CardTitle>
-            <CardDescription>Browse, search and express interest in products registered by farmers.</CardDescription>
+        <Card className="rounded-3xl border border-emerald-200 bg-white shadow-sm overflow-hidden">
+          <CardHeader className="bg-emerald-50/50 border-b border-emerald-100 py-5 px-6">
+            <CardTitle className="text-xl font-extrabold text-emerald-950">Available Farmer Harvests</CardTitle>
+            <CardDescription className="text-slate-600 text-xs mt-0.5">
+              Browse, search, and procure freshly harvested agricultural produce directly from verified farmers.
+            </CardDescription>
             
             {/* Search, Filter, Sort Controls - Clean 3 Columns */}
-            <div className="grid gap-4 md:grid-cols-3 mt-5">
+            <div className="grid gap-3 md:grid-cols-3 mt-4">
               <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-3 h-4 w-4 text-emerald-700/60" />
                 <input
                   type="text"
-                  placeholder="Search name, ID, farmer..."
+                  placeholder="Search crop name, ID, farmer..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 h-10 w-full rounded-xl border bg-background/50 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  className="pl-9 h-10 w-full rounded-xl border border-emerald-200 bg-white text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs"
                 />
               </div>
 
@@ -1438,7 +1462,7 @@ export function ProcessorDashboard() {
                 <select
                   value={filterCategory}
                   onChange={(e) => setFilterCategory(e.target.value)}
-                  className="h-10 w-full rounded-xl border bg-background/50 text-sm px-3 focus-visible:outline-none"
+                  className="h-10 w-full rounded-xl border border-emerald-200 bg-white text-slate-800 text-xs px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer"
                 >
                   <option value="all">All Categories</option>
                   <option value="Vegetables">Vegetables</option>
@@ -1451,7 +1475,7 @@ export function ProcessorDashboard() {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="h-10 w-full rounded-xl border bg-background/50 text-sm px-3 focus-visible:outline-none"
+                  className="h-10 w-full rounded-xl border border-emerald-200 bg-white text-slate-800 text-xs px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs cursor-pointer"
                 >
                   <option value="newest">Newest First</option>
                   <option value="oldest">Oldest First</option>
@@ -1460,17 +1484,17 @@ export function ProcessorDashboard() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-6">
+          <CardContent className="p-6 bg-white">
             {loadingProducts ? (
               <div className="flex flex-col items-center justify-center py-20 gap-3">
-                <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <p className="text-muted-foreground text-sm font-medium">Fetching real farm data...</p>
+                <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
+                <p className="text-slate-600 text-sm font-medium">Fetching real farm data from network...</p>
               </div>
             ) : filteredProducts.length === 0 ? (
-              <div className="text-center py-20 text-muted-foreground space-y-2">
-                <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto" />
-                <p className="text-lg font-semibold">No products found</p>
-                <p className="text-sm">Try broadening your search or check back later.</p>
+              <div className="text-center py-20 text-slate-500 space-y-2">
+                <AlertCircle className="h-12 w-12 text-slate-400 mx-auto" />
+                <p className="text-lg font-bold text-slate-800">No products found</p>
+                <p className="text-xs text-slate-500">Try broadening your search term or select another category.</p>
               </div>
             ) : (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -1482,52 +1506,64 @@ export function ProcessorDashboard() {
                     : 100000 + (Math.abs(Number(p.product_id || 0)) % 899999)
                   
                   return (
-                    <div key={p.id} className="rounded-3xl border bg-card/40 hover:bg-card/90 transition-all p-6 space-y-4 shadow-sm hover:shadow-md flex flex-col justify-between">
+                    <div key={p.id} className="rounded-3xl border border-emerald-200 bg-white hover:border-emerald-400 hover:shadow-md transition-all p-6 space-y-4 flex flex-col justify-between shadow-xs">
                       <div className="space-y-3">
                         <div className="flex items-start justify-between">
                           <div>
-                            <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-semibold">{p.category}</span>
+                            <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
+                              {p.category}
+                            </span>
                           </div>
                           {isInterested && (
-                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold flex items-center gap-1">
-                              <Star className="h-3 w-3 fill-amber-500" /> Interested
+                            <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 font-bold flex items-center gap-1">
+                              <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> Interested
                             </span>
                           )}
                         </div>
                         
                         <div>
-                          <h3 className="font-bold text-xl text-foreground flex items-center gap-1.5">
+                          <h3 className="font-black text-xl text-slate-900 flex items-center gap-1.5">
                             {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : p.name.includes("Avocado") ? "🥑" : p.name.includes("Wheat") ? "🌾" : "🌱"}
                             {p.name}
                           </h3>
-                          <p className="text-xs text-muted-foreground font-mono mt-1">Product ID: FP-{mappedId}</p>
+                          <p className="text-xs text-slate-500 font-mono mt-0.5">Product ID: FP-{mappedId}</p>
                         </div>
 
-                        <div className="border-t pt-3 space-y-2 text-sm text-foreground">
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <span>Farmer: <strong>{p.farmer?.name || "Ravi"}</strong></span>
+                        <div className="border-t border-emerald-100 pt-3 space-y-2 text-xs text-slate-700">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500 flex items-center gap-1.5">
+                              <User className="h-3.5 w-3.5 text-emerald-600" /> Farmer:
+                            </span>
+                            <strong className="text-slate-900">{p.farmer?.name || "Ravi"}</strong>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-muted-foreground" />
-                            <span>Location: <span className="text-muted-foreground">{getFarmerLocation(p)}</span></span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500 flex items-center gap-1.5">
+                              <MapPin className="h-3.5 w-3.5 text-emerald-600" /> Origin:
+                            </span>
+                            <span className="text-slate-700 text-right truncate max-w-[170px]">{getFarmerLocation(p)}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Package className="h-4 w-4 text-muted-foreground" />
-                            <span>Quantity: <strong>{p.quantity} kg</strong></span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500 flex items-center gap-1.5">
+                              <Package className="h-3.5 w-3.5 text-emerald-600" /> Yield Qty:
+                            </span>
+                            <strong className="text-emerald-800 font-bold text-sm">{p.quantity} kg</strong>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <span>Harvested: <span className="text-muted-foreground">{new Date(p.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span></span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500 flex items-center gap-1.5">
+                              <Clock className="h-3.5 w-3.5 text-emerald-600" /> Harvested:
+                            </span>
+                            <span className="text-slate-600 font-medium">
+                              {new Date(p.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                            </span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex gap-2 pt-4 border-t">
+                      <div className="flex gap-2 pt-3 border-t border-emerald-100">
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1 rounded-xl"
+                          className="flex-1 rounded-xl text-xs border-emerald-300 text-emerald-800 hover:bg-emerald-50 font-bold cursor-pointer"
                           onClick={() => setSelectedProduct(p)}
                         >
                           View Details
@@ -1535,10 +1571,10 @@ export function ProcessorDashboard() {
                         <Button
                           size="sm"
                           disabled={isInterested}
-                          className={`flex-1 rounded-xl text-white ${
+                          className={`flex-1 rounded-xl text-xs font-bold shadow-xs cursor-pointer ${
                             isInterested
-                              ? "bg-amber-600/90 text-white cursor-not-allowed opacity-90 font-medium"
-                              : "bg-primary hover:bg-primary/95 font-medium"
+                              ? "bg-amber-100 text-amber-800 border border-amber-300 cursor-not-allowed opacity-90"
+                              : "bg-emerald-600 hover:bg-emerald-500 text-white"
                           }`}
                           onClick={() => markInterest(p)}
                         >
@@ -1557,8 +1593,8 @@ export function ProcessorDashboard() {
       {activeTab === "pipeline" && (
         <div className="grid gap-6 lg:grid-cols-4">
           {/* Pipeline Sidebar Step controls */}
-          <Card className="col-span-1 rounded-3xl border shadow-sm p-4 h-fit space-y-2">
-            <h3 className="font-bold text-lg px-2 mb-3">Pipeline Status</h3>
+          <Card className="col-span-1 rounded-3xl border border-emerald-200 bg-white shadow-sm p-4 h-fit space-y-2">
+            <h3 className="font-black text-lg px-2 mb-3 text-emerald-950">Pipeline Status</h3>
             {[
               { id: "interested", label: "★ Interested Products", count: products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).length },
               { id: "received", label: "📥 Received / Verify QR", count: products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id]).length },
@@ -1570,32 +1606,32 @@ export function ProcessorDashboard() {
                 onClick={() => setPipelineStep(step.id as any)}
                 className={`w-full text-left px-4 py-3 rounded-2xl flex items-center justify-between text-sm transition-all ${
                   pipelineStep === step.id
-                    ? "bg-primary text-white font-medium"
-                    : "text-muted-foreground hover:bg-muted/50"
+                    ? "bg-emerald-600 text-white font-bold shadow-xs"
+                    : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-950 font-medium"
                 }`}
               >
                 <span>{step.label}</span>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                  pipelineStep === step.id ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                  pipelineStep === step.id ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-800 border border-emerald-200"
                 }`}>{step.count}</span>
               </button>
             ))}
           </Card>
 
           {/* Pipeline Main Window */}
-          <Card className="col-span-3 rounded-3xl border shadow-sm p-6 min-h-[500px]">
+          <Card className="col-span-3 rounded-3xl border border-emerald-200 bg-white shadow-sm p-6 min-h-[500px]">
             {pipelineStep === "interested" && (
               <div className="space-y-4">
-                <div className="border-b pb-4">
-                  <h3 className="text-xl font-bold">Interested Farmer Yields</h3>
-                  <p className="text-muted-foreground text-sm">Farmer registered products you marked interest in. Once they arrive physically, record their receipt.</p>
+                <div className="border-b border-emerald-100 pb-4">
+                  <h3 className="text-xl font-black text-emerald-950">Interested Farmer Yields</h3>
+                  <p className="text-slate-600 text-sm">Farmer registered products you marked interest in. Once they arrive physically, record their receipt.</p>
                 </div>
 
                 {products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).length === 0 ? (
-                  <div className="text-center py-20 text-muted-foreground">
-                    <Star className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                    <p className="font-semibold text-lg">No interested products</p>
-                    <p className="text-sm">Browse available products and click "Express Interest" to add them here.</p>
+                  <div className="text-center py-20 text-slate-500">
+                    <Star className="h-10 w-10 mx-auto text-emerald-300 mb-3" />
+                    <p className="font-bold text-lg text-slate-800">No interested products</p>
+                    <p className="text-sm text-slate-500">Browse available products and click "Express Interest" to add them here.</p>
                   </div>
                 ) : (
                   <div className="grid gap-4">
@@ -1614,21 +1650,21 @@ export function ProcessorDashboard() {
 
                       if (isDeclined || dealStatus === "declined") {
                         return (
-                          <div key={p.id} className="p-5 rounded-2xl border border-red-500/30 bg-red-500/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                          <div key={p.id} className="p-5 rounded-2xl border border-red-200 bg-red-50/60 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
-                                <h4 className="font-bold text-lg text-foreground flex items-center gap-1.5">
+                                <h4 className="font-bold text-lg text-slate-900 flex items-center gap-1.5">
                                   {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : "🌱"}
                                   {p.name}
                                 </h4>
-                                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/30 flex items-center gap-1">
+                                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200 flex items-center gap-1">
                                   ❌ Declined by Farmer
                                 </span>
                               </div>
-                              <p className="text-xs text-muted-foreground mt-1">
+                              <p className="text-xs text-slate-600 mt-1">
                                 Farmer: {p.farmer?.name || "Ravi"} • Quantity: {p.quantity} kg • Batch: {p.batch_number || p.id}
                               </p>
-                              <p className="text-xs text-red-400/90 mt-1">
+                              <p className="text-xs text-red-700 mt-1 font-medium">
                                 Farmer declined your procurement request. This yield has been released back to the open market.
                               </p>
                             </div>
@@ -1637,7 +1673,7 @@ export function ProcessorDashboard() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => setSelectedProduct(p)}
-                                className="rounded-xl flex-1 md:flex-initial"
+                                className="rounded-xl flex-1 md:flex-initial border-emerald-200 text-emerald-800 hover:bg-emerald-50 font-bold"
                               >
                                 Details
                               </Button>
@@ -1645,7 +1681,7 @@ export function ProcessorDashboard() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleDismissDeclined(String(p.id), p.batch_number)}
-                                className="rounded-xl border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500 flex-1 md:flex-initial gap-1.5 font-medium"
+                                className="rounded-xl border-red-300 text-red-700 hover:bg-red-100 hover:border-red-400 flex-1 md:flex-initial gap-1.5 font-bold"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                                 Dismiss from Pipeline
@@ -1656,38 +1692,38 @@ export function ProcessorDashboard() {
                       }
 
                       return (
-                        <div key={p.id} className="p-5 rounded-2xl border bg-muted/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div key={p.id} className="p-5 rounded-2xl border border-emerald-200 bg-white hover:border-emerald-300 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all">
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="font-bold text-lg text-foreground flex items-center gap-1.5">
+                              <h4 className="font-bold text-lg text-slate-900 flex items-center gap-1.5">
                                 {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : "🌱"}
                                 {p.name}
                               </h4>
                               {/* Dynamic Deal Progress Tag */}
                               {dealStatus === "requested" && (
-                                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30 flex items-center gap-1">
+                                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
                                   ⏳ Awaiting Farmer Acceptance
                                 </span>
                               )}
                               {dealStatus === "accepted" && (
-                                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1">
                                   📦 Farmer Preparing Batch
                                 </span>
                               )}
                               {dealStatus === "dispatched" && (
-                                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1">
                                   🚚 In Transit / Gate Intake Ready
                                 </span>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-1">Farmer: {p.farmer?.name || "Ravi"} • Quantity: {p.quantity} kg • Batch: {p.batch_number || p.id}</p>
+                            <p className="text-xs text-slate-600 mt-1">Farmer: {p.farmer?.name || "Ravi"} • Quantity: {p.quantity} kg • Batch: {p.batch_number || p.id}</p>
                           </div>
                           <div className="flex gap-2 w-full md:w-auto items-center">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => setSelectedProduct(p)}
-                              className="rounded-xl flex-1 md:flex-initial"
+                              className="rounded-xl flex-1 md:flex-initial border-emerald-200 text-emerald-800 hover:bg-emerald-50 font-bold"
                             >
                               Details
                             </Button>
@@ -1701,7 +1737,7 @@ export function ProcessorDashboard() {
                                   setIsInspectionConfirmed(false)
                                   setIsVerifyModalOpen(true)
                                 }}
-                                className="rounded-xl text-white bg-primary hover:bg-primary/95 flex-1 md:flex-initial gap-1.5 font-semibold shadow-md cursor-pointer"
+                                className="rounded-xl text-white bg-emerald-600 hover:bg-emerald-500 flex-1 md:flex-initial gap-1.5 font-bold shadow-xs cursor-pointer"
                               >
                                 <QrCode className="h-4 w-4" />
                                 Scan QR & Verify
@@ -1711,7 +1747,7 @@ export function ProcessorDashboard() {
                                 size="sm"
                                 disabled
                                 title={dealStatus === "requested" ? "Waiting for farmer to accept your interest request." : "Waiting for farmer to mark batch ready for dispatch."}
-                                className="rounded-xl text-slate-400 bg-slate-800/60 border border-slate-700/50 flex-1 md:flex-initial gap-1.5 font-medium cursor-not-allowed opacity-80"
+                                className="rounded-xl text-slate-400 bg-slate-100 border border-slate-200 flex-1 md:flex-initial gap-1.5 font-medium cursor-not-allowed"
                               >
                                 <Lock className="h-3.5 w-3.5" />
                                 {dealStatus === "requested" ? "Awaiting Acceptance" : "Awaiting Dispatch"}
@@ -1728,28 +1764,28 @@ export function ProcessorDashboard() {
 
             {pipelineStep === "received" && (
               <div className="space-y-4">
-                <div className="border-b pb-4">
-                  <h3 className="text-xl font-bold">Received Products & Verification</h3>
-                  <p className="text-muted-foreground text-sm">Physically received products awaiting QR code authenticity verification and quality grading.</p>
+                <div className="border-b border-emerald-100 pb-4">
+                  <h3 className="text-xl font-black text-emerald-950">Received Products & Verification</h3>
+                  <p className="text-slate-600 text-sm">Physically received products awaiting QR code authenticity verification and quality grading.</p>
                 </div>
 
                 {products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id]).length === 0 ? (
-                  <div className="text-center py-20 text-muted-foreground">
-                    <Package className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                    <p className="font-semibold text-lg">No received items awaiting check</p>
-                    <p className="text-sm">Receive a product from the "Interested" tab to start verification.</p>
+                  <div className="text-center py-20 text-slate-500">
+                    <Package className="h-10 w-10 mx-auto text-emerald-300 mb-3" />
+                    <p className="font-bold text-lg text-slate-800">No received items awaiting check</p>
+                    <p className="text-sm text-slate-500">Receive a product from the "Interested" tab to start verification.</p>
                   </div>
                 ) : (
                   <div className="grid gap-4">
                     {products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id]).map(p => (
-                      <div key={p.id} className="p-5 rounded-2xl border bg-muted/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                      <div key={p.id} className="p-5 rounded-2xl border border-emerald-200 bg-white hover:border-emerald-300 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all">
                         <div>
-                          <h4 className="font-bold text-lg text-foreground flex items-center gap-1.5">
+                          <h4 className="font-bold text-lg text-slate-900 flex items-center gap-1.5">
                             {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : "🌱"}
                             {p.name}
                           </h4>
-                          <p className="text-xs text-muted-foreground">Registered: {p.quantity} kg • Received: {receipts[p.id]?.receivedQty} kg</p>
-                          <p className="text-xs text-muted-foreground mt-1">Arrival: {receipts[p.id]?.arrivalDate} • {receipts[p.id]?.arrivalTime}</p>
+                          <p className="text-xs text-slate-600">Registered: {p.quantity} kg • Received: {receipts[p.id]?.receivedQty} kg</p>
+                          <p className="text-xs text-slate-500 mt-1">Arrival: {receipts[p.id]?.arrivalDate} • {receipts[p.id]?.arrivalTime}</p>
                         </div>
                         <Button
                           size="sm"
@@ -1760,7 +1796,7 @@ export function ProcessorDashboard() {
                             setIsInspectionConfirmed(false)
                             setIsVerifyModalOpen(true)
                           }}
-                          className="rounded-xl text-white bg-primary hover:bg-primary/95 w-full md:w-auto cursor-pointer"
+                          className="rounded-xl text-white bg-emerald-600 hover:bg-emerald-500 font-bold shadow-xs w-full md:w-auto cursor-pointer"
                         >
                           Scan QR & Verify
                         </Button>
@@ -1773,49 +1809,49 @@ export function ProcessorDashboard() {
 
             {pipelineStep === "processing" && (
               <div className="space-y-6">
-                <div className="border-b pb-4">
-                  <h3 className="text-xl font-bold">Active Processing Batches</h3>
-                  <p className="text-muted-foreground text-sm">Accepted batches currently undergoing sorting, processing, packaging or final verification.</p>
+                <div className="border-b border-emerald-100 pb-4">
+                  <h3 className="text-xl font-black text-emerald-950">Active Processing Batches</h3>
+                  <p className="text-slate-600 text-sm">Accepted batches currently undergoing sorting, processing, packaging or final verification.</p>
                 </div>
 
                 {Object.values(batches).filter(b => b.stage !== "Processing Completed" && b.stage !== "Transferred").length === 0 ? (
-                  <div className="text-center py-20 text-muted-foreground">
-                    <Factory className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                    <p className="font-semibold text-lg">No active batches in processing</p>
-                    <p className="text-sm">Accept a received product to create a processing batch.</p>
+                  <div className="text-center py-20 text-slate-500">
+                    <Factory className="h-10 w-10 mx-auto text-emerald-300 mb-3" />
+                    <p className="font-bold text-lg text-slate-800">No active batches in processing</p>
+                    <p className="text-sm text-slate-500">Accept a received product to create a processing batch.</p>
                   </div>
                 ) : (
                   <div className="grid gap-6">
                     {Object.values(batches).filter(b => b.stage !== "Processing Completed" && b.stage !== "Transferred").map(b => (
-                      <div key={b.batchId} className="p-6 rounded-3xl border bg-card/50 space-y-5">
+                      <div key={b.batchId} className="p-6 rounded-3xl border border-emerald-200 bg-white space-y-5 shadow-xs">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                           <div>
-                            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400">
+                            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                               Batch: {b.batchId}
                             </span>
-                            <h4 className="font-bold text-xl mt-2 text-foreground">
+                            <h4 className="font-black text-xl mt-2 text-slate-900">
                               {b.originalProduct.name} Processing Pipeline
                             </h4>
-                            <p className="text-xs text-muted-foreground">Original ID: FP-{(b.originalProduct.product_id && b.originalProduct.product_id >= 100000 && b.originalProduct.product_id <= 999999) ? b.originalProduct.product_id : 100000 + (Math.abs(Number(b.originalProduct.product_id || 0)) % 899999)} • Farmer: {b.originalProduct.farmer?.name || "Ravi"}</p>
+                            <p className="text-xs text-slate-600">Original ID: FP-{(b.originalProduct.product_id && b.originalProduct.product_id >= 100000 && b.originalProduct.product_id <= 999999) ? b.originalProduct.product_id : 100000 + (Math.abs(Number(b.originalProduct.product_id || 0)) % 899999)} • Farmer: {b.originalProduct.farmer?.name || "Ravi"}</p>
                           </div>
-                          <span className="text-xs font-medium px-3 py-1 rounded-full bg-primary/20 text-primary border border-primary/30">
+                          <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
                             {b.stage}
                           </span>
                         </div>
 
-                        <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                           <div className="space-y-1">
-                            <span className="text-xs font-bold text-emerald-400 uppercase flex items-center gap-1.5">
-                              <Package className="h-4 w-4" />
+                            <span className="text-xs font-black text-emerald-900 uppercase flex items-center gap-1.5">
+                              <Package className="h-4 w-4 text-emerald-600" />
                               Batch Status: Intake Verified & Ready for Processing
                             </span>
-                            <p className="text-xs text-zinc-300">
-                              Produce verified at scale with <strong className="text-emerald-400 font-semibold">{b.originalProduct.ai_quality_score || 90}% ({b.originalProduct.ai_quality_label || "Grade A"})</strong> quality score.
+                            <p className="text-xs text-slate-700">
+                              Produce verified at scale with <strong className="text-emerald-800 font-bold">{b.originalProduct.ai_quality_score || 90}% ({b.originalProduct.ai_quality_label || "Grade A"})</strong> quality score.
                             </p>
                           </div>
                           <Button
                             onClick={() => openProcessingModal(b)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs gap-2 shrink-0 shadow-md py-2.5 px-4 cursor-pointer"
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs gap-2 shrink-0 shadow-xs py-2.5 px-4 cursor-pointer"
                           >
                             <Package className="h-4 w-4" />
                             📦 Complete Processing
@@ -1823,19 +1859,19 @@ export function ProcessorDashboard() {
                         </div>
 
                         {/* AI Quality & Intake Details */}
-                        <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl grid gap-4 md:grid-cols-2">
+                        <div className="p-4 bg-emerald-50/40 border border-emerald-200 rounded-2xl grid gap-4 md:grid-cols-2">
                           <div className="flex items-center gap-2">
-                            <Brain className="h-5 w-5 text-blue-500" />
+                            <Brain className="h-5 w-5 text-emerald-600" />
                             <div>
-                              <p className="text-[10px] text-muted-foreground uppercase font-bold">AI Quality Score</p>
-                              <p className="text-sm font-semibold text-emerald-400">{b.originalProduct.ai_quality_score || 90}% ({b.originalProduct.ai_quality_label || "Grade A"})</p>
+                              <p className="text-[10px] text-slate-500 uppercase font-bold">AI Quality Score</p>
+                              <p className="text-sm font-bold text-emerald-900">{b.originalProduct.ai_quality_score || 90}% ({b.originalProduct.ai_quality_label || "Grade A"})</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Scale className="h-5 w-5 text-emerald-500" />
+                            <Scale className="h-5 w-5 text-emerald-600" />
                             <div>
-                              <p className="text-[10px] text-muted-foreground uppercase font-bold">Intake Scale Weight</p>
-                              <p className="text-sm font-semibold text-white">{receipts[b.originalProduct.id]?.receivedQty || b.originalProduct.quantity} kg</p>
+                              <p className="text-[10px] text-slate-500 uppercase font-bold">Intake Scale Weight</p>
+                              <p className="text-sm font-bold text-slate-900">{receipts[b.originalProduct.id]?.receivedQty || b.originalProduct.quantity} kg</p>
                             </div>
                           </div>
                         </div>
@@ -1845,7 +1881,7 @@ export function ProcessorDashboard() {
                             variant="outline"
                             size="sm"
                             onClick={() => setQrViewBatch(b)}
-                            className="rounded-xl text-xs gap-1.5 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500"
+                            className="rounded-xl text-xs font-bold gap-1.5 border-emerald-200 text-emerald-800 hover:bg-emerald-50"
                           >
                             <QrCode className="h-3.5 w-3.5" />
                             Batch QR Sticker
@@ -1860,21 +1896,21 @@ export function ProcessorDashboard() {
 
             {pipelineStep === "completed" && (
               <div className="space-y-6">
-                <div className="border-b pb-4">
-                  <h3 className="text-xl font-bold flex items-center gap-2 text-foreground">
-                    <Truck className="h-6 w-6 text-primary" />
+                <div className="border-b border-emerald-100 pb-4">
+                  <h3 className="text-xl font-black flex items-center gap-2 text-emerald-950">
+                    <Truck className="h-6 w-6 text-emerald-600" />
                     Transferred to Distributor (Dispatch Manifest)
                   </h3>
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-slate-600 text-sm">
                     Verified agricultural yields packaged, quality-certified, and handed over to logistics partners with complete chain-of-custody tracking.
                   </p>
                 </div>
 
                 {Object.values(batches).filter(b => b.stage === "Transferred" || b.stageLogs.some(l => l.stage === "Transferred")).length === 0 ? (
-                  <div className="text-center py-20 text-muted-foreground space-y-2">
-                    <Truck className="h-12 w-12 mx-auto text-muted-foreground/60 mb-2" />
-                    <p className="font-semibold text-lg text-foreground">No batches transferred yet</p>
-                    <p className="text-sm text-muted-foreground">Package and transfer an active processing batch to generate its dispatch manifest here.</p>
+                  <div className="text-center py-20 text-slate-500 space-y-2">
+                    <Truck className="h-12 w-12 mx-auto text-emerald-300 mb-2" />
+                    <p className="font-bold text-lg text-slate-800">No batches transferred yet</p>
+                    <p className="text-sm text-slate-500">Package and transfer an active processing batch to generate its dispatch manifest here.</p>
                   </div>
                 ) : (
                   <div className="grid gap-6">
@@ -1885,25 +1921,25 @@ export function ProcessorDashboard() {
                       const receivedWeight = receipts[b.originalProduct.id]?.receivedQty || b.originalProduct.quantity
 
                       return (
-                        <div key={b.batchId} className="p-6 rounded-3xl border bg-card/60 hover:bg-card/90 transition-all space-y-5 shadow-sm">
+                        <div key={b.batchId} className="p-6 rounded-3xl border border-emerald-200 bg-white hover:border-emerald-300 transition-all space-y-5 shadow-xs">
                           {/* Top Row: Batch Identity & Status */}
-                          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b pb-4">
+                          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-emerald-100 pb-4">
                             <div className="space-y-1">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                                   Batch {b.batchId}
                                 </span>
-                                <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-muted text-muted-foreground">
+                                <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                                   Farm Origin: FP-{originalId}
                                 </span>
                               </div>
-                              <h4 className="font-bold text-xl text-foreground flex items-center gap-2 pt-1">
+                              <h4 className="font-black text-xl text-slate-900 flex items-center gap-2 pt-1">
                                 {b.originalProduct.name.includes("Tomato") ? "🍅" : b.originalProduct.name.includes("Mango") ? "🥭" : b.originalProduct.name.includes("Wheat") ? "🌾" : "🌱"}
                                 {b.originalProduct.name}
                               </h4>
                             </div>
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                              <Truck className="h-3.5 w-3.5" />
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                              <Truck className="h-3.5 w-3.5 text-emerald-600" />
                               Dispatched to Distributor (In Transit)
                             </span>
                           </div>
@@ -1911,61 +1947,61 @@ export function ProcessorDashboard() {
                           {/* 4-Grid Key Logistics Details */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                             {/* Processed Quantity */}
-                            <div className="p-3.5 rounded-2xl bg-muted/30 border space-y-1">
-                              <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                            <div className="p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-100 space-y-1">
+                              <span className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
                                 📦 Processed Quantity
                               </span>
-                              <p className="font-bold text-sm text-foreground">{b.processedQuantity || receivedWeight} kg</p>
-                              <p className="text-[11px] text-emerald-400 font-medium">Output Packaged Produce</p>
+                              <p className="font-bold text-sm text-slate-900">{b.processedQuantity || receivedWeight} kg</p>
+                              <p className="text-[11px] text-emerald-700 font-semibold">Output Packaged Produce</p>
                             </div>
 
                             {/* Estimated Shelf Life */}
-                            <div className="p-3.5 rounded-2xl bg-muted/30 border space-y-1">
-                              <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                            <div className="p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-100 space-y-1">
+                              <span className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
                                 ⏳ Estimated Shelf Life
                               </span>
-                              <p className="font-bold text-sm text-foreground">{b.expiryDate || (b.estimatedShelfLifeDays ? `${b.estimatedShelfLifeDays} Days` : "14 Days")}</p>
-                              <p className="text-[11px] text-muted-foreground">{b.expiryDate ? `~${b.estimatedShelfLifeDays || 14} Days Certified` : "Certified Shelf Life"}</p>
+                              <p className="font-bold text-sm text-slate-900">{b.expiryDate || (b.estimatedShelfLifeDays ? `${b.estimatedShelfLifeDays} Days` : "14 Days")}</p>
+                              <p className="text-[11px] text-slate-600 font-medium">{b.expiryDate ? `~${b.estimatedShelfLifeDays || 14} Days Certified` : "Certified Shelf Life"}</p>
                             </div>
 
                             {/* Certified Quality & Grade */}
-                            <div className="p-3.5 rounded-2xl bg-muted/30 border space-y-1">
-                              <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                            <div className="p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-100 space-y-1">
+                              <span className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
                                 🏅 Certified Quality & Grade
                               </span>
-                              <p className="font-semibold text-emerald-400">
+                              <p className="font-bold text-emerald-800">
                                 {b.originalProduct.ai_quality_label || "Grade A"} ({b.originalProduct.ai_quality_score || 90}% Score)
                               </p>
-                              <p className="text-[11px] text-muted-foreground">Gate Physical Inspection</p>
+                              <p className="text-[11px] text-slate-600 font-medium">Gate Physical Inspection</p>
                             </div>
 
                             {/* Processing Completion Timestamp */}
-                            <div className="p-3.5 rounded-2xl bg-muted/30 border space-y-1">
-                              <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                            <div className="p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-100 space-y-1">
+                              <span className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
                                 🕒 Processing Completed
                               </span>
-                              <p className="font-semibold text-foreground">
+                              <p className="font-semibold text-slate-900">
                                 {b.completionDate || b.transferDate || b.createdDate} • {b.completionTime || b.transferTime || b.createdTime}
                               </p>
-                              <p className="text-[11px] text-emerald-400 font-medium">Recorded on Blockchain</p>
+                              <p className="text-[11px] text-emerald-700 font-semibold">Recorded on Blockchain</p>
                             </div>
                           </div>
 
                           {/* Cold-Chain Logistics Carrier & Destination Delivery Manifest */}
-                          <div className="p-4 rounded-2xl bg-zinc-950/60 dark:bg-zinc-950/90 border border-zinc-800 space-y-3">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
+                          <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200 pb-2.5">
                               <div className="flex items-center gap-2">
-                                <Truck className="h-4 w-4 text-emerald-400" />
-                                <span className="font-bold text-sm text-foreground">Logistics Handshake & Delivery Request</span>
+                                <Truck className="h-4 w-4 text-emerald-600" />
+                                <span className="font-black text-sm text-emerald-950">Logistics Handshake & Delivery Request</span>
                               </div>
                               <Button
                                 size="sm"
                                 variant={b.distributorName ? "outline" : "default"}
                                 onClick={() => openDispatchModal(b)}
-                                className={`rounded-xl text-xs gap-1.5 h-8 font-semibold ${
+                                className={`rounded-xl text-xs gap-1.5 h-8 font-bold ${
                                   b.distributorName
-                                    ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
-                                    : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm"
+                                    ? "border-emerald-300 text-emerald-800 hover:bg-emerald-100/60"
+                                    : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs"
                                 }`}
                               >
                                 <Send className="h-3.5 w-3.5" />
@@ -1981,72 +2017,72 @@ export function ProcessorDashboard() {
 
                             {/* State 1: REQUESTED / Pending Distributor Acceptance */}
                             {b.deliveryRequestStatus === "REQUESTED" ? (
-                              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2 text-xs">
+                              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 space-y-2 text-xs">
                                 <div className="flex items-center justify-between flex-wrap gap-2">
-                                  <span className="font-bold text-amber-400 flex items-center gap-1.5">
-                                    <Clock className="h-4 w-4 animate-pulse" />
+                                  <span className="font-bold text-amber-900 flex items-center gap-1.5">
+                                    <Clock className="h-4 w-4 text-amber-600 animate-pulse" />
                                     Delivery Request Sent — Waiting for Distributor Review
                                   </span>
-                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 font-bold">
                                     Tracking: {b.trackingId || `REQ-${b.batchId}`}
                                   </span>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground pt-1">
-                                  <div>Carrier: <strong className="text-foreground">{b.distributorName}</strong> ({b.distributorVehicle})</div>
-                                  <div>Destination: <strong className="text-foreground">{b.destinationStore}</strong></div>
-                                  <div>Status: <span className="text-amber-400 font-semibold">Distributor Notified</span></div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-700 pt-1">
+                                  <div>Carrier: <strong className="text-slate-900 font-bold">{b.distributorName}</strong> ({b.distributorVehicle})</div>
+                                  <div>Destination: <strong className="text-slate-900 font-bold">{b.destinationStore}</strong></div>
+                                  <div>Status: <span className="text-amber-800 font-bold">Distributor Notified</span></div>
                                 </div>
-                                <p className="text-[11px] text-zinc-400 italic">
+                                <p className="text-[11px] text-amber-800/90 italic">
                                   The distributor will review pickup facility, temperature SLA, and route in their dashboard to accept or decline.
                                 </p>
                               </div>
                             ) : b.deliveryRequestStatus === "DECLINED" ? (
                               /* State 2: DECLINED by Distributor */
-                              <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 space-y-2 text-xs">
+                              <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 space-y-2 text-xs">
                                 <div className="flex items-center justify-between flex-wrap gap-2">
-                                  <span className="font-bold text-red-400 flex items-center gap-1.5">
-                                    <X className="h-4 w-4" />
+                                  <span className="font-bold text-red-900 flex items-center gap-1.5">
+                                    <X className="h-4 w-4 text-red-600" />
                                     Delivery Request Declined by Distributor ({b.distributorName})
                                   </span>
                                   <Button
                                     size="sm"
                                     onClick={() => openDispatchModal(b)}
-                                    className="bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs h-7 px-3 font-semibold"
+                                    className="bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs h-7 px-3 font-bold shadow-xs"
                                   >
                                     Select Another Carrier
                                   </Button>
                                 </div>
                                 {b.declineReason && (
-                                  <p className="text-xs text-red-300">
+                                  <p className="text-xs text-red-800">
                                     <strong>Distributor Note:</strong> "{b.declineReason}"
                                   </p>
                                 )}
                               </div>
                             ) : b.deliveryRequestStatus === "ACCEPTED" ? (
                               /* State 3: ACCEPTED by Distributor -> Action: Generate Blockchain Pickup QR */
-                              <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 space-y-3 text-xs">
+                              <div className="p-3.5 rounded-2xl bg-indigo-50/80 border border-indigo-200 space-y-3 text-xs">
                                 <div className="flex items-center justify-between flex-wrap gap-2">
-                                  <span className="font-bold text-indigo-400 flex items-center gap-1.5">
-                                    <CheckCircle2 className="h-4 w-4 text-indigo-400" />
+                                  <span className="font-bold text-indigo-950 flex items-center gap-1.5">
+                                    <CheckCircle2 className="h-4 w-4 text-indigo-600" />
                                     Carrier Accepted Request — Action: Generate Blockchain Pickup QR
                                   </span>
-                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-indigo-100 text-indigo-900 border border-indigo-200 font-bold">
                                     Carrier: {b.distributorName}
                                   </span>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground pt-1">
-                                  <div>Vehicle: <strong className="text-foreground">{b.distributorVehicle || "Reefer Fleet"}</strong></div>
-                                  <div>Destination: <strong className="text-foreground">{b.destinationStore}</strong></div>
-                                  <div>Next Step: <span className="text-indigo-400 font-semibold">Generate Pickup Pass</span></div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-700 pt-1">
+                                  <div>Vehicle: <strong className="text-slate-900 font-bold">{b.distributorVehicle || "Reefer Fleet"}</strong></div>
+                                  <div>Destination: <strong className="text-slate-900 font-bold">{b.destinationStore}</strong></div>
+                                  <div>Next Step: <span className="text-indigo-700 font-bold">Generate Pickup Pass</span></div>
                                 </div>
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-                                  <p className="text-[11px] text-zinc-400">
+                                  <p className="text-[11px] text-slate-600">
                                     Generate a cryptographically-signed pickup QR for the driver to scan upon arriving at your facility.
                                   </p>
                                   <Button
                                     size="sm"
                                     onClick={() => handleGeneratePickupQR(b)}
-                                    className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs h-8 px-4 font-bold shrink-0 gap-1.5 shadow-md"
+                                    className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs h-8 px-4 font-bold shrink-0 gap-1.5 shadow-xs"
                                   >
                                     <QrCode className="h-4 w-4" />
                                     Generate Pickup QR
@@ -2055,23 +2091,23 @@ export function ProcessorDashboard() {
                               </div>
                             ) : b.deliveryRequestStatus === "PICKUP_QR_GENERATED" ? (
                               /* State 4: PICKUP_QR_GENERATED -> Ready for Driver Arrival & Scan */
-                              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-3 text-xs">
+                              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 space-y-3 text-xs">
                                 <div className="flex items-center justify-between flex-wrap gap-2">
-                                  <span className="font-bold text-emerald-400 flex items-center gap-1.5">
-                                    <QrCode className="h-4 w-4 text-emerald-400 animate-pulse" />
+                                  <span className="font-bold text-emerald-950 flex items-center gap-1.5">
+                                    <QrCode className="h-4 w-4 text-emerald-600 animate-pulse" />
                                     Blockchain Pickup QR Active — Awaiting Carrier Arrival
                                   </span>
-                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold">
                                     Token: {b.pickupQrToken?.slice(0, 16) || "PKP_ACTIVE"}...
                                   </span>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground pt-1">
-                                  <div>Carrier: <strong className="text-foreground">{b.distributorName}</strong> ({b.distributorVehicle})</div>
-                                  <div>Destination: <strong className="text-foreground">{b.destinationStore}</strong></div>
-                                  <div>Status: <span className="text-emerald-400 font-semibold">Ready for Driver Scan</span></div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-700 pt-1">
+                                  <div>Carrier: <strong className="text-slate-900 font-bold">{b.distributorName}</strong> ({b.distributorVehicle})</div>
+                                  <div>Destination: <strong className="text-slate-900 font-bold">{b.destinationStore}</strong></div>
+                                  <div>Status: <span className="text-emerald-800 font-bold">Ready for Driver Scan</span></div>
                                 </div>
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-                                  <p className="text-[11px] text-zinc-400">
+                                  <p className="text-[11px] text-slate-600">
                                     Display this QR to the driver when they reach your dock. They will scan to verify manifest & confirm custody.
                                   </p>
                                   <Button
@@ -2086,7 +2122,7 @@ export function ProcessorDashboard() {
                                         txHash: b.blockchainTx
                                       })
                                     }}
-                                    className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs h-8 px-4 font-bold shrink-0 gap-1.5 shadow-md"
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs h-8 px-4 font-bold shrink-0 gap-1.5 shadow-xs"
                                   >
                                     <QrCode className="h-4 w-4" />
                                     View / Display Pickup QR
@@ -2095,47 +2131,47 @@ export function ProcessorDashboard() {
                               </div>
                             ) : b.deliveryRequestStatus === "IN_TRANSIT" ? (
                               /* State 5: IN_TRANSIT -> Cargo Collected, Driver en route */
-                              <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 space-y-2 text-xs">
+                              <div className="p-3.5 rounded-2xl bg-cyan-50 border border-cyan-200 space-y-2 text-xs">
                                 <div className="flex items-center justify-between flex-wrap gap-2">
-                                  <span className="font-bold text-cyan-400 flex items-center gap-1.5">
-                                    <Truck className="h-4 w-4 text-cyan-400 animate-bounce" />
+                                  <span className="font-bold text-cyan-950 flex items-center gap-1.5">
+                                    <Truck className="h-4 w-4 text-cyan-600 animate-bounce" />
                                     Cargo Picked Up & In Transit to Retailer
                                   </span>
-                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-cyan-100 text-cyan-900 border border-cyan-200 font-bold">
                                     Vehicle: {b.distributorVehicle || "Reefer Van"}
                                   </span>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground pt-1">
-                                  <div>Driver: <strong className="text-foreground">{b.driverName || b.distributorName}</strong> {b.driverPhone ? `(${b.driverPhone})` : ''}</div>
-                                  <div>Destination: <strong className="text-foreground">{b.destinationStore}</strong></div>
-                                  <div>Retailer Status: <span className="text-cyan-400 font-semibold">Notified with Manifest & Reg #</span></div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-700 pt-1">
+                                  <div>Driver: <strong className="text-slate-900 font-bold">{b.driverName || b.distributorName}</strong> {b.driverPhone ? `(${b.driverPhone})` : ''}</div>
+                                  <div>Destination: <strong className="text-slate-900 font-bold">{b.destinationStore}</strong></div>
+                                  <div>Retailer Status: <span className="text-cyan-800 font-bold">Notified with Manifest & Reg #</span></div>
                                 </div>
-                                <p className="text-[11px] text-cyan-300/80 italic">
+                                <p className="text-[11px] text-cyan-800/90 italic">
                                   Cargo collected after physical QR inspection. Destination retailer received produce manifest & carrier vehicle number.
                                 </p>
                               </div>
                             ) : b.deliveryRequestStatus === "ARRIVED_AT_RETAILER" ? (
                               /* State 6: ARRIVED_AT_RETAILER */
-                              <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/30 space-y-2 text-xs">
+                              <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 space-y-2 text-xs">
                                 <div className="flex items-center justify-between flex-wrap gap-2">
-                                  <span className="font-bold text-purple-400 flex items-center gap-1.5">
-                                    <Store className="h-4 w-4 text-purple-400" />
+                                  <span className="font-bold text-purple-950 flex items-center gap-1.5">
+                                    <Store className="h-4 w-4 text-purple-600" />
                                     Arrived at Retailer Dock — Handoff QR Scanned & Verifying
                                   </span>
-                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-200 font-bold">
                                     Store: {b.destinationStore}
                                   </span>
                                 </div>
-                                <p className="text-[11px] text-zinc-400">
+                                <p className="text-[11px] text-slate-600">
                                   Distributor vehicle has docked at the retailer supermarket. Store officer is performing digital-physical side-by-side inspection.
                                 </p>
                               </div>
                             ) : b.deliveryRequestStatus === "COMPLETED" ? (
                               /* State 7: COMPLETED */
-                              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2 text-xs">
+                              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 space-y-2 text-xs">
                                 <div className="flex items-center justify-between flex-wrap gap-2">
-                                  <span className="font-bold text-emerald-400 flex items-center gap-1.5">
-                                    <CheckCircle className="h-4 w-4 text-emerald-400" />
+                                  <span className="font-bold text-emerald-950 flex items-center gap-1.5">
+                                    <CheckCircle className="h-4 w-4 text-emerald-600" />
                                     Delivery Verified & Accepted by Retailer — Job Completed
                                   </span>
                                   {b.blockchainTx && (
@@ -2143,59 +2179,59 @@ export function ProcessorDashboard() {
                                       href={`https://sepolia.etherscan.io/tx/${b.blockchainTx}`}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:underline flex items-center gap-1"
+                                      className="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300 hover:underline flex items-center gap-1 font-bold"
                                     >
                                       Sepolia: {b.blockchainTx.slice(0, 10)}... <ExternalLink className="h-3 w-3 inline" />
                                     </a>
                                   )}
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground pt-1">
-                                  <div>Carrier: <strong className="text-foreground">{b.distributorName}</strong> ({b.distributorVehicle})</div>
-                                  <div>Received by: <strong className="text-foreground">{b.destinationStore}</strong></div>
-                                  <div>Distributor Role: <span className="text-emerald-400 font-bold">Successfully Completed</span></div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-slate-700 pt-1">
+                                  <div>Carrier: <strong className="text-slate-900 font-bold">{b.distributorName}</strong> ({b.distributorVehicle})</div>
+                                  <div>Received by: <strong className="text-slate-900 font-bold">{b.destinationStore}</strong></div>
+                                  <div>Distributor Role: <span className="text-emerald-800 font-bold">Successfully Completed</span></div>
                                 </div>
                               </div>
                             ) : b.distributorName ? (
                               /* State 8: General Carrier Accepted fallback */
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                                 <div className="space-y-0.5">
-                                  <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                                  <span className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
                                     🚚 Accepted Carrier
                                   </span>
-                                  <p className="font-bold text-foreground text-sm">{b.distributorName}</p>
-                                  <p className="font-mono text-[11px] text-emerald-400">{b.distributorVehicle || "KA-04-E2941"} (Cold-Chain Reefer)</p>
+                                  <p className="font-bold text-slate-900 text-sm">{b.distributorName}</p>
+                                  <p className="font-mono text-[11px] text-emerald-700 font-bold">{b.distributorVehicle || "KA-04-E2941"} (Cold-Chain Reefer)</p>
                                 </div>
                                 <div className="space-y-0.5">
-                                  <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                                  <span className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
                                     🏬 Destination Retailer
                                   </span>
-                                  <p className="font-bold text-foreground text-sm">{b.destinationStore || b.destinationHub || "Metro Fresh Mart Koramangala Store #104"}</p>
-                                  <p className="text-[11px] text-muted-foreground">Retail Supermarket Store Hub</p>
+                                  <p className="font-bold text-slate-900 text-sm">{b.destinationStore || b.destinationHub || "Metro Fresh Mart Koramangala Store #104"}</p>
+                                  <p className="text-[11px] text-slate-500">Retail Supermarket Store Hub</p>
                                 </div>
                                 <div className="space-y-0.5">
-                                  <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                                  <span className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
                                     🛡️ Tracking & Proof
                                   </span>
-                                  <p className="font-mono font-bold text-emerald-400 text-xs">{b.trackingId || `TRK-${b.batchId}`}</p>
+                                  <p className="font-mono font-bold text-emerald-800 text-xs">{b.trackingId || `TRK-${b.batchId}`}</p>
                                   {b.blockchainTx ? (
                                     <a
                                       href={`https://sepolia.etherscan.io/tx/${b.blockchainTx}`}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 font-mono"
+                                      className="text-[11px] text-emerald-700 hover:underline flex items-center gap-1 font-mono font-bold"
                                     >
                                       Sepolia: {b.blockchainTx.slice(0, 10)}... <ExternalLink className="h-3 w-3 inline" />
                                     </a>
                                   ) : (
-                                    <span className="text-[11px] text-emerald-400">Custody verified on chain</span>
+                                    <span className="text-[11px] text-emerald-700 font-bold">Custody verified on chain</span>
                                   )}
                                 </div>
                               </div>
                             ) : (
                               /* State 4: Not yet requested */
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-emerald-100/50 border border-emerald-200 text-xs text-emerald-950">
                                 <div className="flex items-center gap-2">
-                                  <AlertCircle className="h-4 w-4 shrink-0 text-blue-400" />
+                                  <AlertCircle className="h-4 w-4 shrink-0 text-emerald-700" />
                                   <span>
                                     <strong>Ready for Delivery Handshake:</strong> Send a formal delivery dispatch request with pickup, crop manifest, and temperature SLA specs to a distributor.
                                   </span>
@@ -2203,7 +2239,7 @@ export function ProcessorDashboard() {
                                 <Button
                                   size="sm"
                                   onClick={() => openDispatchModal(b)}
-                                  className="bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shrink-0 h-8 gap-1.5"
+                                  className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shrink-0 h-8 gap-1.5 shadow-xs"
                                 >
                                   <Send className="h-3.5 w-3.5" />
                                   Send Delivery Request
@@ -2213,16 +2249,16 @@ export function ProcessorDashboard() {
                           </div>
 
                           {/* Footer Actions & Blockchain Verification */}
-                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2 border-t text-xs">
-                            <div className="flex items-center gap-2 text-emerald-400 font-medium">
-                              <ShieldCheck className="h-4 w-4 shrink-0" />
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2 border-t border-emerald-100 text-xs">
+                            <div className="flex items-center gap-2 text-emerald-800 font-semibold">
+                              <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
                               <span>Chain-of-custody transfer signed and verified on blockchain ledger.</span>
                             </div>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => setQrViewBatch(b)}
-                              className="rounded-xl text-xs gap-1.5 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500"
+                              className="rounded-xl text-xs font-bold gap-1.5 border-emerald-200 text-emerald-800 hover:bg-emerald-50"
                             >
                               <QrCode className="h-3.5 w-3.5" />
                               View Batch QR Sticker
@@ -2242,52 +2278,52 @@ export function ProcessorDashboard() {
       {activeTab === "history" && (
         <div className="grid gap-6 lg:grid-cols-4">
           {/* History categories side bar */}
-          <Card className="col-span-1 rounded-3xl border shadow-sm p-4 h-fit space-y-2">
-            <h3 className="font-bold text-lg px-2 mb-3">Logs & Audit</h3>
-            <p className="text-xs text-muted-foreground px-2 pb-4 border-b">Track chronological processor logs and blockchain timestamps.</p>
+          <Card className="col-span-1 rounded-3xl border border-emerald-200 bg-white shadow-sm p-4 h-fit space-y-2">
+            <h3 className="font-black text-lg px-2 mb-3 text-emerald-950">Logs & Audit</h3>
+            <p className="text-xs text-slate-600 px-2 pb-4 border-b border-emerald-100">Track chronological processor logs and blockchain timestamps.</p>
             <div className="flex flex-col gap-2 pt-2">
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-2">Operational Categories</span>
-              <div className="text-xs text-foreground space-y-2.5 px-2 mt-2">
-                <div className="flex justify-between"><span>★ Interested:</span> <strong className="text-primary">{interests.length}</strong></div>
-                <div className="flex justify-between"><span>📥 Received:</span> <strong className="text-primary">{Object.keys(receipts).length}</strong></div>
-                <div className="flex justify-between"><span>✅ Accepted:</span> <strong className="text-primary">{Object.values(decisions).filter(d => d.decision === "Accepted").length}</strong></div>
-                <div className="flex justify-between"><span>❌ Rejected:</span> <strong className="text-red-500">{Object.values(decisions).filter(d => d.decision === "Rejected").length}</strong></div>
-                <div className="flex justify-between"><span>🏭 Processing:</span> <strong className="text-primary">{Object.keys(batches).length}</strong></div>
-                <div className="flex justify-between"><span>🚚 Transferred:</span> <strong className="text-primary">{Object.values(batches).filter(b => b.stageLogs.some(log => log.stage === "Transferred")).length}</strong></div>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider px-2">Operational Categories</span>
+              <div className="text-xs text-slate-800 space-y-2.5 px-2 mt-2 font-medium">
+                <div className="flex justify-between"><span>★ Interested:</span> <strong className="text-emerald-700 font-bold">{interests.length}</strong></div>
+                <div className="flex justify-between"><span>📥 Received:</span> <strong className="text-emerald-700 font-bold">{Object.keys(receipts).length}</strong></div>
+                <div className="flex justify-between"><span>✅ Accepted:</span> <strong className="text-emerald-700 font-bold">{Object.values(decisions).filter(d => d.decision === "Accepted").length}</strong></div>
+                <div className="flex justify-between"><span>❌ Rejected:</span> <strong className="text-red-600 font-bold">{Object.values(decisions).filter(d => d.decision === "Rejected").length}</strong></div>
+                <div className="flex justify-between"><span>🏭 Processing:</span> <strong className="text-emerald-700 font-bold">{Object.keys(batches).length}</strong></div>
+                <div className="flex justify-between"><span>🚚 Transferred:</span> <strong className="text-emerald-700 font-bold">{Object.values(batches).filter(b => b.stageLogs.some(log => log.stage === "Transferred")).length}</strong></div>
               </div>
             </div>
           </Card>
 
           {/* Audit trail list */}
-          <Card className="col-span-3 rounded-3xl border shadow-sm p-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-4 mb-6 gap-3">
+          <Card className="col-span-3 rounded-3xl border border-emerald-200 bg-white shadow-sm p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-emerald-100 pb-4 mb-6 gap-3">
               <div>
-                <h3 className="text-xl font-bold text-foreground">
+                <h3 className="text-xl font-black text-emerald-950">
                   {historySubTab === "audit" ? "Chronological Audit Trail" : "Transfer & History Records"}
                 </h3>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-slate-600 text-sm">
                   {historySubTab === "audit" 
                     ? "Immutable operations trace recording Date, Time, User, Action and status updates."
                     : "Listing of all finalized agricultural batches transferred to cold chain distributors."}
                 </p>
               </div>
-              <div className="flex gap-1.5 bg-muted p-1 rounded-xl w-fit">
+              <div className="flex gap-1.5 bg-emerald-50 border border-emerald-200 p-1 rounded-xl w-fit">
                 <button
                   onClick={() => setHistorySubTab("audit")}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                     historySubTab === "audit"
-                      ? "bg-white text-primary shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "text-slate-700 hover:text-emerald-950 hover:bg-white/60"
                   }`}
                 >
                   Audit Trail
                 </button>
                 <button
                   onClick={() => setHistorySubTab("transferred")}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                     historySubTab === "transferred"
-                      ? "bg-white text-primary shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "text-slate-700 hover:text-emerald-950 hover:bg-white/60"
                   }`}
                 >
                   Transferred Batches
@@ -2297,25 +2333,25 @@ export function ProcessorDashboard() {
 
             {historySubTab === "audit" ? (
               auditLogs.length === 0 ? (
-                <div className="text-center py-20 text-muted-foreground">
-                  <Clock className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                  <p className="font-semibold text-lg">No operational logs recorded</p>
-                  <p className="text-sm">Perform actions in browse or pipeline tabs to view audit logs.</p>
+                <div className="text-center py-20 text-slate-500">
+                  <Clock className="h-10 w-10 mx-auto text-emerald-300 mb-3" />
+                  <p className="font-bold text-lg text-slate-800">No operational logs recorded</p>
+                  <p className="text-sm text-slate-500">Perform actions in browse or pipeline tabs to view audit logs.</p>
                 </div>
               ) : (
-                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                <div className="space-y-3.5 max-h-[600px] overflow-y-auto pr-2">
                   {auditLogs.map((log) => (
-                    <div key={log.id} className="p-4 rounded-2xl border bg-card/60 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                    <div key={log.id} className="p-4 rounded-2xl border border-emerald-100 bg-emerald-50/30 hover:bg-emerald-50/60 transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                       <div className="space-y-1">
-                        <p className="font-bold text-foreground text-sm flex items-center gap-1.5">
+                        <p className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
                           {log.action.includes("Received") ? "📥" : log.action.includes("Accepted") ? "✅" : log.action.includes("Rejected") ? "❌" : log.action.includes("Transferred") ? "🚚" : "★"}
                           {log.action}
                         </p>
-                        <p className="text-xs text-muted-foreground">By: {log.user} {log.productId && `• Product ID: ${log.productId.slice(0, 8)}...`} {log.batchId && `• Batch ID: ${log.batchId}`}</p>
+                        <p className="text-xs text-slate-600">By: <strong className="text-slate-800">{log.user}</strong> {log.productId && `• Product ID: ${log.productId.slice(0, 8)}...`} {log.batchId && `• Batch ID: ${log.batchId}`}</p>
                       </div>
                       <div className="text-right">
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">{log.status}</span>
-                        <p className="text-[10px] text-muted-foreground mt-1">{log.date} • {log.time}</p>
+                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200">{log.status}</span>
+                        <p className="text-[10px] text-slate-500 mt-1 font-medium">{log.date} • {log.time}</p>
                       </div>
                     </div>
                   ))}
@@ -2323,46 +2359,46 @@ export function ProcessorDashboard() {
               )
             ) : (
               Object.values(batches).filter(b => b.stage === "Transferred").length === 0 ? (
-                <div className="text-center py-20 text-muted-foreground">
-                  <Truck className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                  <p className="font-semibold text-lg">No transferred batches found</p>
-                  <p className="text-sm">Distributor transfer records will appear here after shipment dispatch.</p>
+                <div className="text-center py-20 text-slate-500">
+                  <Truck className="h-10 w-10 mx-auto text-emerald-300 mb-3" />
+                  <p className="font-bold text-lg text-slate-800">No transferred batches found</p>
+                  <p className="text-sm text-slate-500">Distributor transfer records will appear here after shipment dispatch.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-left text-xs">
                     <thead>
-                      <tr className="border-b border-muted text-muted-foreground font-bold">
-                        <th className="py-3 px-2">Product Name</th>
-                        <th className="py-3 px-2">Product ID</th>
-                        <th className="py-3 px-2">Batch ID</th>
-                        <th className="py-3 px-2">Distributor</th>
-                        <th className="py-3 px-2">Transfer Status</th>
-                        <th className="py-3 px-2 text-right">Date & Time</th>
+                      <tr className="border-b border-emerald-200 text-slate-600 font-bold">
+                        <th className="py-3 px-3">Product Name</th>
+                        <th className="py-3 px-3">Product ID</th>
+                        <th className="py-3 px-3">Batch ID</th>
+                        <th className="py-3 px-3">Distributor</th>
+                        <th className="py-3 px-3">Transfer Status</th>
+                        <th className="py-3 px-3 text-right">Date & Time</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-muted text-foreground">
+                    <tbody className="divide-y divide-emerald-100 text-slate-800">
                       {Object.values(batches).filter(b => b.stage === "Transferred").map(b => {
                         const originalId = (b.originalProduct.product_id && b.originalProduct.product_id >= 100000 && b.originalProduct.product_id <= 999999) 
                           ? b.originalProduct.product_id 
                           : 100000 + (Math.abs(Number(b.originalProduct.product_id || 0)) % 899999)
                         return (
-                          <tr key={b.batchId} className="hover:bg-muted/10">
-                            <td className="py-3.5 px-2 font-semibold flex items-center gap-1.5">
+                          <tr key={b.batchId} className="hover:bg-emerald-50/50 transition-colors">
+                            <td className="py-3.5 px-3 font-bold text-slate-900 flex items-center gap-1.5">
                               {b.originalProduct.name.includes("Tomato") ? "🍅" : b.originalProduct.name.includes("Mango") ? "🥭" : "🌱"}
                               {b.originalProduct.name}
                             </td>
-                            <td className="py-3.5 px-2 font-mono text-muted-foreground">FP-{originalId}</td>
-                            <td className="py-3.5 px-2 font-mono text-blue-600 font-semibold">{b.batchId}</td>
-                            <td className="py-3.5 px-2 font-medium">{b.distributor || "XYZ Logistics"}</td>
-                            <td className="py-3.5 px-2">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 border border-emerald-500/25">
+                            <td className="py-3.5 px-3 font-mono text-slate-600 font-medium">FP-{originalId}</td>
+                            <td className="py-3.5 px-3 font-mono text-emerald-800 font-bold">{b.batchId}</td>
+                            <td className="py-3.5 px-3 font-semibold text-slate-800">{b.distributor || "XYZ Logistics"}</td>
+                            <td className="py-3.5 px-3">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">
                                 In Transit
                               </span>
                             </td>
-                            <td className="py-3.5 px-2 text-right text-muted-foreground">
-                              <div>{b.transferDate || b.createdDate}</div>
-                              <div className="text-[10px]">{b.transferTime || b.createdTime}</div>
+                            <td className="py-3.5 px-3 text-right text-slate-600">
+                              <div className="font-medium">{b.transferDate || b.createdDate}</div>
+                              <div className="text-[10px] text-slate-500">{b.transferTime || b.createdTime}</div>
                             </td>
                           </tr>
                         )
@@ -2389,23 +2425,23 @@ export function ProcessorDashboard() {
       {/* MODAL: Receive Product Form */}
       {isReceiveModalOpen && selectedProduct && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="max-w-md w-full rounded-3xl border shadow-xl p-6 space-y-4 bg-zinc-900 border-zinc-800 text-white">
-            <div className="flex justify-between items-start border-b border-zinc-800 pb-3">
-              <h3 className="font-bold text-xl">Confirm Product Receipt</h3>
-              <button onClick={() => { setIsReceiveModalOpen(false); setSelectedProduct(null); }} className="text-zinc-400 hover:text-white">✕</button>
+          <Card className="max-w-md w-full rounded-3xl border border-emerald-200 shadow-2xl p-6 space-y-4 bg-white text-slate-900">
+            <div className="flex justify-between items-start border-b border-emerald-100 pb-3">
+              <h3 className="font-black text-xl text-emerald-950">Confirm Product Receipt</h3>
+              <button onClick={() => { setIsReceiveModalOpen(false); setSelectedProduct(null); }} className="text-slate-400 hover:text-slate-700 text-lg">✕</button>
             </div>
             <div className="space-y-3">
               <div>
-                <p className="text-xs text-zinc-400 uppercase font-bold">Product</p>
-                <p className="text-base font-semibold">{selectedProduct.name}</p>
+                <p className="text-xs text-slate-500 uppercase font-bold">Product</p>
+                <p className="text-base font-bold text-slate-900">{selectedProduct.name}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs text-zinc-400 uppercase font-bold">Registered Qty</p>
-                  <p className="text-base font-semibold text-emerald-400">{selectedProduct.quantity} kg</p>
+                  <p className="text-xs text-slate-500 uppercase font-bold">Registered Qty</p>
+                  <p className="text-base font-bold text-emerald-800">{selectedProduct.quantity} kg</p>
                 </div>
                 <div>
-                  <label className="text-xs text-zinc-400 uppercase font-bold">Received Qty (kg)</label>
+                  <label className="text-xs text-slate-500 uppercase font-bold">Received Qty (kg)</label>
                   <input
                     type="number"
                     min="0"
@@ -2422,7 +2458,7 @@ export function ProcessorDashboard() {
                         e.preventDefault()
                       }
                     }}
-                    className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 mt-1 text-sm text-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2 mt-1 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-medium"
                     placeholder="Enter physical scale quantity"
                   />
                 </div>
@@ -2430,17 +2466,17 @@ export function ProcessorDashboard() {
 
               {/* Weight Shortage / Discrepancy Alert */}
               {Number(receivedQtyInput) > 0 && Number(receivedQtyInput) < selectedProduct.quantity && (
-                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2.5 text-xs">
-                  <div className="flex items-start gap-2 text-amber-400 font-semibold">
-                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl space-y-2.5 text-xs">
+                  <div className="flex items-start gap-2 text-amber-900 font-bold">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
                     <span>Weight Discrepancy Detected: {selectedProduct.quantity - Number(receivedQtyInput)} kg Shortage ({(((selectedProduct.quantity - Number(receivedQtyInput)) / selectedProduct.quantity) * 100).toFixed(0)}% vs Farm Origin)</span>
                   </div>
                   <div>
-                    <label className="text-zinc-400 uppercase text-[10px] font-bold">Observed Transit Loss Reason</label>
+                    <label className="text-amber-900 uppercase text-[10px] font-bold">Observed Transit Loss Reason</label>
                     <select
                       value={transitLossReasonInput}
                       onChange={(e) => setTransitLossReasonInput(e.target.value)}
-                      className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 mt-1 text-xs text-white focus:outline-none"
+                      className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 mt-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
                     >
                       <option value="Transit Spoilage / Physical Damage on Route">Transit Spoilage / Physical Damage on Route</option>
                       <option value="Partial / Split Truck Delivery">Partial / Split Truck Delivery</option>
@@ -2453,40 +2489,40 @@ export function ProcessorDashboard() {
               )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-zinc-400 uppercase font-bold">Arrival Date</label>
+                  <label className="text-xs text-slate-500 uppercase font-bold">Arrival Date</label>
                   <input
                     type="date"
                     value={arrivalDateInput}
                     onChange={(e) => setArrivalDateInput(e.target.value)}
-                    className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 mt-1 text-xs text-white focus:outline-none"
+                    className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2 mt-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-zinc-400 uppercase font-bold">Arrival Time</label>
+                  <label className="text-xs text-slate-500 uppercase font-bold">Arrival Time</label>
                   <input
                     type="time"
                     value={arrivalTimeInput}
                     onChange={(e) => setArrivalTimeInput(e.target.value)}
-                    className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 mt-1 text-xs text-white focus:outline-none"
+                    className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2 mt-1 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                   />
                 </div>
               </div>
               <div>
-                <p className="text-xs text-zinc-400 uppercase font-bold">Received By</p>
-                <p className="text-sm font-semibold">{processorName}</p>
+                <p className="text-xs text-slate-500 uppercase font-bold">Received By</p>
+                <p className="text-sm font-bold text-slate-900">{processorName}</p>
               </div>
             </div>
             <div className="flex gap-2 pt-4">
               <Button
                 variant="outline"
                 onClick={() => { setIsReceiveModalOpen(false); setSelectedProduct(null); }}
-                className="flex-1 rounded-xl border-zinc-700 text-zinc-300 hover:text-white"
+                className="flex-1 rounded-xl border-emerald-200 text-slate-700 hover:bg-emerald-50 font-bold"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleReceiveProduct}
-                className="flex-1 rounded-xl bg-primary hover:bg-primary/95 text-white"
+                className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-xs"
               >
                 Confirm Receipt
               </Button>
@@ -2498,15 +2534,15 @@ export function ProcessorDashboard() {
       {/* MODAL: Verify QR & Physical Quality Inspection Form */}
       {isVerifyModalOpen && selectedProduct && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <Card className="max-w-2xl w-full max-h-[92vh] flex flex-col rounded-3xl border shadow-2xl p-0 bg-zinc-900 border-zinc-800 text-white my-auto overflow-hidden">
-            <div className="flex justify-between items-start border-b border-zinc-800 p-6 pb-4 shrink-0 bg-zinc-900 z-10">
+          <Card className="max-w-2xl w-full max-h-[92vh] flex flex-col rounded-3xl border border-emerald-200 shadow-2xl p-0 bg-white text-slate-900 my-auto overflow-hidden">
+            <div className="flex justify-between items-start border-b border-emerald-100 p-6 pb-4 shrink-0 bg-white z-10">
               <div>
-                <h3 className="font-bold text-xl text-white">Scan QR & Verify Yield</h3>
-                <p className="text-xs text-zinc-400">Product: <span className="text-white font-semibold">{selectedProduct.name}</span> • Registered: <span className="text-white font-semibold">{selectedProduct.quantity} kg</span></p>
+                <h3 className="font-black text-xl text-emerald-950">Scan QR & Verify Yield</h3>
+                <p className="text-xs text-slate-600">Product: <span className="text-slate-900 font-bold">{selectedProduct.name}</span> • Registered: <span className="text-emerald-800 font-bold">{selectedProduct.quantity} kg</span></p>
               </div>
               <button
                 onClick={closeVerifyModal}
-                className="flex items-center justify-center p-2 rounded-full bg-zinc-800 text-zinc-200 hover:text-white hover:bg-zinc-700 border border-zinc-700 transition-all shadow-md shrink-0 cursor-pointer"
+                className="flex items-center justify-center p-2 rounded-full bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 border border-slate-200 transition-all shadow-xs shrink-0 cursor-pointer"
                 title="Close / Cancel"
               >
                 <X className="h-5 w-5" />
@@ -2517,18 +2553,18 @@ export function ProcessorDashboard() {
               {/* CAMERA / QR SCANNER VIEW */}
               {!qrScanned ? (
                 <div className="space-y-4">
-                  <div className="relative w-full max-w-sm aspect-square mx-auto rounded-3xl border-2 border-dashed border-zinc-700 bg-black overflow-hidden flex flex-col items-center justify-center shadow-inner">
+                  <div className="relative w-full max-w-sm aspect-square mx-auto rounded-3xl border-2 border-dashed border-emerald-300 bg-emerald-50/50 overflow-hidden flex flex-col items-center justify-center shadow-inner">
                     {/* Container for html5-qrcode video element */}
                     <div id="live-qr-reader" className="w-full h-full" />
 
                     {!cameraActive && !qrScanning && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-zinc-950/90 z-10">
-                        <div className="p-4 rounded-full bg-primary/10 border border-primary/20 text-primary">
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-white/95 z-10">
+                        <div className="p-4 rounded-full bg-emerald-100 border border-emerald-200 text-emerald-700">
                           <Camera className="h-8 w-8" />
                         </div>
                         <div>
-                          <p className="font-bold text-sm text-foreground">Live Optical QR Scanner</p>
-                          <p className="text-xs text-zinc-400 mt-1 max-w-[240px]">
+                          <p className="font-bold text-sm text-slate-900">Live Optical QR Scanner</p>
+                          <p className="text-xs text-slate-600 mt-1 max-w-[240px]">
                             Hold up the printed product QR sticker or display it on a phone.
                           </p>
                         </div>
@@ -2536,13 +2572,13 @@ export function ProcessorDashboard() {
                     )}
 
                     {qrScanning && (
-                      <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-pulse top-1/2 shadow-lg shadow-emerald-500/50 z-20" />
+                      <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent animate-pulse top-1/2 shadow-lg shadow-emerald-500/50 z-20" />
                     )}
                   </div>
 
                   {cameraError && (
-                    <div className="p-3.5 bg-red-500/15 border border-red-500/30 rounded-2xl flex items-start gap-2.5 text-xs text-red-400">
-                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <div className="p-3.5 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-2.5 text-xs text-red-700 font-medium">
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />
                       <span>{cameraError}</span>
                     </div>
                   )}
@@ -2553,7 +2589,7 @@ export function ProcessorDashboard() {
                       <Button
                         onClick={stopLiveCamera}
                         variant="outline"
-                        className="w-full rounded-xl border-red-500/40 text-red-400 hover:bg-red-500/10 gap-2"
+                        className="w-full rounded-xl border-red-300 text-red-700 hover:bg-red-50 font-bold gap-2"
                       >
                         <VideoOff className="h-4 w-4" />
                         Stop Camera Scanner
@@ -2561,7 +2597,7 @@ export function ProcessorDashboard() {
                     ) : (
                       <Button
                         onClick={startLiveCamera}
-                        className="w-full rounded-xl bg-primary hover:bg-primary/95 text-white font-semibold gap-2 shadow-md"
+                        className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-2 shadow-xs cursor-pointer"
                       >
                         <Video className="h-4 w-4" />
                         📷 Open Live Camera Scanner
@@ -2580,9 +2616,9 @@ export function ProcessorDashboard() {
                         type="button"
                         variant="outline"
                         onClick={() => fileInputRef.current?.click()}
-                        className="w-full rounded-xl text-xs gap-2 border-zinc-700 hover:bg-zinc-800 text-zinc-200 py-2.5"
+                        className="w-full rounded-xl text-xs gap-2 border-emerald-200 bg-white hover:bg-emerald-50 text-emerald-800 font-bold py-2.5 cursor-pointer"
                       >
-                        <Upload className="h-4 w-4 text-primary" />
+                        <Upload className="h-4 w-4 text-emerald-600" />
                         📁 Upload & Verify QR Image File
                       </Button>
                     </div>
@@ -2591,67 +2627,67 @@ export function ProcessorDashboard() {
               ) : (
                 <div className="space-y-6">
                   {/* QR VERIFICATION DETAILS */}
-                  <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-3">
-                    <div className="flex justify-between items-center pb-2 border-b border-zinc-900">
-                      <span className="text-xs font-bold text-zinc-400 uppercase">QR Verification Metadata</span>
-                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 flex items-center gap-1">
-                        <ShieldCheck className="h-3.5 w-3.5" />
+                  <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-3">
+                    <div className="flex justify-between items-center pb-2 border-b border-emerald-200">
+                      <span className="text-xs font-bold text-slate-600 uppercase">QR Verification Metadata</span>
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1">
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
                         Blockchain: Verified
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-4 text-xs">
-                      <div><span className="text-zinc-400">Product:</span> <strong className="text-emerald-400 font-semibold ml-1">{selectedProduct.name}</strong></div>
-                      <div><span className="text-zinc-400">Product ID:</span> <strong className="text-emerald-400 font-mono font-semibold ml-1">FP-{(selectedProduct.product_id && selectedProduct.product_id >= 100000 && selectedProduct.product_id <= 999999) ? selectedProduct.product_id : 100000 + (Math.abs(Number(selectedProduct.product_id || 0)) % 899999)}</strong></div>
-                      <div><span className="text-zinc-400">Farmer:</span> <strong className="text-emerald-400 font-semibold ml-1">{selectedProduct.farmer?.name || "Ravi"}</strong></div>
-                      <div><span className="text-zinc-400">Location:</span> <strong className="text-emerald-400 font-semibold ml-1">{getFarmerLocation(selectedProduct)}</strong></div>
-                      <div><span className="text-zinc-400">Quantity:</span> <strong className="text-emerald-400 font-semibold ml-1">{selectedProduct.quantity} kg</strong></div>
-                      <div><span className="text-zinc-400">Harvest Date:</span> <strong className="text-emerald-400 font-semibold ml-1">{new Date(selectedProduct.created_at).toLocaleDateString()}</strong></div>
+                      <div><span className="text-slate-600 font-medium">Product:</span> <strong className="text-emerald-950 font-bold ml-1">{selectedProduct.name}</strong></div>
+                      <div><span className="text-slate-600 font-medium">Product ID:</span> <strong className="text-emerald-950 font-mono font-bold ml-1">FP-{(selectedProduct.product_id && selectedProduct.product_id >= 100000 && selectedProduct.product_id <= 999999) ? selectedProduct.product_id : 100000 + (Math.abs(Number(selectedProduct.product_id || 0)) % 899999)}</strong></div>
+                      <div><span className="text-slate-600 font-medium">Farmer:</span> <strong className="text-emerald-950 font-bold ml-1">{selectedProduct.farmer?.name || "Ravi"}</strong></div>
+                      <div><span className="text-slate-600 font-medium">Location:</span> <strong className="text-emerald-950 font-bold ml-1">{getFarmerLocation(selectedProduct)}</strong></div>
+                      <div><span className="text-slate-600 font-medium">Quantity:</span> <strong className="text-emerald-950 font-bold ml-1">{selectedProduct.quantity} kg</strong></div>
+                      <div><span className="text-slate-600 font-medium">Harvest Date:</span> <strong className="text-emerald-950 font-bold ml-1">{new Date(selectedProduct.created_at).toLocaleDateString()}</strong></div>
                     </div>
                     {scannedRawText && (
-                      <div className="pt-2 border-t border-zinc-900 text-[11px] text-zinc-300 break-all font-mono">
-                        <span className="text-emerald-400 font-bold">Decoded Optical QR:</span> {scannedRawText}
+                      <div className="pt-2 border-t border-emerald-200 text-[11px] text-slate-700 break-all font-mono">
+                        <span className="text-emerald-800 font-bold">Decoded Optical QR:</span> {scannedRawText}
                       </div>
                     )}
                   </div>
 
                   {/* AUTOMATIC BLOCKCHAIN VERIFICATION CONFIRMATION */}
                   <div className="space-y-3">
-                    <h4 className="font-bold text-sm text-zinc-300">1. Verification Status</h4>
-                    <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between">
+                    <h4 className="font-bold text-sm text-slate-800">1. Verification Status</h4>
+                    <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-2xl flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0" />
+                        <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0" />
                         <div>
-                          <p className="text-xs font-bold text-emerald-400">Blockchain Cryptographic Match Confirmed</p>
-                          <p className="text-[11px] text-zinc-300">Produce batch authenticity verified against farmer on-chain record.</p>
+                          <p className="text-xs font-bold text-emerald-950">Blockchain Cryptographic Match Confirmed</p>
+                          <p className="text-[11px] text-slate-600">Produce batch authenticity verified against farmer on-chain record.</p>
                         </div>
                       </div>
-                      <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-xs border border-emerald-500/40 shrink-0">
+                      <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 font-bold text-xs border border-emerald-300 shrink-0">
                         Verified ✓
                       </span>
                     </div>
                   </div>
 
                   {/* 2. PHYSICAL DOCK SCALE WEIGHING & SHORTAGE VERIFICATION */}
-                  <div className="space-y-3 border-t border-zinc-800 pt-4">
+                  <div className="space-y-3 border-t border-emerald-100 pt-4">
                     <div className="flex justify-between items-center">
-                      <h4 className="font-bold text-sm text-zinc-300 flex items-center gap-1.5">
-                        <Scale className="h-4 w-4 text-emerald-400" />
+                      <h4 className="font-bold text-sm text-slate-800 flex items-center gap-1.5">
+                        <Scale className="h-4 w-4 text-emerald-600" />
                         2. Physical Scale Weight Verification
                       </h4>
-                      <span className="text-[11px] text-zinc-400">
-                        Origin Farm Weight: <strong className="text-emerald-400">{selectedProduct.quantity} kg</strong>
+                      <span className="text-[11px] text-slate-600">
+                        Origin Farm Weight: <strong className="text-emerald-800 font-bold">{selectedProduct.quantity} kg</strong>
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs text-zinc-400 uppercase font-bold">Origin Registered Qty</label>
-                        <div className="p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-sm font-semibold text-emerald-400 mt-1">
+                        <label className="text-xs text-slate-500 uppercase font-bold">Origin Registered Qty</label>
+                        <div className="p-2.5 bg-emerald-50/50 border border-emerald-200 rounded-xl text-sm font-bold text-emerald-950 mt-1">
                           {selectedProduct.quantity} kg
                         </div>
                       </div>
                       <div>
-                        <label className="text-xs text-zinc-400 uppercase font-bold">Actual Scale Weighed (kg)</label>
+                        <label className="text-xs text-slate-500 uppercase font-bold">Actual Scale Weighed (kg)</label>
                         <input
                           type="number"
                           min="0"
@@ -2677,7 +2713,7 @@ export function ProcessorDashboard() {
                             }
                           }}
                           placeholder={`Enter scale weight (e.g. ${selectedProduct.quantity})`}
-                          className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 mt-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2 mt-1 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                     </div>
@@ -2693,14 +2729,14 @@ export function ProcessorDashboard() {
                       const diffPercent = originWeight > 0 ? ((diffAmount / originWeight) * 100).toFixed(0) : "0"
 
                       return (
-                        <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-1.5 text-xs">
-                          <div className="flex items-start gap-2.5 text-amber-400 font-semibold">
-                            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" />
+                        <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl space-y-1.5 text-xs">
+                          <div className="flex items-start gap-2.5 text-amber-900 font-bold">
+                            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
                             <div>
-                              <p className="font-bold text-sm text-amber-300">
+                              <p className="font-bold text-sm text-amber-900">
                                 ⚠️ Scale Weight Shortage: {diffAmount} kg Shortage ({diffPercent}% vs Registered {originWeight} kg)
                               </p>
-                              <p className="text-zinc-300 font-normal mt-0.5 text-[11px]">
+                              <p className="text-slate-700 font-normal mt-0.5 text-[11px]">
                                 Actual scale weight ({scaleWeight} kg) is less than origin registered quantity ({originWeight} kg). Produce can still be inspected and accepted with actual weighed quantity.
                               </p>
                             </div>
@@ -2711,12 +2747,12 @@ export function ProcessorDashboard() {
                   </div>
 
                 {/* 3. PHYSICAL QUALITY INSPECTION FORM */}
-                <div className="space-y-4 border-t border-zinc-800 pt-4">
-                  <h4 className="font-bold text-sm text-zinc-300">3. Physical Quality Inspection</h4>
+                <div className="space-y-4 border-t border-emerald-100 pt-4">
+                  <h4 className="font-bold text-sm text-slate-800">3. Physical Quality Inspection</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs text-zinc-400">Appearance</label>
-                      <select value={appearanceInput} onChange={(e) => handlePhysicalParamChange("appearance", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
+                      <label className="text-xs text-slate-500 font-bold uppercase">Appearance</label>
+                      <select value={appearanceInput} onChange={(e) => handlePhysicalParamChange("appearance", e.target.value)} className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 font-medium">
                         <option>Good</option>
                         <option>Excellent</option>
                         <option>Average</option>
@@ -2724,8 +2760,8 @@ export function ProcessorDashboard() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs text-zinc-400">Freshness</label>
-                      <select value={freshnessInput} onChange={(e) => handlePhysicalParamChange("freshness", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
+                      <label className="text-xs text-slate-500 font-bold uppercase">Freshness</label>
+                      <select value={freshnessInput} onChange={(e) => handlePhysicalParamChange("freshness", e.target.value)} className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 font-medium">
                         <option>Excellent</option>
                         <option>Good</option>
                         <option>Average</option>
@@ -2733,16 +2769,16 @@ export function ProcessorDashboard() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs text-zinc-400">Damage</label>
-                      <select value={damageInput} onChange={(e) => handlePhysicalParamChange("damage", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
+                      <label className="text-xs text-slate-500 font-bold uppercase">Damage</label>
+                      <select value={damageInput} onChange={(e) => handlePhysicalParamChange("damage", e.target.value)} className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 font-medium">
                         <option>Low</option>
                         <option>Medium</option>
                         <option>High</option>
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs text-zinc-400">Cleanliness</label>
-                      <select value={cleanlinessInput} onChange={(e) => handlePhysicalParamChange("cleanliness", e.target.value)} className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white">
+                      <label className="text-xs text-slate-500 font-bold uppercase">Cleanliness</label>
+                      <select value={cleanlinessInput} onChange={(e) => handlePhysicalParamChange("cleanliness", e.target.value)} className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 font-medium">
                         <option>Good</option>
                         <option>Excellent</option>
                         <option>Average</option>
@@ -2752,10 +2788,10 @@ export function ProcessorDashboard() {
                   </div>
 
                   {/* Live in-hand calculated score */}
-                  <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-between">
+                  <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-2xl flex items-center justify-between">
                     <div>
-                      <p className="text-xs text-zinc-400 font-medium">In-Hand Verified Quality Score</p>
-                      <p className="text-[11px] text-zinc-500">Calculated from physical appearance, freshness, damage & cleanliness</p>
+                      <p className="text-xs text-slate-600 font-bold">In-Hand Verified Quality Score</p>
+                      <p className="text-[11px] text-slate-500">Calculated from physical appearance, freshness, damage & cleanliness</p>
                     </div>
                     {(() => {
                       const score = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
@@ -2763,8 +2799,8 @@ export function ProcessorDashboard() {
                       return (
                         <span className={`text-base font-bold px-3 py-1 rounded-xl border ${
                           grade === "C"
-                            ? "text-red-400 bg-red-500/10 border-red-500/30"
-                            : "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                            ? "text-red-700 bg-red-100 border-red-300"
+                            : "text-emerald-900 bg-emerald-100 border-emerald-300"
                         }`}>
                           {score}% (Grade {grade})
                         </span>
@@ -2774,14 +2810,14 @@ export function ProcessorDashboard() {
 
                   {/* Quality Failure Alert Banner if Grade C (<60%) */}
                   {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) < 60 && (
-                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-1.5 text-xs">
-                      <div className="flex items-start gap-2.5 text-red-400 font-semibold">
-                        <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-red-400" />
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-2xl space-y-1.5 text-xs">
+                      <div className="flex items-start gap-2.5 text-red-700 font-bold">
+                        <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-red-600" />
                         <div>
-                          <p className="font-bold text-sm text-red-300">
+                          <p className="font-bold text-sm text-red-900">
                             Quality Standards Failed (Grade C · {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)}%)
                           </p>
-                          <p className="text-zinc-300 font-normal mt-0.5 text-[11px]">
+                          <p className="text-slate-700 font-normal mt-0.5 text-[11px]">
                             Physical quality parameters do not meet minimum processor intake specifications (60% / Grade B required). Accepting this batch on blockchain is restricted and produce delivery must be rejected.
                           </p>
                         </div>
@@ -2791,7 +2827,7 @@ export function ProcessorDashboard() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs text-zinc-400">Certified Quality Grade</label>
+                      <label className="text-xs text-slate-500 font-bold uppercase">Certified Quality Grade</label>
                       <div className="flex gap-2 mt-1">
                         {(["A", "B", "C"] as const).map(g => {
                           const computedScore = computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput)
@@ -2805,9 +2841,9 @@ export function ProcessorDashboard() {
                               className={`flex-1 py-2 rounded-xl font-bold border transition-all ${
                                 isCurrentGrade
                                   ? autoGrade === "C"
-                                    ? "bg-red-500 border-red-500 text-white shadow-md cursor-default ring-2 ring-red-400/50"
-                                    : "bg-emerald-500 border-emerald-500 text-white shadow-md cursor-default ring-2 ring-emerald-400/50"
-                                  : "border-zinc-800/50 text-zinc-600 opacity-40 cursor-not-allowed bg-zinc-900"
+                                    ? "bg-red-600 border-red-600 text-white shadow-xs cursor-default"
+                                    : "bg-emerald-600 border-emerald-600 text-white shadow-xs cursor-default"
+                                  : "border-slate-200 text-slate-400 opacity-40 cursor-not-allowed bg-slate-50"
                               }`}
                             >
                               Grade {g}
@@ -2815,20 +2851,20 @@ export function ProcessorDashboard() {
                           )
                         })}
                       </div>
-                      <p className="text-[10px] text-zinc-400 mt-1">
+                      <p className="text-[10px] text-slate-500 mt-1">
                         Auto-locked: Grade A (85-100%), Grade B (60-84%), Grade C (&lt;60%)
                       </p>
                     </div>
                     <div>
-                      <label className="text-xs text-zinc-400 font-medium">
-                        Remarks <span className="text-zinc-500 font-normal">(Optional)</span>
+                      <label className="text-xs text-slate-500 font-bold uppercase">
+                        Remarks <span className="text-slate-400 font-normal">(Optional)</span>
                       </label>
                       <input
                         type="text"
                         value={remarksInput}
                         onChange={(e) => setRemarksInput(e.target.value)}
-                        placeholder="Enter remarks (optional) e.g. Batch verified, produce in good condition"
-                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none text-white focus:ring-1 focus:ring-emerald-400"
+                        placeholder="Enter remarks e.g. Batch verified in good condition"
+                        className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 font-medium"
                       />
                     </div>
                   </div>
@@ -2837,16 +2873,16 @@ export function ProcessorDashboard() {
                   {computePhysicalQualityScore(appearanceInput, freshnessInput, cleanlinessInput, damageInput) >= 60 && (
                     <label className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all cursor-pointer ${
                       isInspectionConfirmed
-                        ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
-                        : "bg-zinc-950 border-zinc-800 hover:border-zinc-700 text-zinc-400"
+                        ? "bg-emerald-50 border-emerald-300 text-emerald-950 font-semibold"
+                        : "bg-slate-50 border-slate-200 hover:border-emerald-300 text-slate-700"
                     }`}>
                       <input
                         type="checkbox"
                         checked={isInspectionConfirmed}
                         onChange={(e) => setIsInspectionConfirmed(e.target.checked)}
-                        className="h-4 w-4 rounded accent-primary cursor-pointer"
+                        className="h-4 w-4 rounded accent-emerald-600 cursor-pointer"
                       />
-                      <span className="text-xs font-semibold">
+                      <span className="text-xs font-bold">
                         I have physically inspected this produce and certify the verified Quality Score & Grade.
                       </span>
                     </label>
@@ -2854,14 +2890,14 @@ export function ProcessorDashboard() {
                 </div>
 
                 {/* DECISION ACTION SUBMIT */}
-                <div className="flex flex-col gap-3 border-t border-zinc-800 pt-4">
+                <div className="flex flex-col gap-3 border-t border-emerald-100 pt-4">
                   {showRejectionForm ? (
-                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-3">
-                      <label className="text-xs text-red-400 font-bold uppercase">Rejection Reason</label>
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-2xl space-y-3">
+                      <label className="text-xs text-red-900 font-bold uppercase">Rejection Reason</label>
                       <select
                         value={rejectionReasonInput}
                         onChange={(e) => setRejectionReasonInput(e.target.value)}
-                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none text-white"
+                        className="w-full bg-white border border-red-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 text-slate-900 font-medium"
                       >
                         <option value="">Select reason</option>
                         <option value="Quality Standards Failed (Grade C / Spoiled)">Quality Standards Failed (Grade C / Spoiled)</option>
@@ -2874,14 +2910,14 @@ export function ProcessorDashboard() {
                         <Button
                           disabled={!rejectionReasonInput}
                           onClick={() => handleInspectionDecision("Rejected")}
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md cursor-pointer"
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-xs cursor-pointer"
                         >
                           Confirm Rejection on Chain
                         </Button>
                         <Button
                           variant="ghost"
                           onClick={() => setShowRejectionForm(false)}
-                          className="rounded-xl text-zinc-400 cursor-pointer"
+                          className="rounded-xl text-slate-600 hover:bg-slate-100 cursor-pointer font-bold"
                         >
                           Cancel
                         </Button>
@@ -2896,7 +2932,7 @@ export function ProcessorDashboard() {
                           setRejectionReasonInput(`Quality Standards Failed: Grade C produce (${score}%) does not meet intake quality specifications`)
                           setShowRejectionForm(true)
                         }}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl py-3 text-sm shadow-lg gap-2 cursor-pointer"
+                        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl py-3 text-sm shadow-xs gap-2 cursor-pointer"
                       >
                         ❌ Reject Product (Quality Standards Failed)
                       </Button>
@@ -2907,17 +2943,17 @@ export function ProcessorDashboard() {
                       <Button
                         variant="outline"
                         onClick={() => setShowRejectionForm(true)}
-                        className="flex-1 rounded-xl border-red-500/30 text-red-500 hover:bg-red-500/10 hover:border-red-500 cursor-pointer"
+                        className="flex-1 rounded-xl border-red-300 text-red-700 hover:bg-red-50 font-bold cursor-pointer"
                       >
                         ❌ Reject Product
                       </Button>
                       <Button
                         disabled={infoVerified !== "Verified" || !isInspectionConfirmed}
                         onClick={() => handleInspectionDecision("Accepted")}
-                        className={`flex-1 rounded-xl text-white ${
+                        className={`flex-1 rounded-xl text-white font-bold shadow-xs ${
                           infoVerified === "Verified" && isInspectionConfirmed
-                            ? "bg-emerald-600 hover:bg-emerald-700 font-bold shadow-md cursor-pointer"
-                            : "bg-zinc-800 text-zinc-500 cursor-not-allowed opacity-50 font-medium"
+                            ? "bg-emerald-600 hover:bg-emerald-500 cursor-pointer"
+                            : "bg-slate-200 text-slate-400 cursor-not-allowed opacity-60"
                         }`}
                       >
                         ✅ Accept & Record on Chain
@@ -2929,7 +2965,7 @@ export function ProcessorDashboard() {
                     type="button"
                     variant="ghost"
                     onClick={closeVerifyModal}
-                    className="w-full text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl mt-1 cursor-pointer"
+                    className="w-full text-xs text-slate-500 hover:text-slate-800 hover:bg-emerald-50 rounded-xl mt-1 cursor-pointer font-bold"
                   >
                     Cancel & Close Verification
                   </Button>
@@ -2944,32 +2980,32 @@ export function ProcessorDashboard() {
       {/* MODAL: View Details / AI Insights Modal */}
       {selectedProduct && !isReceiveModalOpen && !isVerifyModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <Card className="max-w-xl w-full rounded-3xl border shadow-xl p-6 bg-zinc-900 border-zinc-800 text-white space-y-5">
-            <div className="flex justify-between items-start border-b border-zinc-800 pb-3">
+          <Card className="max-w-xl w-full rounded-3xl border border-emerald-200 shadow-xl p-6 bg-white text-slate-900 space-y-5">
+            <div className="flex justify-between items-start border-b border-emerald-100 pb-3">
               <div>
-                <h3 className="font-bold text-xl">{selectedProduct.name} Detail Analysis</h3>
-                <p className="text-xs text-zinc-400">Product Mapped ID: FP-{(selectedProduct.product_id && selectedProduct.product_id >= 100000 && selectedProduct.product_id <= 999999) ? selectedProduct.product_id : 100000 + (Math.abs(Number(selectedProduct.product_id || 0)) % 899999)}</p>
+                <h3 className="font-black text-xl text-emerald-950">{selectedProduct.name} Detail Analysis</h3>
+                <p className="text-xs text-slate-600">Product Mapped ID: FP-{(selectedProduct.product_id && selectedProduct.product_id >= 100000 && selectedProduct.product_id <= 999999) ? selectedProduct.product_id : 100000 + (Math.abs(Number(selectedProduct.product_id || 0)) % 899999)}</p>
               </div>
-              <button onClick={() => setSelectedProduct(null)} className="text-zinc-400 hover:text-white">✕</button>
+              <button onClick={() => setSelectedProduct(null)} className="text-slate-400 hover:text-slate-700 text-lg">✕</button>
             </div>
 
             <div className="space-y-4 text-sm">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="text-xs text-zinc-400 uppercase font-bold">Category</span>
-                  <p className="font-semibold text-emerald-400">{selectedProduct.category || "Produce"}</p>
+                  <span className="text-xs text-slate-500 uppercase font-bold">Category</span>
+                  <p className="font-bold text-emerald-900">{selectedProduct.category || "Produce"}</p>
                 </div>
                 <div>
-                  <span className="text-xs text-zinc-400 uppercase font-bold">Quantity</span>
-                  <p className="font-semibold text-emerald-400">{receipts[selectedProduct.id]?.receivedQty || selectedProduct.quantity} kg</p>
+                  <span className="text-xs text-slate-500 uppercase font-bold">Quantity</span>
+                  <p className="font-bold text-emerald-900">{receipts[selectedProduct.id]?.receivedQty || selectedProduct.quantity} kg</p>
                 </div>
                 <div>
-                  <span className="text-xs text-zinc-400 uppercase font-bold">Harvest Batch</span>
-                  <p className="font-semibold font-mono text-xs text-emerald-400">{selectedProduct.batch_number || (selectedProduct as any).batchNumber || "BCH-20260903-RH59"}</p>
+                  <span className="text-xs text-slate-500 uppercase font-bold">Harvest Batch</span>
+                  <p className="font-bold font-mono text-xs text-emerald-900">{selectedProduct.batch_number || (selectedProduct as any).batchNumber || "BCH-20260903-RH59"}</p>
                 </div>
                 <div>
-                  <span className="text-xs text-zinc-400 uppercase font-bold">Current Status</span>
-                  <p className="font-semibold text-primary">{selectedProduct.status}</p>
+                  <span className="text-xs text-slate-500 uppercase font-bold">Current Status</span>
+                  <p className="font-bold text-emerald-700">{selectedProduct.status}</p>
                 </div>
               </div>
 
@@ -2981,45 +3017,45 @@ export function ProcessorDashboard() {
                 const grade = inspection?.grade || (score >= 85 ? "A" : score >= 60 ? "B" : "C")
 
                 return (
-                  <div className="p-4 bg-emerald-500/5 border border-emerald-500/15 rounded-2xl space-y-3">
-                    <h4 className="font-bold text-sm flex items-center gap-1.5 text-emerald-400">
-                      <Brain className="h-4 w-4" />
+                  <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-2xl space-y-3">
+                    <h4 className="font-black text-sm flex items-center gap-1.5 text-emerald-950">
+                      <Brain className="h-4 w-4 text-emerald-600" />
                       Quality & Processing Status
                     </h4>
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div>
-                        <span className="text-zinc-400">Quality Assessment:</span>{" "}
+                        <span className="text-slate-600 font-medium">Quality Assessment:</span>{" "}
                         {isInspected ? (
-                          <strong className="text-emerald-400 font-semibold">{score}% (Grade {grade}) - Verified ✓</strong>
+                          <strong className="text-emerald-900 font-bold">{score}% (Grade {grade}) - Verified ✓</strong>
                         ) : (
-                          <strong className="text-amber-400">Pending Physical Inspection</strong>
+                          <strong className="text-amber-700 font-bold">Pending Physical Inspection</strong>
                         )}
                       </div>
                       <div>
-                        <span className="text-zinc-400">Grading Facility:</span>{" "}
-                        <strong className="text-emerald-400 font-semibold">{processorName}</strong>
+                        <span className="text-slate-600 font-medium">Grading Facility:</span>{" "}
+                        <strong className="text-emerald-900 font-bold">{processorName}</strong>
                       </div>
                       <div>
-                        <span className="text-zinc-400">Inspection Method:</span>{" "}
-                        <strong className="text-emerald-400 font-semibold">In-Hand Physical Verification</strong>
+                        <span className="text-slate-600 font-medium">Inspection Method:</span>{" "}
+                        <strong className="text-emerald-900 font-bold">In-Hand Physical Verification</strong>
                       </div>
                       <div>
-                        <span className="text-zinc-400">Grade Ranges:</span>{" "}
-                        <strong className="text-emerald-400 font-semibold">Grade A (85-100%), B (60-84%), C (&lt;60%)</strong>
+                        <span className="text-slate-600 font-medium">Grade Ranges:</span>{" "}
+                        <strong className="text-emerald-900 font-bold">Grade A (85-100%), B (60-84%), C (&lt;60%)</strong>
                       </div>
                     </div>
 
                     {isInspected && inspection && (
-                      <div className="border-t border-zinc-800 pt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                        <div><span className="text-zinc-400">Appearance:</span> <strong className="text-emerald-400 ml-1">{inspection.appearance}</strong></div>
-                        <div><span className="text-zinc-400">Freshness:</span> <strong className="text-emerald-400 ml-1">{inspection.freshness}</strong></div>
-                        <div><span className="text-zinc-400">Damage:</span> <strong className="text-emerald-400 ml-1">{inspection.damage}</strong></div>
-                        <div><span className="text-zinc-400">Cleanliness:</span> <strong className="text-emerald-400 ml-1">{inspection.cleanliness}</strong></div>
+                      <div className="border-t border-emerald-200 pt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <div><span className="text-slate-600 font-medium">Appearance:</span> <strong className="text-emerald-900 font-bold ml-1">{inspection.appearance}</strong></div>
+                        <div><span className="text-slate-600 font-medium">Freshness:</span> <strong className="text-emerald-900 font-bold ml-1">{inspection.freshness}</strong></div>
+                        <div><span className="text-slate-600 font-medium">Damage:</span> <strong className="text-emerald-900 font-bold ml-1">{inspection.damage}</strong></div>
+                        <div><span className="text-slate-600 font-medium">Cleanliness:</span> <strong className="text-emerald-900 font-bold ml-1">{inspection.cleanliness}</strong></div>
                       </div>
                     )}
 
-                    <div className="border-t border-zinc-800 pt-2 text-xs text-zinc-400">
-                      <span className="text-emerald-400 font-bold">Processor workflow:</span> {isInspected ? "Physical quality parameters verified and registered on blockchain." : "Physical quality score and certified grade are verified upon QR scan and batch receipt."}
+                    <div className="border-t border-emerald-200 pt-2 text-xs text-slate-600">
+                      <span className="text-emerald-900 font-bold">Processor workflow:</span> {isInspected ? "Physical quality parameters verified and registered on blockchain." : "Physical quality score and certified grade are verified upon QR scan and batch receipt."}
                     </div>
                   </div>
                 )
@@ -3027,23 +3063,23 @@ export function ProcessorDashboard() {
 
               {/* Blockchain Transaction Hash */}
               <div>
-                <span className="text-xs text-zinc-400 uppercase font-bold">Blockchain Authenticity Certificate</span>
+                <span className="text-xs text-slate-500 uppercase font-bold">Blockchain Authenticity Certificate</span>
                 {selectedProduct.blockchain_hash ? (
-                  <div className="mt-1 p-3 bg-zinc-950 border border-emerald-500/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                    <p className="font-mono text-xs text-emerald-400 break-all">
+                  <div className="mt-1 p-3 bg-emerald-50/50 border border-emerald-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <p className="font-mono text-xs text-emerald-900 font-bold break-all">
                       {selectedProduct.blockchain_hash}
                     </p>
                     <a
                       href={`https://sepolia.etherscan.io/tx/${selectedProduct.blockchain_hash}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] text-emerald-400 hover:text-emerald-300 underline font-semibold shrink-0"
+                      className="text-[11px] text-emerald-700 hover:text-emerald-900 underline font-bold shrink-0"
                     >
                       View on Sepolia Etherscan ↗
                     </a>
                   </div>
                 ) : (
-                  <p className="font-mono text-xs text-zinc-500 p-3 bg-zinc-950 border border-zinc-800 rounded-2xl mt-1">
+                  <p className="font-mono text-xs text-slate-500 p-3 bg-slate-50 border border-slate-200 rounded-2xl mt-1">
                     Pending on-chain registration
                   </p>
                 )}
@@ -3051,7 +3087,7 @@ export function ProcessorDashboard() {
             </div>
 
             <div className="flex pt-4">
-              <Button onClick={() => setSelectedProduct(null)} className="w-full rounded-xl bg-zinc-800 text-white hover:bg-zinc-700">
+              <Button onClick={() => setSelectedProduct(null)} className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold">
                 Close Report
               </Button>
             </div>
@@ -3062,13 +3098,13 @@ export function ProcessorDashboard() {
       {/* MODAL: Batch QR Code View / Print Sticker */}
       {qrViewBatch && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="max-w-sm w-full rounded-3xl border shadow-2xl p-6 bg-zinc-900 border-zinc-800 text-white space-y-5 text-center">
-            <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
-              <h3 className="font-bold text-lg flex items-center gap-2 text-primary">
-                <QrCode className="h-5 w-5" />
+          <Card className="max-w-sm w-full rounded-3xl border border-emerald-200 shadow-2xl p-6 bg-white text-slate-900 space-y-5 text-center">
+            <div className="flex justify-between items-center border-b border-emerald-100 pb-3">
+              <h3 className="font-black text-lg flex items-center gap-2 text-emerald-950">
+                <QrCode className="h-5 w-5 text-emerald-600" />
                 Batch QR Certificate
               </h3>
-              <button onClick={() => setQrViewBatch(null)} className="text-zinc-400 hover:text-white">✕</button>
+              <button onClick={() => setQrViewBatch(null)} className="text-slate-400 hover:text-slate-700 text-lg">✕</button>
             </div>
 
             {/* Offscreen Canvas used for high-res crisp PNG export */}
@@ -3085,7 +3121,7 @@ export function ProcessorDashboard() {
               />
             </div>
 
-            <div className="p-4 bg-white rounded-2xl flex flex-col items-center justify-center shadow-inner mx-auto w-fit">
+            <div className="p-4 bg-emerald-50/50 rounded-2xl flex flex-col items-center justify-center shadow-inner mx-auto w-fit border border-emerald-200">
               <QRCodeSVG
                 value={`${window.location.origin}/tracker?id=${qrViewBatch.originalProduct.id}`}
                 size={180}
@@ -3094,16 +3130,16 @@ export function ProcessorDashboard() {
               />
             </div>
 
-            <div className="space-y-1 text-xs text-left bg-zinc-950 p-3.5 rounded-2xl border border-zinc-850">
-              <p className="font-bold text-sm text-foreground">{qrViewBatch.originalProduct.name}</p>
-              <p className="text-zinc-400 font-mono">Batch ID: <span className="text-blue-400 font-semibold">{qrViewBatch.batchId}</span></p>
-              <p className="text-zinc-400">Certified Grade: <span className="text-emerald-400 font-bold">{qrViewBatch.originalProduct.ai_quality_label || "Grade A"} ({qrViewBatch.originalProduct.ai_quality_score || 90}%)</span></p>
-              <p className="text-zinc-400">Processor: <span className="text-zinc-200">{processorName} • {processorAddress}</span></p>
+            <div className="space-y-1 text-xs text-left bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-200">
+              <p className="font-bold text-sm text-slate-900">{qrViewBatch.originalProduct.name}</p>
+              <p className="text-slate-600 font-mono">Batch ID: <span className="text-emerald-800 font-bold">{qrViewBatch.batchId}</span></p>
+              <p className="text-slate-600">Certified Grade: <span className="text-emerald-900 font-bold">{qrViewBatch.originalProduct.ai_quality_label || "Grade A"} ({qrViewBatch.originalProduct.ai_quality_score || 90}%)</span></p>
+              <p className="text-slate-600">Processor: <span className="text-slate-800 font-medium">{processorName} • {processorAddress}</span></p>
             </div>
 
             <div className="flex flex-col gap-2 pt-1">
               <Button
-                className="w-full rounded-xl text-xs gap-1.5 bg-primary hover:bg-primary/95 text-white font-semibold"
+                className="w-full rounded-xl text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-xs"
                 onClick={() => {
                   const canvas = document.getElementById("processor-batch-qr-canvas") as HTMLCanvasElement
                   if (!canvas) return
@@ -3121,14 +3157,14 @@ export function ProcessorDashboard() {
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  className="flex-1 rounded-xl text-xs gap-1.5 border-zinc-700 hover:bg-zinc-800"
+                  className="flex-1 rounded-xl text-xs gap-1.5 border-emerald-200 text-emerald-800 hover:bg-emerald-50 font-bold"
                   onClick={() => window.print()}
                 >
                   <Printer className="h-3.5 w-3.5" /> Print
                 </Button>
                 <Button
                   variant="ghost"
-                  className="flex-1 rounded-xl text-xs text-zinc-400 hover:text-white"
+                  className="flex-1 rounded-xl text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-bold"
                   onClick={() => setQrViewBatch(null)}
                 >
                   Close
@@ -3142,20 +3178,20 @@ export function ProcessorDashboard() {
       {/* MODAL: Processing Completion & Certification Modal */}
       {processingModalBatch && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <Card className="max-w-lg w-full rounded-3xl border shadow-2xl p-6 bg-zinc-900 border-zinc-800 text-white space-y-5 my-auto">
-            <div className="flex justify-between items-start border-b border-zinc-800 pb-3">
+          <Card className="max-w-lg w-full rounded-3xl border border-emerald-200 shadow-2xl p-6 bg-white text-slate-900 space-y-5 my-auto">
+            <div className="flex justify-between items-start border-b border-emerald-100 pb-3">
               <div>
-                <h3 className="font-bold text-xl text-white flex items-center gap-2">
-                  <Package className="h-5 w-5 text-emerald-400" />
+                <h3 className="font-black text-xl text-emerald-950 flex items-center gap-2">
+                  <Package className="h-5 w-5 text-emerald-600" />
                   Processing Completion & Certification
                 </h3>
-                <p className="text-xs text-zinc-400">
-                  Batch: <span className="text-emerald-400 font-mono font-semibold">{processingModalBatch.batchId}</span> • Product: <span className="text-emerald-400 font-semibold">{processingModalBatch.originalProduct.name}</span>
+                <p className="text-xs text-slate-600">
+                  Batch: <span className="text-emerald-800 font-mono font-bold">{processingModalBatch.batchId}</span> • Product: <span className="text-slate-900 font-bold">{processingModalBatch.originalProduct.name}</span>
                 </p>
               </div>
               <button
                 onClick={() => setProcessingModalBatch(null)}
-                className="flex items-center justify-center p-2 rounded-full bg-zinc-800 text-zinc-200 hover:text-white hover:bg-zinc-700 border border-zinc-700 transition-all shadow-md shrink-0 cursor-pointer"
+                className="flex items-center justify-center p-2 rounded-full bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 border border-slate-200 transition-all shadow-xs shrink-0 cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -3169,17 +3205,17 @@ export function ProcessorDashboard() {
 
               return (
                 <>
-                  <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 grid grid-cols-2 gap-3 text-xs">
-                    <div><span className="text-zinc-400">Produce:</span> <strong className="text-emerald-400 font-semibold ml-1">{processingModalBatch.originalProduct.name}</strong></div>
-                    <div><span className="text-zinc-400">Intake Scale Weight:</span> <strong className="text-emerald-400 font-semibold ml-1">{verifiedQty} kg</strong></div>
-                    <div><span className="text-zinc-400">Certified Quality:</span> <strong className="text-emerald-400 font-semibold ml-1">{processingModalBatch.originalProduct.ai_quality_score || 90}% ({processingModalBatch.originalProduct.ai_quality_label || "Grade A"})</strong></div>
-                    <div><span className="text-zinc-400">Farmer Origin:</span> <strong className="text-emerald-400 font-semibold ml-1">{processingModalBatch.originalProduct.farmer?.name || "Ravi"}</strong></div>
+                  <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 grid grid-cols-2 gap-3 text-xs">
+                    <div><span className="text-slate-600 font-medium">Produce:</span> <strong className="text-slate-900 font-bold ml-1">{processingModalBatch.originalProduct.name}</strong></div>
+                    <div><span className="text-slate-600 font-medium">Intake Scale Weight:</span> <strong className="text-emerald-800 font-bold ml-1">{verifiedQty} kg</strong></div>
+                    <div><span className="text-slate-600 font-medium">Certified Quality:</span> <strong className="text-emerald-800 font-bold ml-1">{processingModalBatch.originalProduct.ai_quality_score || 90}% ({processingModalBatch.originalProduct.ai_quality_label || "Grade A"})</strong></div>
+                    <div><span className="text-slate-600 font-medium">Farmer Origin:</span> <strong className="text-slate-900 font-bold ml-1">{processingModalBatch.originalProduct.farmer?.name || "Ravi"}</strong></div>
                   </div>
 
                   <div className="space-y-4 text-sm">
                     {/* 1. PROCESSED QUANTITY (KG) */}
                     <div>
-                      <label className="text-xs text-zinc-400 uppercase font-bold">Processed Quantity (kg)</label>
+                      <label className="text-xs text-slate-500 uppercase font-bold">Processed Quantity (kg)</label>
                       <input
                         type="number"
                         min="0"
@@ -3195,15 +3231,15 @@ export function ProcessorDashboard() {
                           if (e.key === "-" || e.key === "e") e.preventDefault()
                         }}
                         placeholder={`e.g. ${verifiedQty}`}
-                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm mt-1 text-white focus:outline-none focus:ring-1 focus:ring-emerald-400 font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2.5 text-sm mt-1 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
 
                     {/* 2. ESTIMATED SHELF LIFE (DD-MM-YYYY) */}
                     <div>
                       <div className="flex items-center justify-between">
-                        <label className="text-xs text-zinc-400 uppercase font-bold">Estimated shelf life</label>
-                        <span className="text-xs font-mono font-bold text-emerald-400">
+                        <label className="text-xs text-slate-500 uppercase font-bold">Estimated shelf life</label>
+                        <span className="text-xs font-mono font-bold text-emerald-800">
                           {formatToDdMmYyyy(estimatedShelfLifeInput) || "dd-mm-yyyy"}
                         </span>
                       </div>
@@ -3212,12 +3248,12 @@ export function ProcessorDashboard() {
                         min={new Date().toISOString().split("T")[0]}
                         value={estimatedShelfLifeInput}
                         onChange={(e) => setEstimatedShelfLifeInput(e.target.value)}
-                        className="w-full bg-zinc-850 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm mt-1 text-white focus:outline-none focus:ring-1 focus:ring-emerald-400 font-medium cursor-pointer"
+                        className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2.5 text-sm mt-1 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium cursor-pointer"
                       />
-                      <div className="flex justify-between items-center mt-1 text-[11px] text-zinc-400">
-                        <span>Format: <strong className="text-zinc-300 font-mono">dd-mm-yyyy</strong></span>
+                      <div className="flex justify-between items-center mt-1 text-[11px] text-slate-500">
+                        <span>Format: <strong className="text-slate-700 font-mono font-bold">dd-mm-yyyy</strong></span>
                         {estimatedShelfLifeInput && (
-                          <span className="text-emerald-400 font-medium">
+                          <span className="text-emerald-800 font-bold">
                             (~{computeShelfLifeDays(estimatedShelfLifeInput)} days shelf life)
                           </span>
                         )}
@@ -3225,15 +3261,15 @@ export function ProcessorDashboard() {
                     </div>
 
                     {/* 3. PROCESSING COMPLETION DATE & TIME (AUTOMATIC) */}
-                    <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-between">
-                      <div className="flex items-center gap-2.5 text-zinc-300">
-                        <Clock className="h-4 w-4 text-emerald-400 shrink-0" />
+                    <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-2xl flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 text-slate-700">
+                        <Clock className="h-4 w-4 text-emerald-600 shrink-0" />
                         <div>
-                          <p className="text-[11px] text-zinc-400 uppercase font-bold">Processing Completion Timestamp</p>
-                          <p className="text-xs font-semibold text-emerald-400">{formattedDate} • {formattedTime} (Auto-recorded)</p>
+                          <p className="text-[11px] text-slate-500 uppercase font-bold">Processing Completion Timestamp</p>
+                          <p className="text-xs font-bold text-emerald-950">{formattedDate} • {formattedTime} (Auto-recorded)</p>
                         </div>
                       </div>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
                         Live Clock ✓
                       </span>
                     </div>
@@ -3242,7 +3278,7 @@ export function ProcessorDashboard() {
                       <Button
                         variant="outline"
                         onClick={() => setProcessingModalBatch(null)}
-                        className="flex-1 rounded-xl border-zinc-700 text-zinc-300 hover:text-white"
+                        className="flex-1 rounded-xl border-emerald-200 text-slate-700 hover:bg-emerald-50 font-bold"
                       >
                         Cancel
                       </Button>
@@ -3255,7 +3291,7 @@ export function ProcessorDashboard() {
                             estimatedShelfLifeInput
                           )
                         }}
-                        className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                        className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                       >
                         <CheckCircle className="h-4 w-4" />
                         Complete Processing & Record on Chain
@@ -3282,20 +3318,20 @@ export function ProcessorDashboard() {
       {/* DISTRIBUTOR LOGISTICS & DISPATCH MODAL */}
       {dispatchModalBatch && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <Card className="max-w-2xl w-full rounded-3xl border border-zinc-800 bg-zinc-900 text-white shadow-2xl p-6 space-y-5 my-8">
-            <div className="flex justify-between items-start border-b border-zinc-800 pb-4">
+          <Card className="max-w-2xl w-full rounded-3xl border border-emerald-200 bg-white text-slate-900 shadow-2xl p-6 space-y-5 my-8">
+            <div className="flex justify-between items-start border-b border-emerald-100 pb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <Send className="h-5 w-5 text-emerald-400" />
-                  <CardTitle className="text-xl font-bold">Send Delivery Request to Distributor</CardTitle>
+                  <Send className="h-5 w-5 text-emerald-600" />
+                  <CardTitle className="text-xl font-black text-emerald-950">Send Delivery Request to Distributor</CardTitle>
                 </div>
-                <CardDescription className="text-zinc-400 text-xs mt-1">
+                <CardDescription className="text-slate-600 text-xs mt-1">
                   Send complete crop manifest, cold-chain temperature SLA, and destination retailer store to the distributor. The distributor will review and decide whether to accept or decline the delivery.
                 </CardDescription>
               </div>
               <button
                 onClick={() => setDispatchModalBatch(null)}
-                className="p-1 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -3303,31 +3339,31 @@ export function ProcessorDashboard() {
 
             {dispatchSuccessResult ? (
               <div className="space-y-4">
-                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-2 text-emerald-300">
-                  <div className="flex items-center gap-2 font-bold text-base text-emerald-400">
-                    <CheckCircle2 className="h-5 w-5" />
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2 text-emerald-950">
+                  <div className="flex items-center gap-2 font-bold text-base text-emerald-800">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                     <span>Delivery Request Dispatched to Distributor!</span>
                   </div>
-                  <p className="text-xs text-zinc-300">{dispatchSuccessResult.message}</p>
-                  <div className="p-3 bg-black/40 rounded-xl space-y-1.5 font-mono text-xs text-zinc-300 mt-2">
+                  <p className="text-xs text-slate-700">{dispatchSuccessResult.message}</p>
+                  <div className="p-3 bg-white rounded-xl space-y-1.5 font-mono text-xs text-slate-800 border border-emerald-200 mt-2">
                     <div className="flex justify-between">
-                      <span className="text-zinc-500">Request Tracking ID:</span>
-                      <span className="font-bold text-emerald-400">{dispatchSuccessResult.tracking_id}</span>
+                      <span className="text-slate-500">Request Tracking ID:</span>
+                      <span className="font-bold text-emerald-800">{dispatchSuccessResult.tracking_id}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-zinc-500">Status:</span>
-                      <span className="font-semibold text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded text-[11px]">
+                      <span className="text-slate-500">Status:</span>
+                      <span className="font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded text-[11px]">
                         Awaiting Distributor Acceptance
                       </span>
                     </div>
                     {dispatchSuccessResult.blockchain_hash && (
                       <div className="flex justify-between items-center gap-2">
-                        <span className="text-zinc-500">Sepolia Proof:</span>
+                        <span className="text-slate-500">Sepolia Proof:</span>
                         <a
                           href={`https://sepolia.etherscan.io/tx/${dispatchSuccessResult.blockchain_hash}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-emerald-400 underline flex items-center gap-1 hover:text-emerald-300"
+                          className="text-emerald-700 underline flex items-center gap-1 hover:text-emerald-900 font-bold"
                         >
                           {dispatchSuccessResult.blockchain_hash.slice(0, 14)}...
                           <ExternalLink className="h-3 w-3 inline" />
@@ -3339,7 +3375,7 @@ export function ProcessorDashboard() {
 
                 <Button
                   onClick={() => setDispatchModalBatch(null)}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl"
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-xs"
                 >
                   Done
                 </Button>
@@ -3347,35 +3383,35 @@ export function ProcessorDashboard() {
             ) : (
               <div className="space-y-4">
                 {/* Batch Summary Strip */}
-                <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-between text-xs">
+                <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs">
                   <div>
-                    <span className="text-zinc-500 uppercase text-[10px] font-bold block">Certified Batch</span>
-                    <span className="font-bold text-white text-sm">{dispatchModalBatch.originalProduct.name}</span>
-                    <span className="text-zinc-400 ml-2 font-mono">({dispatchModalBatch.processedQuantity || dispatchModalBatch.originalProduct.quantity} kg)</span>
+                    <span className="text-slate-500 uppercase text-[10px] font-bold block">Certified Batch</span>
+                    <span className="font-bold text-slate-900 text-sm">{dispatchModalBatch.originalProduct.name}</span>
+                    <span className="text-slate-600 ml-2 font-mono font-bold">({dispatchModalBatch.processedQuantity || dispatchModalBatch.originalProduct.quantity} kg)</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-zinc-500 uppercase text-[10px] font-bold block">Quality & Expiry</span>
-                    <span className="font-semibold text-emerald-400">{dispatchModalBatch.originalProduct.ai_quality_label || "Grade A"}</span>
-                    <span className="text-zinc-400 ml-2">Exp: {dispatchModalBatch.expiryDate || "14 Days"}</span>
+                    <span className="text-slate-500 uppercase text-[10px] font-bold block">Quality & Expiry</span>
+                    <span className="font-bold text-emerald-900">{dispatchModalBatch.originalProduct.ai_quality_label || "Grade A"}</span>
+                    <span className="text-slate-600 ml-2 font-medium">Exp: {dispatchModalBatch.expiryDate || "14 Days"}</span>
                   </div>
                 </div>
 
                 {/* Section 1: Available Distributors List */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                      <Truck className="h-3.5 w-3.5 text-emerald-400" />
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                      <Truck className="h-3.5 w-3.5 text-emerald-600" />
                       1. Select Distributor Logistics Carrier
                     </label>
-                    <span className="text-[11px] text-emerald-400 font-medium">
+                    <span className="text-[11px] text-emerald-800 font-bold">
                       {availableDistributors.length} Registered Carrier{availableDistributors.length === 1 ? "" : "s"}
                     </span>
                   </div>
 
                   {loadingDistributors ? (
-                    <div className="py-8 text-center text-zinc-400">
-                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-400 mb-2" />
-                      <span className="text-xs">Scanning available distributor fleets...</span>
+                    <div className="py-8 text-center text-slate-500">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-600 mb-2" />
+                      <span className="text-xs font-medium">Scanning available distributor fleets...</span>
                     </div>
                   ) : (
                     <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
@@ -3388,52 +3424,52 @@ export function ProcessorDashboard() {
                             onClick={() => setSelectedDistributorId(dist.id)}
                             className={`p-3 rounded-2xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                               isSelected
-                                ? "bg-emerald-500/10 border-emerald-500/50 shadow-sm"
-                                : "bg-zinc-950/60 border-zinc-800/80 hover:bg-zinc-800/40"
+                                ? "bg-emerald-50 border-2 border-emerald-600 shadow-xs"
+                                : "bg-white border-emerald-200 hover:bg-emerald-50/40 hover:border-emerald-300"
                             }`}
                           >
                             <div className="space-y-1">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${isSelected ? "border-emerald-400 bg-emerald-400" : "border-zinc-600"}`}>
-                                  {isSelected && <span className="w-1.5 h-1.5 bg-black rounded-full" />}
+                                <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${isSelected ? "border-emerald-600 bg-emerald-600" : "border-slate-300"}`}>
+                                  {isSelected && <span className="w-1.5 h-1.5 bg-white rounded-full" />}
                                 </span>
-                                <span className="font-bold text-sm text-white">{dist.name}</span>
-                                <span className="text-xs text-zinc-400 font-mono">({dist.email})</span>
-                                <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                                <span className="font-bold text-sm text-slate-900">{dist.name}</span>
+                                <span className="text-xs text-slate-500 font-mono">({dist.email})</span>
+                                <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-900 border border-emerald-200 font-bold">
                                   {dist.vehicle_number}
                                 </span>
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
                                   isAvail
-                                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                    ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
                                     : dist.current_status === "ON_ROUTE"
-                                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                                    : "bg-red-500/20 text-red-400 border border-red-500/30"
+                                    ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                    : "bg-red-100 text-red-900 border border-red-300"
                                 }`}>
                                   {dist.current_status}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-3 text-xs text-zinc-400 flex-wrap">
-                                <span className="text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                              <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap">
+                                <span className="text-[11px] font-bold text-emerald-900 bg-emerald-100/60 px-2 py-0.5 rounded-md border border-emerald-200">
                                   {dist.status_reason || dist.availability_status || "Ready for Trip"}
                                 </span>
-                                <span className="flex items-center gap-1 text-zinc-300">
-                                  <Thermometer className="h-3 w-3 text-emerald-400" /> {dist.temperature_control}
+                                <span className="flex items-center gap-1 text-slate-700 font-medium">
+                                  <Thermometer className="h-3 w-3 text-emerald-600" /> {dist.temperature_control}
                                 </span>
-                                <span>Hub: <strong className="text-zinc-300">{dist.base_hub}</strong></span>
+                                <span>Hub: <strong className="text-slate-800">{dist.base_hub}</strong></span>
                               </div>
                             </div>
 
-                            <div className="text-right text-xs text-zinc-400 shrink-0 sm:border-l sm:border-zinc-800 sm:pl-3">
-                              <div className="text-emerald-400 font-bold">{dist.completed_trips || 0} completed trips</div>
-                              <div className="text-[11px] text-zinc-400">
+                            <div className="text-right text-xs text-slate-600 shrink-0 sm:border-l sm:border-emerald-100 sm:pl-3">
+                              <div className="text-emerald-800 font-bold">{dist.completed_trips || 0} completed trips</div>
+                              <div className="text-[11px]">
                                 {dist.active_deliveries && dist.active_deliveries > 0 ? (
-                                  <span className="text-amber-400 font-semibold">{dist.active_deliveries} active cargo in transit</span>
+                                  <span className="text-amber-800 font-bold">{dist.active_deliveries} active cargo in transit</span>
                                 ) : (
-                                  <span className="text-emerald-400">Fleet Free & Ready</span>
+                                  <span className="text-emerald-700 font-bold">Fleet Free & Ready</span>
                                 )}
                               </div>
-                              <div className="text-[11px] text-zinc-500 flex items-center gap-1 justify-end pt-0.5">
-                                <Phone className="h-3 w-3" /> {dist.phone}
+                              <div className="text-[11px] text-slate-500 flex items-center gap-1 justify-end pt-0.5 font-medium">
+                                <Phone className="h-3 w-3 text-emerald-600" /> {dist.phone}
                               </div>
                             </div>
                           </div>
@@ -3444,49 +3480,49 @@ export function ProcessorDashboard() {
                 </div>
 
                 {/* Section 2: Source Pickup Location (Processor Profile) */}
-                <div className="space-y-2 p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800">
+                <div className="space-y-2 p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-200">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                      <MapPin className="h-3.5 w-3.5 text-emerald-400" />
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5 text-emerald-600" />
                       2. Source: Processor Facility Pickup Location
                     </label>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      <ShieldCheck className="h-3 w-3" />
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      <ShieldCheck className="h-3 w-3 text-emerald-600" />
                       Verified Profile Location
                     </span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs space-y-1">
+                  <div className="p-2.5 rounded-xl bg-white border border-emerald-200 text-xs space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-white text-xs">{processorName}</span>
+                      <span className="font-bold text-slate-900 text-xs">{processorName}</span>
                       <button
                         type="button"
                         onClick={() => {
                           setDispatchModalBatch(null)
                           setActiveTab("profile")
                         }}
-                        className="text-[10px] text-emerald-400 hover:underline font-semibold cursor-pointer"
+                        className="text-[10px] text-emerald-700 hover:text-emerald-900 hover:underline font-bold cursor-pointer"
                       >
                         Edit in Profile Tab →
                       </button>
                     </div>
-                    <p className="text-zinc-300 leading-relaxed text-[11px]">
+                    <p className="text-slate-700 leading-relaxed text-[11px]">
                       {processorPickupLocation || "Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru 560022"}
                     </p>
                   </div>
-                  <p className="text-[10px] text-zinc-500">
+                  <p className="text-[10px] text-slate-500">
                     Distributor fleets strictly navigate to your admin-verified facility address for cargo intake.
                   </p>
                 </div>
 
                 {/* Section 3: Destination Retailer Store & Address (From Profile) */}
-                <div className="space-y-2 p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800">
+                <div className="space-y-2 p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-200">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                      <Store className="h-3.5 w-3.5 text-blue-400" />
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                      <Store className="h-3.5 w-3.5 text-emerald-600" />
                       3. Destination: Retailer Store & Delivery Location
                     </label>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                      <ShieldCheck className="h-3 w-3" />
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      <ShieldCheck className="h-3 w-3 text-emerald-600" />
                       Verified Retail Store
                     </span>
                   </div>
@@ -3512,7 +3548,7 @@ export function ProcessorDashboard() {
                               .catch(() => setDestinationStoreAddress(getRetailerLocation(ret.email || ret.name)))
                           }
                         }}
-                        className="w-full h-10 px-3 rounded-xl border border-zinc-700 bg-zinc-900 text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                        className="w-full h-10 px-3 rounded-xl border border-emerald-200 bg-white text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                       >
                         {availableRetailers.map(r => (
                           <option key={r.id} value={r.id}>
@@ -3526,23 +3562,23 @@ export function ProcessorDashboard() {
                       value={selectedDestinationStore}
                       onChange={(e) => setSelectedDestinationStore(e.target.value)}
                       placeholder="Store Name (e.g. Metro Fresh Mart Koramangala)"
-                      className="w-full h-10 px-3 rounded-xl border border-zinc-700 bg-zinc-900 text-white text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                      className="w-full h-10 px-3 rounded-xl border border-emerald-200 bg-white text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                     />
                   </div>
-                  <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs">
-                    <span className="text-[10px] text-zinc-500 uppercase font-bold block mb-0.5">Verified Receiving Dock Address:</span>
-                    <p className="text-zinc-300 text-[11px] leading-relaxed">
+                  <div className="p-2.5 rounded-xl bg-white border border-emerald-200 text-xs">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block mb-0.5">Verified Receiving Dock Address:</span>
+                    <p className="text-slate-700 text-[11px] leading-relaxed">
                       {destinationStoreAddress || "Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru 560034"}
                     </p>
                   </div>
-                  <p className="text-[10px] text-zinc-500">
+                  <p className="text-[10px] text-slate-500">
                     Distributor delivery vehicles navigate directly to this verified retailer store address.
                   </p>
                 </div>
 
                 {/* Section 4: Dispatch & Cold-Chain SLA Notes */}
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
                     4. Dispatch Handover Notes & Handling SLA
                   </label>
                   <textarea
@@ -3550,7 +3586,7 @@ export function ProcessorDashboard() {
                     value={dispatchNotesInput}
                     onChange={(e) => setDispatchNotesInput(e.target.value)}
                     placeholder="Temperature specs, packaging integrity notes, departure seal numbers..."
-                    className="w-full p-3 rounded-xl border border-zinc-700 bg-zinc-950 text-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    className="w-full p-3 rounded-xl border border-emerald-200 bg-white text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                   />
                 </div>
 
@@ -3558,14 +3594,14 @@ export function ProcessorDashboard() {
                   <Button
                     variant="outline"
                     onClick={() => setDispatchModalBatch(null)}
-                    className="flex-1 rounded-xl border-zinc-700 text-zinc-300 hover:text-white"
+                    className="flex-1 rounded-xl border-emerald-200 text-slate-700 hover:bg-emerald-50 font-bold"
                   >
                     Cancel
                   </Button>
                   <Button
                     disabled={!selectedDistributorId || dispatchLoading}
                     onClick={handleAssignDistributor}
-                    className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-2 cursor-pointer disabled:opacity-50"
+                    className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-2 cursor-pointer disabled:opacity-50 shadow-xs"
                   >
                     {dispatchLoading ? (
                       <>
@@ -3588,22 +3624,22 @@ export function ProcessorDashboard() {
       {/* BLOCKCHAIN-BACKED PICKUP DISPATCH QR MODAL */}
       {pickupModalData?.isOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <Card className="max-w-lg w-full rounded-3xl border border-emerald-500/30 bg-zinc-900 text-white shadow-2xl p-6 space-y-5 my-8">
-            <div className="flex justify-between items-start border-b border-zinc-800 pb-4">
+          <Card className="max-w-lg w-full rounded-3xl border border-emerald-300 bg-white text-slate-900 shadow-2xl p-6 space-y-5 my-8">
+            <div className="flex justify-between items-start border-b border-emerald-100 pb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+                  <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800">
                     <QrCode className="h-5 w-5" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg font-bold text-white">Blockchain Pickup Dispatch Pass</CardTitle>
-                    <p className="text-zinc-400 text-xs">Processor Facility Cargo Handover</p>
+                    <CardTitle className="text-lg font-black text-emerald-950">Blockchain Pickup Dispatch Pass</CardTitle>
+                    <p className="text-slate-600 text-xs font-medium">Processor Facility Cargo Handover</p>
                   </div>
                 </div>
               </div>
               <button
                 onClick={() => setPickupModalData(null)}
-                className="p-1 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -3611,19 +3647,19 @@ export function ProcessorDashboard() {
 
             {pickupModalData.loading ? (
               <div className="p-12 text-center space-y-3">
-                <Loader2 className="h-10 w-10 text-emerald-400 animate-spin mx-auto" />
-                <p className="text-sm font-semibold text-zinc-300">Generating cryptographic dispatch token & anchoring to blockchain...</p>
+                <Loader2 className="h-10 w-10 text-emerald-600 animate-spin mx-auto" />
+                <p className="text-sm font-bold text-slate-700">Generating cryptographic dispatch token & anchoring to blockchain...</p>
               </div>
             ) : pickupModalData.error ? (
-              <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl space-y-3 text-red-300">
-                <div className="flex items-center gap-2 font-bold text-red-400">
-                  <AlertCircle className="h-5 w-5" />
+              <div className="p-4 bg-red-50 border border-red-200 rounded-2xl space-y-3 text-red-700">
+                <div className="flex items-center gap-2 font-bold text-red-800">
+                  <AlertCircle className="h-5 w-5 text-red-600" />
                   <span>Could Not Generate Pickup QR</span>
                 </div>
                 <p className="text-xs">{pickupModalData.error}</p>
                 <Button
                   onClick={() => pickupModalData.batch && handleGeneratePickupQR(pickupModalData.batch)}
-                  className="bg-red-600 hover:bg-red-500 text-white text-xs rounded-xl"
+                  className="bg-red-600 hover:bg-red-500 text-white text-xs rounded-xl font-bold shadow-xs"
                 >
                   Try Again
                 </Button>
@@ -3631,7 +3667,7 @@ export function ProcessorDashboard() {
             ) : (
               <div className="space-y-4">
                 {/* QR Code Container */}
-                <div className="flex flex-col items-center justify-center p-6 bg-white rounded-2xl shadow-inner border-2 border-emerald-400/40">
+                <div className="flex flex-col items-center justify-center p-6 bg-emerald-50/40 rounded-2xl shadow-inner border-2 border-emerald-300">
                   <QRCodeSVG
                     value={pickupModalData.qrToken || ""}
                     size={220}
@@ -3639,45 +3675,45 @@ export function ProcessorDashboard() {
                     includeMargin={true}
                   />
                   <div className="mt-3 text-center">
-                    <span className="font-mono text-xs font-bold text-zinc-900 bg-zinc-100 px-3 py-1 rounded-md border border-zinc-300 select-all block">
+                    <span className="font-mono text-xs font-bold text-emerald-950 bg-white px-3 py-1.5 rounded-md border border-emerald-300 select-all block shadow-xs">
                       {pickupModalData.qrToken}
                     </span>
-                    <p className="text-[11px] text-zinc-500 mt-1">Cryptographically-signed Pickup Dispatch Token</p>
+                    <p className="text-[11px] text-slate-600 mt-1 font-medium">Cryptographically-signed Pickup Dispatch Token</p>
                   </div>
                 </div>
 
                 {/* Produce & Carrier Details Snapshot */}
-                <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-2 text-xs">
-                  <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
-                    <span className="text-zinc-400">Batch Number:</span>
-                    <span className="font-mono font-bold text-emerald-400">{pickupModalData.batch?.batchId}</span>
+                <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-2 text-xs">
+                  <div className="flex justify-between items-center pb-2 border-b border-emerald-200">
+                    <span className="text-slate-600 font-medium">Batch Number:</span>
+                    <span className="font-mono font-bold text-emerald-950">{pickupModalData.batch?.batchId}</span>
                   </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
-                    <span className="text-zinc-400">Produce & Quantity:</span>
-                    <span className="font-bold text-white">
+                  <div className="flex justify-between items-center pb-2 border-b border-emerald-200">
+                    <span className="text-slate-600 font-medium">Produce & Quantity:</span>
+                    <span className="font-bold text-slate-900">
                       {pickupModalData.batch?.originalProduct?.name || "Certified Produce"} — {pickupModalData.batch?.processedQuantity || pickupModalData.batch?.originalProduct.quantity} kg
                     </span>
                   </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
-                    <span className="text-zinc-400">Authorized Carrier:</span>
-                    <span className="font-bold text-emerald-400">
+                  <div className="flex justify-between items-center pb-2 border-b border-emerald-200">
+                    <span className="text-slate-600 font-medium">Authorized Carrier:</span>
+                    <span className="font-bold text-emerald-950">
                       {pickupModalData.batch?.distributorName || pickupModalData.batch?.distributor} ({pickupModalData.batch?.distributorVehicle || "Reefer Reefer"})
                     </span>
                   </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
-                    <span className="text-zinc-400">Destination Retailer:</span>
-                    <span className="font-bold text-white text-right max-w-[200px] truncate">
+                  <div className="flex justify-between items-center pb-2 border-b border-emerald-200">
+                    <span className="text-slate-600 font-medium">Destination Retailer:</span>
+                    <span className="font-bold text-slate-900 text-right max-w-[200px] truncate">
                       {pickupModalData.batch?.destinationStore || "Retail Store"}
                     </span>
                   </div>
                   {pickupModalData.txHash && (
                     <div className="flex justify-between items-center pt-1">
-                      <span className="text-zinc-400">Blockchain Hash:</span>
+                      <span className="text-slate-600 font-medium">Blockchain Hash:</span>
                       <a
                         href={`https://sepolia.etherscan.io/tx/${pickupModalData.txHash}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="font-mono text-emerald-400 underline hover:text-emerald-300 flex items-center gap-1"
+                        className="font-mono text-emerald-700 underline hover:text-emerald-900 flex items-center gap-1 font-bold"
                       >
                         {pickupModalData.txHash.slice(0, 10)}... <ExternalLink className="h-3 w-3 inline" />
                       </a>
@@ -3685,8 +3721,8 @@ export function ProcessorDashboard() {
                   )}
                 </div>
 
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-start gap-2">
-                  <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 text-xs flex items-start gap-2">
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
                   <span>
                     <strong>Driver Pickup Instructions:</strong> When the distributor arrives at your facility, have them open their dashboard scanner and scan this QR code. Once scanned, they will inspect the physical crates, record their vehicle registration number, and confirm collection.
                   </span>
@@ -3696,13 +3732,13 @@ export function ProcessorDashboard() {
                   <Button
                     variant="outline"
                     onClick={() => window.print()}
-                    className="flex-1 rounded-xl border-zinc-700 text-zinc-300 hover:text-white text-xs gap-1.5"
+                    className="flex-1 rounded-xl border-emerald-200 text-emerald-800 hover:bg-emerald-50 text-xs gap-1.5 font-bold"
                   >
                     <Printer className="h-3.5 w-3.5" /> Print Tag
                   </Button>
                   <Button
                     onClick={() => setPickupModalData(null)}
-                    className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs"
+                    className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs"
                   >
                     Done
                   </Button>
