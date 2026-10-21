@@ -115,11 +115,13 @@ export const getRetailerShipments = async (req: Request, res: Response): Promise
     const senderIds = (shipments || []).map((s) => s.sender_id).filter(Boolean);
     const distIds = (shipments || []).map((s) => s.distributor_id).filter(Boolean);
     const prodIds = (shipments || []).map((s) => s.product_id).filter(Boolean);
+    const batchNumbers = (shipments || []).map((s) => s.batch_number).filter(Boolean);
 
-    const [senderUsers, distUsers, prodRes, eventsRes] = await Promise.all([
+    const [senderUsers, distUsers, prodRes, prodByBatchRes, eventsRes] = await Promise.all([
       senderIds.length > 0 ? supabase.from('users').select('id, name, email, phone').in('id', senderIds) : { data: [] },
       distIds.length > 0 ? supabase.from('users').select('id, name, email, phone').in('id', distIds) : { data: [] },
       prodIds.length > 0 ? supabase.from('products').select('*').in('id', prodIds) : { data: [] },
+      batchNumbers.length > 0 ? supabase.from('products').select('*').in('batch_number', batchNumbers) : { data: [] },
       prodIds.length > 0
         ? supabase
             .from('traceability_events')
@@ -143,15 +145,17 @@ export const getRetailerShipments = async (req: Request, res: Response): Promise
     const senderMap = new Map((senderUsers.data || []).map((u) => [u.id, u]));
     const distMap = new Map((distUsers.data || []).map((u) => [u.id, u]));
     const prodMap = new Map((prodRes.data || []).map((p) => [p.id, p]));
+    const prodBatchMap = new Map((prodByBatchRes.data || []).map((p) => [p.batch_number, p]));
 
     const enriched = await Promise.all(
       (shipments || []).map(async (s) => {
-        const prod = prodMap.get(s.product_id);
+        const prod = prodMap.get(s.product_id) || (s.batch_number ? prodBatchMap.get(s.batch_number) : null);
+        const resolvedProductName = prod?.name || s.product_name || 'Fresh Produce';
         const sender = senderMap.get(s.sender_id);
         const dist = distMap.get(s.distributor_id);
 
         const relatedEvents = (eventsRes.data || []).filter(
-          (e) => e.product_id === s.product_id && (e.metadata?.shipment_id === s.id || !e.metadata?.shipment_id)
+          (e) => (e.product_id === s.product_id || (prod && e.product_id === prod.id)) && (e.metadata?.shipment_id === s.id || !e.metadata?.shipment_id)
         );
 
         const pickupQrEvent = relatedEvents.find((e) => e.event_type === 'PICKUP_QR_GENERATED');
@@ -173,11 +177,15 @@ export const getRetailerShipments = async (req: Request, res: Response): Promise
           ...s,
           retailer_id: s.receiver_id,
           processor_id: s.sender_id,
-          product_name: prod?.name || 'Produce Batch',
+          product_name: resolvedProductName,
+          product: prod || (resolvedProductName ? { name: resolvedProductName, category: prod?.category } : null),
+          request: {
+            product_name: resolvedProductName
+          },
           category: prod?.category || 'Fresh Produce',
-          expiry_date: prod?.expiry_date,
+          expiry_date: prod?.expiry_date || s.expected_delivery,
           quality_score: prod?.ai_quality_score || 94,
-          quality_label: prod?.ai_quality_label || 'Grade A',
+          quality_label: (prod?.ai_quality_label && prod.ai_quality_label.toUpperCase() !== 'UNKNOWN') ? prod.ai_quality_label : 'Grade A',
           blockchain_hash: prod?.blockchain_hash,
           // Dispatch Dossier sent by Processor
           dispatch_snapshot: pickupMeta.dispatch_snapshot || null,

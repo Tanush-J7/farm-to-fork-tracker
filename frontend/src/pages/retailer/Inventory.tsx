@@ -128,7 +128,7 @@ export function Inventory() {
                             )}
                           </div>
                           <div>
-                            <div className="font-bold text-slate-900">{item.product?.name || "Unknown Product"}</div>
+                            <div className="font-bold text-slate-900 capitalize">{item.product?.name || item.product_name || item.name || (item.batch_number ? `Batch #${item.batch_number}` : "Fresh Produce")}</div>
                             <div className="text-xs text-slate-500 mt-0.5">{item.product?.category}</div>
                           </div>
                         </div>

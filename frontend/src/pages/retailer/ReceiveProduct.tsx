@@ -280,7 +280,7 @@ export function ReceiveProduct() {
                 <option value="">-- Choose an incoming shipment --</option>
                 {shipments.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.shipment_tracking_id} - {s.request?.product_name || s.batch_number} ({s.quantity} {s.unit})
+                    {s.shipment_tracking_id} - {s.product_name || s.product?.name || s.request?.product_name || s.batch_number} ({s.quantity} {s.unit})
                   </option>
                 ))}
               </select>
@@ -289,8 +289,11 @@ export function ReceiveProduct() {
             {selectedShipment && (
               <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2.5">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="font-bold text-emerald-950">
-                    {shipments.find((s) => s.id === selectedShipment)?.request?.product_name || "Produce Cargo"}
+                  <span className="font-bold text-emerald-950 capitalize">
+                    {(() => {
+                      const found = shipments.find((s) => s.id === selectedShipment)
+                      return found?.product_name || found?.product?.name || found?.request?.product_name || (found?.batch_number ? `Batch #${found.batch_number}` : "Produce Cargo")
+                    })()}
                   </span>
                   <span className="font-mono text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200 font-bold">
                     Batch: {shipments.find((s) => s.id === selectedShipment)?.batch_number}

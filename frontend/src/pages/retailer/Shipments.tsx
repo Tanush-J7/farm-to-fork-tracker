@@ -114,11 +114,11 @@ export function Shipments() {
                     >
                       {shipment.status.replace(/_/g, " ")}
                     </span>
-                    <h3 className="text-xl font-bold text-slate-900">
-                      {shipment.request?.product_name || "Unknown Product"}
+                    <h3 className="text-xl font-bold text-slate-900 capitalize">
+                      {shipment.product_name || shipment.product?.name || shipment.request?.product_name || (shipment.batch_number ? `Batch #${shipment.batch_number}` : "Fresh Produce")}
                     </h3>
                     <p className="text-sm font-medium text-slate-500 mt-1">
-                      {shipment.quantity} {shipment.unit || "kg"}
+                      {shipment.quantity} {shipment.unit || "kg"} {shipment.category ? `• ${shipment.category}` : ""}
                     </p>
                   </div>
 
