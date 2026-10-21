@@ -65,9 +65,9 @@ export function DistributorDashboard() {
   const [selectedMapRequest, setSelectedMapRequest] = useState<any | null>(null)
   const [declineReasonInput, setDeclineReasonInput] = useState("Vehicle capacity currently booked on another route")
 
-  const fetchDeliveryRequests = async () => {
+  const fetchDeliveryRequests = async (isSilent = false) => {
     try {
-      setLoadingRequests(true)
+      if (!isSilent) setLoadingRequests(true)
       const res = await axios.get(`${API_URL}/distributor/delivery-requests`, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -77,7 +77,7 @@ export function DistributorDashboard() {
     } catch (err) {
       console.warn("Could not load delivery requests", err)
     } finally {
-      setLoadingRequests(false)
+      if (!isSilent) setLoadingRequests(false)
     }
   }
 
@@ -122,19 +122,19 @@ export function DistributorDashboard() {
   useEffect(() => {
     if (token) {
       fetchInventory()
-      fetchDeliveryRequests()
+      fetchDeliveryRequests(deliveryRequests.length > 0)
 
       // Real-time synchronization poller every 5 seconds
       const interval = setInterval(() => {
-        fetchDeliveryRequests()
-      }, 5000)
+        fetchDeliveryRequests(true)
+      }, 10000)
       return () => clearInterval(interval)
     }
   }, [token])
 
   useEffect(() => {
     if (token && (activeTab === "requests" || activeTab === "overview")) {
-      fetchDeliveryRequests()
+      fetchDeliveryRequests(deliveryRequests.length > 0)
     }
   }, [activeTab, token])
 
@@ -903,7 +903,7 @@ export function DistributorDashboard() {
             <Button
               size="sm"
               variant="outline"
-              onClick={fetchDeliveryRequests}
+              onClick={() => fetchDeliveryRequests(false)}
               disabled={loadingRequests}
               className="rounded-full text-xs h-7 px-3 gap-1.5"
             >

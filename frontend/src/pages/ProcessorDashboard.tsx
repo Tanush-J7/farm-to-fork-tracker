@@ -417,8 +417,8 @@ export function ProcessorDashboard() {
 
     const interval = setInterval(() => {
       syncDeliveryRequests()
-      fetchDistributors()
-    }, 5000)
+      fetchDistributors(true)
+    }, 12000)
 
     return () => {
       clearInterval(interval)
@@ -1003,9 +1003,9 @@ export function ProcessorDashboard() {
   }
 
   // Distributor Logistics Fleet Fetching & Dispatch Assignment
-  const fetchDistributors = async () => {
+  const fetchDistributors = async (isSilent = false) => {
     try {
-      setLoadingDistributors(true)
+      if (!isSilent) setLoadingDistributors(true)
       const res = await axios.get(`${API}/processor/distributors`, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -1018,7 +1018,7 @@ export function ProcessorDashboard() {
       setAvailableDistributors([])
       setAvailableRetailers([])
     } finally {
-      setLoadingDistributors(false)
+      if (!isSilent) setLoadingDistributors(false)
     }
   }
 
