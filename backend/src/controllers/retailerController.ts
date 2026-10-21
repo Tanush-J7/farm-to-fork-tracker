@@ -523,18 +523,111 @@ export const getRetailerInventory = async (req: Request, res: Response): Promise
       return;
     }
 
+    // 1. Fetch current retailer_inventory
+    const { data: currentInventory } = await supabase
+      .from('retailer_inventory')
+      .select('id, batch_number')
+      .eq('retailer_id', retailer_id);
+
+    const existingBatches = new Set((currentInventory || []).map((i: any) => i.batch_number).filter(Boolean));
+
+    // 2. Auto-sync any completed or received shipments for this retailer missing from retailer_inventory
+    const { data: completedShipments } = await supabase
+      .from('shipments')
+      .select('id, product_id, batch_number, quantity, unit, status, updated_at')
+      .eq('receiver_id', retailer_id)
+      .in('status', ['COMPLETED', 'DELIVERED', 'RECEIVED']);
+
+    if (completedShipments && completedShipments.length > 0) {
+      for (const ship of completedShipments) {
+        if (ship.batch_number && !existingBatches.has(ship.batch_number)) {
+          const { data: prod } = await supabase
+            .from('products')
+            .select('id, expiry_date')
+            .or(`id.eq.${ship.product_id},batch_number.eq.${ship.batch_number}`)
+            .maybeSingle();
+
+          const now = new Date().toISOString();
+          await supabase.from('retailer_inventory').insert({
+            retailer_id,
+            product_id: prod?.id || ship.product_id,
+            batch_number: ship.batch_number,
+            quantity: ship.quantity || 1,
+            unit: ship.unit || 'kg',
+            expiry_date: prod?.expiry_date || null,
+            status: 'AVAILABLE',
+            received_date: ship.updated_at || now,
+            created_at: now,
+            updated_at: now
+          });
+          existingBatches.add(ship.batch_number);
+        }
+      }
+    }
+
+    // 3. Auto-sync any products owned by this retailer with status 'At Retailer' / 'In Retail'
+    const { data: ownedProducts } = await supabase
+      .from('products')
+      .select('id, name, category, batch_number, quantity, expiry_date, status, updated_at')
+      .eq('current_owner_id', retailer_id);
+
+    if (ownedProducts && ownedProducts.length > 0) {
+      for (const prod of ownedProducts) {
+        if (prod.batch_number && !existingBatches.has(prod.batch_number)) {
+          const now = new Date().toISOString();
+          await supabase.from('retailer_inventory').insert({
+            retailer_id,
+            product_id: prod.id,
+            batch_number: prod.batch_number,
+            quantity: prod.quantity || 1,
+            unit: 'units',
+            expiry_date: prod.expiry_date || null,
+            status: 'AVAILABLE',
+            received_date: prod.updated_at || now,
+            created_at: now,
+            updated_at: now
+          });
+          existingBatches.add(prod.batch_number);
+        }
+      }
+    }
+
+    // 4. Fetch full retailer inventory
     const { data: inventory, error } = await supabase
       .from('retailer_inventory')
       .select('*, product:product_id(name, category, product_image_url)')
       .eq('retailer_id', retailer_id)
-      .order('expiry_date', { ascending: true });
+      .order('created_at', { ascending: false });
 
     if (error) {
       res.status(500).json({ success: false, message: 'Database error', error });
       return;
     }
 
-    res.status(200).json({ success: true, data: inventory });
+    // 5. Fill in any missing product details by fallback batch_number/product_id lookup
+    const enrichedInventory = await Promise.all((inventory || []).map(async (item: any) => {
+      if (!item.product || !item.product.name) {
+        const { data: prod } = await supabase
+          .from('products')
+          .select('name, category, product_image_url')
+          .or(`id.eq.${item.product_id},batch_number.eq.${item.batch_number}`)
+          .maybeSingle();
+
+        if (prod) {
+          return {
+            ...item,
+            product: {
+              name: prod.name,
+              category: prod.category,
+              product_image_url: prod.product_image_url
+            }
+          };
+        }
+      }
+      return item;
+    }));
+
+    res.status(200).json({ success: true, data: enrichedInventory });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error', error });
   }
@@ -1332,6 +1425,45 @@ export const confirmRetailerDelivery = async (req: Request, res: Response): Prom
           updated_at: nowIso
         })
         .eq('id', product.id);
+    }
+
+    // 4.1 Immediately record / update in retailer_inventory
+    try {
+      const { data: existingInv } = await supabase
+        .from('retailer_inventory')
+        .select('id, quantity')
+        .eq('retailer_id', retailer_id)
+        .eq('batch_number', shipment.batch_number)
+        .maybeSingle();
+
+      if (existingInv) {
+        await supabase
+          .from('retailer_inventory')
+          .update({
+            quantity: Number(existingInv.quantity || 0) + acceptedQty,
+            status: 'AVAILABLE',
+            expiry_date: product?.expiry_date || null,
+            updated_at: nowIso
+          })
+          .eq('id', existingInv.id);
+      } else {
+        await supabase
+          .from('retailer_inventory')
+          .insert({
+            retailer_id,
+            product_id: product?.id || shipment.product_id,
+            batch_number: shipment.batch_number,
+            quantity: acceptedQty,
+            unit: shipment.unit || 'kg',
+            expiry_date: product?.expiry_date || null,
+            status: 'AVAILABLE',
+            received_date: nowIso,
+            created_at: nowIso,
+            updated_at: nowIso
+          });
+      }
+    } catch (invErr: any) {
+      console.warn('[confirmRetailerDelivery] retailer_inventory update warning:', invErr.message);
     }
 
     // 5. Update distributor availability back to 'Available for Trip'
