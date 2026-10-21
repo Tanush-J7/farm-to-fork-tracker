@@ -1,7 +1,8 @@
 import { Link, useLocation, useNavigate } from "react-router-dom"
+import axios from "axios"
 import {
   LayoutDashboard, Leaf, PackageSearch, Truck,
-  Factory, LogOut, BarChart3, Menu, X, Edit3, Camera, MapPin, Locate, Loader2, CheckCircle2, Clock, QrCode, Trash2, ShoppingCart, Package, DollarSign, RefreshCw, AlertTriangle, LinkIcon, Wand2, Store, ShieldCheck
+  Factory, LogOut, BarChart3, Menu, X, Edit3, Camera, MapPin, Locate, Loader2, CheckCircle2, Clock, QrCode, Trash2, ShoppingCart, Package, DollarSign, RefreshCw, AlertTriangle, LinkIcon, Wand2, Store, ShieldCheck, Sparkles
 } from "lucide-react"
 import { cn } from "../../utils"
 import { useAuth } from "../../context/AuthContext"
@@ -28,7 +29,11 @@ const roleNavMap: Record<string, { name: string; path: string; icon: React.Eleme
     { name: "Track Product", path: "/track", icon: PackageSearch },
   ],
   distributor: [
-    { name: "Shipments", path: "/distributor", icon: Truck },
+    { name: "Command Overview", path: "/distributor?tab=overview", icon: Sparkles },
+    { name: "Delivery Requests", path: "/distributor?tab=requests", icon: Clock },
+    { name: "Active Fleet & Routes", path: "/distributor?tab=fleet", icon: Truck },
+    { name: "Cargo Manifest", path: "/distributor?tab=inventory", icon: Package },
+    { name: "Smart Handoff (QR)", path: "/distributor?tab=blockchain", icon: QrCode },
     { name: "Track Product", path: "/track", icon: PackageSearch },
   ],
   retailer: [
@@ -53,7 +58,7 @@ const roleNavMap: Record<string, { name: string; path: string; icon: React.Eleme
 export function Sidebar() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, logout, updateUser } = useAuth()
+  const { user, token, logout, updateUser } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
 
   // Profile modal state
@@ -67,6 +72,41 @@ export function Sidebar() {
   const [successMsg, setSuccessMsg] = useState("")
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
+
+  // Distributor live sidebar badges
+  const [distributorPendingCount, setDistributorPendingCount] = useState(0)
+  const [distributorFleetCount, setDistributorFleetCount] = useState(0)
+
+  useEffect(() => {
+    if (user?.role === "distributor" && token) {
+      const fetchDistributorCounts = async () => {
+        try {
+          const API_URL = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
+          const [reqRes, myRes] = await Promise.all([
+            axios.get(`${API_URL}/distributor/delivery-requests`, { headers: { Authorization: `Bearer ${token}` } }),
+            axios.get(`${API_URL}/products/my`, { headers: { Authorization: `Bearer ${token}` } })
+          ])
+          if (reqRes.data?.data) {
+            setDistributorPendingCount(reqRes.data.data.filter((r: any) => r.status === "REQUESTED").length)
+          }
+          if (myRes.data?.data) {
+            setDistributorFleetCount(myRes.data.data.filter((p: any) => p.status === "In Transit").length)
+          }
+        } catch {}
+      }
+
+      fetchDistributorCounts()
+      const interval = setInterval(fetchDistributorCounts, 10000)
+
+      const handleCustomUpdate = () => fetchDistributorCounts()
+      window.addEventListener("distributor_updated", handleCustomUpdate)
+
+      return () => {
+        clearInterval(interval)
+        window.removeEventListener("distributor_updated", handleCustomUpdate)
+      }
+    }
+  }, [user?.role, token])
 
   const role = user?.role || "consumer"
   const navItems = roleNavMap[role] || roleNavMap.consumer
@@ -242,19 +282,45 @@ export function Sidebar() {
             <>
               {navItems.map((item) => {
                 const currentFull = location.pathname + location.search
-                const isActive = item.path.includes("?")
+                const isDistributorOverview =
+                  item.path.startsWith("/distributor") &&
+                  item.path.includes("tab=overview") &&
+                  location.pathname === "/distributor" &&
+                  (!location.search || location.search === "" || location.search.includes("tab=overview"))
+
+                const isActive = isDistributorOverview
+                  ? true
+                  : item.path.includes("?")
                   ? (currentFull === item.path || (item.path.includes("tab=profile") && location.pathname.endsWith("/profile")))
                   : (location.pathname === item.path && (!location.search || !location.search.includes("tab=")))
+
+                const isDeliveryRequests = item.path.includes("tab=requests")
+                const isFleetRoutes = item.path.includes("tab=fleet")
+
                 return (
                   <Link key={item.path} to={item.path}>
                     <div className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer",
+                      "flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer",
                       isActive
                         ? "bg-emerald-100 text-primary font-semibold"
                         : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
                     )}>
-                      <item.icon className="h-5 w-5 shrink-0" />
-                      {!collapsed && <span className="text-sm font-medium">{item.name}</span>}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <item.icon className="h-5 w-5 shrink-0" />
+                        {!collapsed && <span className="text-sm font-medium truncate">{item.name}</span>}
+                      </div>
+
+                      {!collapsed && isDeliveryRequests && distributorPendingCount > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-white shrink-0 animate-pulse">
+                          {distributorPendingCount}
+                        </span>
+                      )}
+
+                      {!collapsed && isFleetRoutes && distributorFleetCount > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shrink-0">
+                          {distributorFleetCount}
+                        </span>
+                      )}
                     </div>
                   </Link>
                 )

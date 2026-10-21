@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
+import { useSearchParams } from "react-router-dom"
 import axios from "axios"
 import {
   Package,
@@ -18,7 +19,6 @@ import {
   RefreshCw,
   Navigation,
   ChevronRight,
-  Sparkles,
   Compass,
   CheckCircle
 } from "lucide-react"
@@ -45,7 +45,29 @@ const routePerformanceData = [
 
 export function DistributorDashboard() {
   const { user, token, updateUser } = useAuth()
-  const [activeTab, setActiveTab] = useState<"overview" | "requests" | "fleet" | "inventory" | "blockchain">("overview")
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = (searchParams.get("tab") as any) || "overview"
+  const [activeTab, setActiveTab] = useState<"overview" | "requests" | "fleet" | "inventory" | "blockchain">(
+    ["overview", "requests", "fleet", "inventory", "blockchain"].includes(tabParam) ? tabParam : "overview"
+  )
+
+  useEffect(() => {
+    const t = searchParams.get("tab")
+    if (t && ["overview", "requests", "fleet", "inventory", "blockchain"].includes(t)) {
+      setActiveTab(t as any)
+    } else if (!t) {
+      setActiveTab("overview")
+    }
+  }, [searchParams])
+
+  const handleTabSwitch = (t: "overview" | "requests" | "fleet" | "inventory" | "blockchain") => {
+    setActiveTab(t)
+    if (t === "overview") {
+      setSearchParams({})
+    } else {
+      setSearchParams({ tab: t })
+    }
+  }
   const [inventory, setInventory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -135,8 +157,9 @@ export function DistributorDashboard() {
       if (res.data?.success) {
         await fetchDeliveryRequests(true)
         await fetchInventory()
+        window.dispatchEvent(new Event("distributor_updated"))
         if (action === "ACCEPT") {
-          setActiveTab("fleet")
+          handleTabSwitch("fleet")
         }
       }
     } catch (err: any) {
@@ -312,6 +335,7 @@ export function DistributorDashboard() {
       setHandoffId("")
       setScannedBatchPreview(null)
       await fetchInventory()
+      window.dispatchEvent(new Event("distributor_updated"))
     } catch (err: any) {
       setHandoffError(err.response?.data?.message || "Failed to verify ID or take custody.")
     } finally {
@@ -339,6 +363,7 @@ export function DistributorDashboard() {
       const txHash = updateRes.data?.data?.blockchain_hash
       setDeliverySuccessTx(txHash || "0x_confirmed")
       await fetchInventory()
+      window.dispatchEvent(new Event("distributor_updated"))
       setTimeout(() => {
         setDeliveryModalItem(null)
         setDeliverySuccessTx("")
@@ -392,7 +417,7 @@ export function DistributorDashboard() {
               </div>
             </div>
             <Button
-              onClick={() => setActiveTab("requests")}
+              onClick={() => handleTabSwitch("requests")}
               className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl px-5 text-xs shadow-sm shrink-0 self-start sm:self-center cursor-pointer transition-all"
             >
               Review Manifests
@@ -598,7 +623,7 @@ export function DistributorDashboard() {
       {/* QUICK LAUNCH TILES */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <button
-          onClick={() => setActiveTab("requests")}
+          onClick={() => handleTabSwitch("requests")}
           className="p-5 rounded-3xl bg-white border border-emerald-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all text-left group cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
@@ -618,7 +643,7 @@ export function DistributorDashboard() {
         </button>
 
         <button
-          onClick={() => setActiveTab("fleet")}
+          onClick={() => handleTabSwitch("fleet")}
           className="p-5 rounded-3xl bg-white border border-emerald-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all text-left group cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
@@ -638,7 +663,7 @@ export function DistributorDashboard() {
         </button>
 
         <button
-          onClick={() => setActiveTab("blockchain")}
+          onClick={() => handleTabSwitch("blockchain")}
           className="p-5 rounded-3xl bg-white border border-emerald-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all text-left group cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
@@ -981,7 +1006,7 @@ export function DistributorDashboard() {
                         </span>
                         <Button
                           size="sm"
-                          onClick={() => setActiveTab("fleet")}
+                          onClick={() => handleTabSwitch("fleet")}
                           className="rounded-xl text-xs gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer shadow-xs"
                         >
                           <Truck className="h-3.5 w-3.5" />
@@ -1566,79 +1591,6 @@ export function DistributorDashboard() {
             )}
           </div>
         </div>
-      </div>
-
-      {/* FLOATING NAVIGATION PILL DOCK (White & Green) */}
-      <div className="flex items-center overflow-x-auto pb-1 scrollbar-none gap-2">
-        <button
-          onClick={() => setActiveTab("overview")}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
-            activeTab === "overview"
-              ? "bg-emerald-600 text-white shadow-emerald-600/20 shadow-sm"
-              : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
-          }`}
-        >
-          <Sparkles className="h-4 w-4" />
-          Command Overview
-        </button>
-
-        <button
-          onClick={() => setActiveTab("requests")}
-          className={`relative flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
-            activeTab === "requests"
-              ? "bg-emerald-600 text-white shadow-emerald-600/20 shadow-sm"
-              : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
-          }`}
-        >
-          <Clock className="h-4 w-4" />
-          Delivery Requests
-          {pendingRequestsCount > 0 && (
-            <span className="ml-1 px-2 py-0.2 rounded-full text-[10px] font-black bg-amber-500 text-white animate-pulse">
-              {pendingRequestsCount}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab("fleet")}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
-            activeTab === "fleet"
-              ? "bg-emerald-600 text-white shadow-emerald-600/20 shadow-sm"
-              : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
-          }`}
-        >
-          <Truck className="h-4 w-4" />
-          Active Fleet & Routes
-          {activeShipmentsCount > 0 && (
-            <span className="ml-1 px-2 py-0.2 rounded-full text-[10px] font-black bg-emerald-700 text-white">
-              {activeShipmentsCount}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab("inventory")}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
-            activeTab === "inventory"
-              ? "bg-emerald-600 text-white shadow-emerald-600/20 shadow-sm"
-              : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
-          }`}
-        >
-          <Package className="h-4 w-4" />
-          Cargo Manifest
-        </button>
-
-        <button
-          onClick={() => setActiveTab("blockchain")}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all cursor-pointer shadow-xs ${
-            activeTab === "blockchain"
-              ? "bg-emerald-600 text-white shadow-emerald-600/20 shadow-sm"
-              : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
-          }`}
-        >
-          <QrCode className="h-4 w-4" />
-          Smart Handoff (QR)
-        </button>
       </div>
 
       {/* ACTIVE TAB CONTENT VIEW */}
