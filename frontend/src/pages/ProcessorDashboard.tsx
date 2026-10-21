@@ -116,9 +116,12 @@ interface AvailableDistributor {
   vehicle_number: string
   temperature_control: string
   payload_capacity: string
-  current_status: "AVAILABLE" | "ON_ROUTE"
+  current_status: "AVAILABLE" | "ON_ROUTE" | "UNAVAILABLE"
+  status_reason?: string
+  availability_status?: string
   base_hub: string
   rating: number
+  active_deliveries?: number
   completed_trips: number
   phone: string
 }
@@ -998,59 +1001,9 @@ export function ProcessorDashboard() {
         setAvailableRetailers(res.data.retailers || [])
       }
     } catch (err) {
-      console.warn("Could not load distributors from API, using default fleet profiles", err)
-      setAvailableDistributors([
-        {
-          id: "dist-01",
-          name: "Apex Reefer Logistics",
-          email: "fleet@apexlogistics.com",
-          fleet_name: "Apex Reefer Express (Cold-Chain)",
-          vehicle_type: "Heavy Reefer Truck (Cold-Chain)",
-          vehicle_number: "KA-04-E2941",
-          temperature_control: "2°C to 6°C (Precision Chilled)",
-          payload_capacity: "3,000 kg",
-          current_status: "AVAILABLE",
-          base_hub: "Kolar Cold Hub & Logistics Park",
-          rating: 4.9,
-          completed_trips: 142,
-          phone: "+91 98451 22890"
-        },
-        {
-          id: "dist-02",
-          name: "FarmToCart Rapid Express",
-          email: "ops@farmtocart.in",
-          fleet_name: "FarmToCart Reefer Van",
-          vehicle_type: "Medium Chilled Van",
-          vehicle_number: "KA-05-MK8821",
-          temperature_control: "0°C to 4°C (Deep Chill)",
-          payload_capacity: "1,800 kg",
-          current_status: "AVAILABLE",
-          base_hub: "Yeshwanthpur Agro-Terminal Hub",
-          rating: 4.8,
-          completed_trips: 98,
-          phone: "+91 99002 44321"
-        },
-        {
-          id: "dist-03",
-          name: "GreenRoute Cargo & Logistics",
-          email: "dispatch@greenroute.com",
-          fleet_name: "GreenRoute Multi-Temp Carrier",
-          vehicle_type: "Heavy Reefer Multi-Zone",
-          vehicle_number: "KA-51-AB4019",
-          temperature_control: "2°C to 8°C (Monitored)",
-          payload_capacity: "4,500 kg",
-          current_status: "AVAILABLE",
-          base_hub: "Whitefield Refrigerated Depot",
-          rating: 4.7,
-          completed_trips: 115,
-          phone: "+91 97410 88201"
-        }
-      ])
-      setAvailableRetailers([
-        { id: "ret-01", name: "Metro Fresh Mart Koramangala Store #104", email: "store104@metrofresh.com", role: "retailer" },
-        { id: "ret-02", name: "GreenBasket Supermarket Indiranagar Hub", email: "indiranagar@greenbasket.in", role: "retailer" },
-        { id: "ret-03", name: "DailyHarvest Organic Market Whitefield", email: "whitefield@dailyharvest.com", role: "retailer" }
-      ])
+      console.warn("Could not load distributors from API", err)
+      setAvailableDistributors([])
+      setAvailableRetailers([])
     } finally {
       setLoadingDistributors(false)
     }
@@ -3046,28 +2999,42 @@ export function ProcessorDashboard() {
                                 <span className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${isSelected ? "border-emerald-400 bg-emerald-400" : "border-zinc-600"}`}>
                                   {isSelected && <span className="w-1.5 h-1.5 bg-black rounded-full" />}
                                 </span>
-                                <span className="font-bold text-sm text-white">{dist.fleet_name || dist.name}</span>
+                                <span className="font-bold text-sm text-white">{dist.name}</span>
+                                <span className="text-xs text-zinc-400 font-mono">({dist.email})</span>
                                 <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
                                   {dist.vehicle_number}
                                 </span>
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                                  isAvail ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                                  isAvail
+                                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                    : dist.current_status === "ON_ROUTE"
+                                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                                    : "bg-red-500/20 text-red-400 border border-red-500/30"
                                 }`}>
                                   {dist.current_status}
                                 </span>
                               </div>
                               <div className="flex items-center gap-3 text-xs text-zinc-400 flex-wrap">
-                                <span className="flex items-center gap-1 text-emerald-400">
-                                  <Thermometer className="h-3 w-3" /> {dist.temperature_control}
+                                <span className="text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                                  {dist.status_reason || dist.availability_status || "Ready for Trip"}
                                 </span>
-                                <span>Cap: <strong className="text-zinc-300">{dist.payload_capacity}</strong></span>
+                                <span className="flex items-center gap-1 text-zinc-300">
+                                  <Thermometer className="h-3 w-3 text-emerald-400" /> {dist.temperature_control}
+                                </span>
                                 <span>Hub: <strong className="text-zinc-300">{dist.base_hub}</strong></span>
                               </div>
                             </div>
 
                             <div className="text-right text-xs text-zinc-400 shrink-0 sm:border-l sm:border-zinc-800 sm:pl-3">
-                              <div className="text-emerald-400 font-bold">★ {dist.rating} ({dist.completed_trips} trips)</div>
-                              <div className="text-[11px] text-zinc-500 flex items-center gap-1 justify-end">
+                              <div className="text-emerald-400 font-bold">{dist.completed_trips || 0} completed trips</div>
+                              <div className="text-[11px] text-zinc-400">
+                                {dist.active_deliveries && dist.active_deliveries > 0 ? (
+                                  <span className="text-amber-400 font-semibold">{dist.active_deliveries} active cargo in transit</span>
+                                ) : (
+                                  <span className="text-emerald-400">Fleet Free & Ready</span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-zinc-500 flex items-center gap-1 justify-end pt-0.5">
                                 <Phone className="h-3 w-3" /> {dist.phone}
                               </div>
                             </div>

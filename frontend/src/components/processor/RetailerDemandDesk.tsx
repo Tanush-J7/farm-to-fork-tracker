@@ -49,12 +49,9 @@ export function RetailerDemandDesk({ api, token, products, onRefreshProducts }: 
       if (res.data?.success && res.data.distributors) {
         setDistributors(res.data.distributors)
       }
-    } catch {
-      // Fallback
-      setDistributors([
-        { id: "dist-01", name: "Apex Reefer Logistics", vehicle_number: "KA-04-E2941", temperature_control: "2°C to 6°C" },
-        { id: "dist-02", name: "FarmToCart Rapid Express", vehicle_number: "KA-05-MK8821", temperature_control: "0°C to 4°C" }
-      ])
+    } catch (err) {
+      console.warn("Could not fetch distributors from API", err)
+      setDistributors([])
     }
   }
 
@@ -491,7 +488,7 @@ export function RetailerDemandDesk({ api, token, products, onRefreshProducts }: 
                     <option value="">-- Choose logistics carrier --</option>
                     {distributors.map((d) => (
                       <option key={d.id} value={d.id}>
-                        {d.fleet_name || d.name} • {d.vehicle_number || "KA-04-E2941"} • {d.temperature_control || "2°C to 6°C"}
+                        {d.name} ({d.email}) • {d.vehicle_number} • [{d.current_status}{d.status_reason ? `: ${d.status_reason}` : ""}]
                       </option>
                     ))}
                   </select>

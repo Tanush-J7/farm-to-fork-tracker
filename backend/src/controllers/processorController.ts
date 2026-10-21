@@ -238,20 +238,30 @@ export const getFarmerSourcingOrders = async (req: Request, res: Response): Prom
 
 /**
  * GET /api/processor/distributors
- * Returns available logistics distributors with live fleet, vehicle, and reefer specs,
- * plus registered retailer store destinations.
+ * Returns available logistics distributors based strictly on real registered distributor
+ * accounts created in the project and their actual live status (availability_status in DB
+ * + active in-transit shipments count).
  */
 export const getAvailableDistributors = async (req: Request, res: Response): Promise<void> => {
   try {
-    const [distRes, retRes] = await Promise.all([
-      supabase.from('users').select('id, name, email, wallet_address, role').eq('role', 'distributor'),
-      supabase.from('users').select('id, name, email, role').eq('role', 'retailer')
+    const [distRes, retRes, shipRes, prodRes] = await Promise.all([
+      supabase
+        .from('users')
+        .select('id, name, email, wallet_address, role, availability_status, created_at')
+        .eq('role', 'distributor')
+        .order('created_at', { ascending: false }),
+      supabase.from('users').select('id, name, email, role').eq('role', 'retailer'),
+      supabase.from('shipments').select('id, distributor_id, sender_id, receiver_id, status, batch_number'),
+      supabase.from('products').select('id, current_owner_id, status').eq('status', 'In Transit')
     ]);
 
     if (distRes.error) {
       res.status(500).json({ success: false, message: 'Failed to fetch distributors', error: distRes.error.message });
       return;
     }
+
+    const allShipments = shipRes.data || [];
+    const inTransitProducts = prodRes.data || [];
 
     const hubs = [
       'Kolar Cold Hub & Logistics Park',
@@ -261,33 +271,88 @@ export const getAvailableDistributors = async (req: Request, res: Response): Pro
       'APMC Electronic City Terminal'
     ];
 
-    const fleetProfiles = (distRes.data || []).map((d, idx) => {
-      const seed = d.id ? d.id.charCodeAt(0) + d.id.charCodeAt(d.id.length - 1) : idx;
-      const vehicleNum = `KA-04-E${1000 + (seed * 47) % 8999}`;
-      const hub = hubs[idx % hubs.length];
-      const isAvailable = idx % 4 !== 3; // mostly available
+    const rawDistributors = distRes.data || [];
+
+    // Map each real distributor account to their live operational profile
+    const processedDistributors = rawDistributors.map((d) => {
+      // 1. Calculate active deliveries in transit for this distributor
+      const activeShipments = allShipments.filter(
+        (s) => (s.distributor_id === d.id || s.sender_id === d.id) && s.status === 'IN_TRANSIT'
+      );
+      const activeOwnedProducts = inTransitProducts.filter(
+        (p) => p.current_owner_id === d.id
+      );
+      const activeDeliveriesCount = activeShipments.length + activeOwnedProducts.length;
+
+      // 2. Calculate completed deliveries
+      const completedShipments = allShipments.filter(
+        (s) => (s.distributor_id === d.id || s.sender_id === d.id) && (s.status === 'RECEIVED' || s.status === 'DELIVERED')
+      );
+
+      // 3. Evaluate real availability based on account's availability_status and active deliveries
+      const userSetStatus = (d.availability_status || '').trim();
+      let currentStatus: 'AVAILABLE' | 'ON_ROUTE' | 'UNAVAILABLE' = 'AVAILABLE';
+      let statusReason = 'Ready for dispatch';
+
+      if (
+        userSetStatus.toLowerCase().includes('unavailable') ||
+        userSetStatus.toLowerCase().includes('off duty') ||
+        userSetStatus.toLowerCase().includes('inactive')
+      ) {
+        currentStatus = 'UNAVAILABLE';
+        statusReason = userSetStatus || 'Off Duty';
+      } else if (activeDeliveriesCount > 0) {
+        currentStatus = 'ON_ROUTE';
+        statusReason = `${activeDeliveriesCount} active cargo in transit`;
+      } else if (
+        userSetStatus.toLowerCase().includes('route') ||
+        (userSetStatus.toLowerCase().includes('trip') && !userSetStatus.toLowerCase().includes('available'))
+      ) {
+        currentStatus = 'ON_ROUTE';
+        statusReason = userSetStatus;
+      } else {
+        currentStatus = 'AVAILABLE';
+        statusReason = userSetStatus || 'Available for Trip';
+      }
+
+      // Consistent deterministic vehicle number and hub based on account ID
+      const charSum = (d.id || '').split('').reduce((acc: number, c: string) => acc + c.charCodeAt(0), 0);
+      const vehicleNum = `KA-04-E${1000 + (charSum % 8999)}`;
+      const hub = hubs[charSum % hubs.length];
 
       return {
         id: d.id,
-        name: d.name || `Distributor Fleet #${idx + 1}`,
+        name: d.name || `Distributor (${d.email.split('@')[0]})`,
         email: d.email,
         wallet_address: d.wallet_address,
-        fleet_name: `${d.name || 'AgroLogistics'} Reefer Express`,
+        fleet_name: `${d.name || d.email.split('@')[0]} Cold Fleet`,
         vehicle_type: 'Heavy Reefer Truck (Cold-Chain)',
         vehicle_number: vehicleNum,
         temperature_control: '2°C to 6°C (Precision Chilled)',
         payload_capacity: '3,000 kg',
-        current_status: isAvailable ? 'AVAILABLE' : 'ON_ROUTE',
+        current_status: currentStatus,
+        status_reason: statusReason,
+        availability_status: d.availability_status || 'Available for Trip',
         base_hub: hub,
-        rating: 4.8 + ((seed % 3) * 0.1),
-        completed_trips: 80 + (seed % 150),
-        phone: `+91 9845${(seed * 1111) % 90000 + 10000}`
+        active_deliveries: activeDeliveriesCount,
+        completed_trips: completedShipments.length,
+        rating: 4.8,
+        phone: `+91 9845${(charSum * 7) % 90000 + 10000}`
       };
+    });
+
+    // Sort: AVAILABLE accounts first, and primary registered accounts (e.g. distributor@gmail.com) prioritized
+    processedDistributors.sort((a, b) => {
+      if (a.email === 'distributor@gmail.com') return -1;
+      if (b.email === 'distributor@gmail.com') return 1;
+      if (a.current_status === 'AVAILABLE' && b.current_status !== 'AVAILABLE') return -1;
+      if (a.current_status !== 'AVAILABLE' && b.current_status === 'AVAILABLE') return 1;
+      return 0;
     });
 
     res.status(200).json({
       success: true,
-      distributors: fleetProfiles,
+      distributors: processedDistributors,
       retailers: retRes.data || []
     });
   } catch (error: any) {
