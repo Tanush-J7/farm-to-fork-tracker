@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useSearchParams, Link } from "react-router-dom"
 import axios from "axios"
 import { useAuth } from "../../context/AuthContext"
 import jsQR from "jsqr"
@@ -472,12 +472,30 @@ export function ReceiveProduct() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Receive Product & Dual-QR Verification</h1>
-        <p className="text-sm text-slate-500">
-          Cross-examine physical cargo & vehicle against Processor dispatch manifests before accepting custody.
-        </p>
+    <div className="space-y-6 max-w-4xl mx-auto pb-12">
+      {/* Header Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
+              <QrCode className="h-8 w-8 text-emerald-600" />
+              Cargo Intake & Dual-QR Verification
+            </h1>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+              Receiving Bay #1
+            </span>
+          </div>
+          <p className="text-sm text-slate-500 mt-1">
+            Cross-examine physical cargo & vehicle against Processor dispatch manifests before accepting custody on Sepolia blockchain.
+          </p>
+        </div>
+        <Link
+          to="/retailer/shipments"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-sm transition-all cursor-pointer self-start sm:self-auto shrink-0"
+        >
+          <Truck className="h-3.5 w-3.5 text-emerald-600" />
+          <span>View Dispatches</span>
+        </Link>
       </div>
 
       {discrepancySuccess && (
