@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useSearchParams, useNavigate } from "react-router-dom"
 import {
   QrCode, Camera, Upload, Search, CheckCircle2, Leaf, Factory, Truck, Store,
   Clock, ShieldCheck, AlertCircle, CalendarDays, Sparkles, RefreshCw, Printer,
@@ -68,6 +68,7 @@ const SAMPLE_BATCHES = [
 
 export const ConsumerScanner: React.FC = () => {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<"camera" | "upload" | "manual">("camera")
   const [manualInput, setManualInput] = useState("")
   const [loading, setLoading] = useState(false)
@@ -176,12 +177,12 @@ export const ConsumerScanner: React.FC = () => {
     await startCamera(nextMode)
   }
 
-  // Handle successful QR detection
+  // Handle successful QR detection -> Open new dedicated traceability page!
   const handleScanSuccess = async (rawCode: string) => {
     await stopCamera()
     const cleanKey = extractIdOrBatch(rawCode)
     if (cleanKey) {
-      fetchFullProductDetails(cleanKey)
+      navigate(`/track?batch=${encodeURIComponent(cleanKey)}`)
     }
   }
 
@@ -620,7 +621,8 @@ export const ConsumerScanner: React.FC = () => {
               onSubmit={(e) => {
                 e.preventDefault()
                 if (manualInput.trim()) {
-                  fetchFullProductDetails(manualInput.trim())
+                  const clean = extractIdOrBatch(manualInput)
+                  navigate(`/track?batch=${encodeURIComponent(clean)}`)
                 }
               }}
               className="flex items-center gap-2"
@@ -656,8 +658,7 @@ export const ConsumerScanner: React.FC = () => {
               key={b.batch}
               type="button"
               onClick={() => {
-                setManualInput(b.batch)
-                fetchFullProductDetails(b.batch)
+                navigate(`/track?batch=${encodeURIComponent(b.batch)}`)
               }}
               className="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-semibold transition-colors cursor-pointer shadow-2xs"
             >
