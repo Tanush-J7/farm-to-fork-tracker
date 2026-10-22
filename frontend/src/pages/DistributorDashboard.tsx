@@ -232,21 +232,55 @@ export function DistributorDashboard() {
       if (pickupQrScannerRef.current && pickupQrScannerRef.current.isScanning) {
         await pickupQrScannerRef.current.stop()
       }
+      // Give React DOM cycle a moment to ensure element is rendered
+      await new Promise((r) => setTimeout(r, 100))
+
+      const element = document.getElementById("pickup-modal-qr-reader")
+      if (!element) {
+        throw new Error("Scanner viewfinder initialization delayed. Please try again.")
+      }
+
       const html5Qr = new Html5Qrcode("pickup-modal-qr-reader")
       pickupQrScannerRef.current = html5Qr
 
-      await html5Qr.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 220, height: 220 } },
-        (decodedText) => {
-          stopPickupCamera()
-          handleVerifyScannedToken(decodedText)
-        },
-        () => {}
-      )
+      const onScanSuccess = (decodedText: string) => {
+        stopPickupCamera()
+        handleVerifyScannedToken(decodedText)
+      }
+
+      // 3-Tier fallback: rear camera -> front webcam -> any available camera device
+      try {
+        await html5Qr.start(
+          { facingMode: { ideal: "environment" } },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          onScanSuccess,
+          () => {}
+        )
+      } catch (err1) {
+        try {
+          await html5Qr.start(
+            { facingMode: "user" },
+            { fps: 10, qrbox: { width: 220, height: 220 } },
+            onScanSuccess,
+            () => {}
+          )
+        } catch (err2) {
+          const cameras = await Html5Qrcode.getCameras()
+          if (cameras && cameras.length > 0) {
+            await html5Qr.start(
+              cameras[0].id,
+              { fps: 10, qrbox: { width: 220, height: 220 } },
+              onScanSuccess,
+              () => {}
+            )
+          } else {
+            throw err2
+          }
+        }
+      }
     } catch (err: any) {
       console.error("Pickup camera error", err)
-      setPickupCameraError(err?.message || "Could not access camera. Please allow camera permissions or upload an image.")
+      setPickupCameraError(err?.message || "Could not access camera. Please allow camera permissions or upload a QR image.")
       setIsPickupCameraActive(false)
     }
   }
@@ -609,17 +643,43 @@ export function DistributorDashboard() {
       if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
         await html5QrCodeRef.current.stop()
       }
+      await new Promise((r) => setTimeout(r, 100))
       const html5QrCode = new Html5Qrcode("distributor-qr-reader")
       html5QrCodeRef.current = html5QrCode
 
-      await html5QrCode.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 220, height: 220 } },
-        (decodedText) => {
-          handleScannedResult(decodedText)
-        },
-        () => {}
-      )
+      const onScanSuccess = (decodedText: string) => {
+        handleScannedResult(decodedText)
+      }
+
+      try {
+        await html5QrCode.start(
+          { facingMode: { ideal: "environment" } },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          onScanSuccess,
+          () => {}
+        )
+      } catch (err1) {
+        try {
+          await html5QrCode.start(
+            { facingMode: "user" },
+            { fps: 10, qrbox: { width: 220, height: 220 } },
+            onScanSuccess,
+            () => {}
+          )
+        } catch (err2) {
+          const cameras = await Html5Qrcode.getCameras()
+          if (cameras && cameras.length > 0) {
+            await html5QrCode.start(
+              cameras[0].id,
+              { fps: 10, qrbox: { width: 220, height: 220 } },
+              onScanSuccess,
+              () => {}
+            )
+          } else {
+            throw err2
+          }
+        }
+      }
     } catch (err: any) {
       setScannerError(err?.message || "Could not access camera. Please allow camera permissions or upload an image.")
       setCameraActive(false)
@@ -2673,27 +2733,27 @@ export function DistributorDashboard() {
                   </Button>
                 </div>
 
-                {/* Optical Viewfinder Box */}
-                {isPickupCameraActive ? (
-                  <div className="relative overflow-hidden rounded-2xl border-2 border-emerald-500 bg-black aspect-video max-h-60 flex flex-col items-center justify-center shadow-lg">
-                    <div id="pickup-modal-qr-reader" className="w-full h-full" />
-                    {/* Targeting reticle overlay */}
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                      <div className="w-44 h-44 border-2 border-emerald-400/70 rounded-2xl relative shadow-[0_0_15px_rgba(16,185,129,0.3)]">
-                        <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl -mt-1 -ml-1"></div>
-                        <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr -mt-1 -mr-1"></div>
-                        <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl -mb-1 -ml-1"></div>
-                        <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-400 rounded-br -mb-1 -mr-1"></div>
-                        <div className="w-full h-0.5 bg-emerald-400/90 shadow-[0_0_8px_#10b981] absolute top-1/2 -translate-y-1/2 animate-pulse"></div>
-                      </div>
-                    </div>
-                    <div className="absolute bottom-2.5 left-0 right-0 text-center pointer-events-none">
-                      <span className="text-[11px] font-semibold bg-black/75 text-emerald-300 px-3 py-1 rounded-full backdrop-blur-sm">
-                        Align Processor's Pickup QR inside the box
-                      </span>
+                {/* Optical Viewfinder Box - ALWAYS preserved in DOM */}
+                <div className={`relative overflow-hidden rounded-2xl border-2 border-emerald-500 bg-black aspect-video max-h-60 flex flex-col items-center justify-center shadow-lg ${isPickupCameraActive ? "block" : "hidden"}`}>
+                  <div id="pickup-modal-qr-reader" className="w-full h-full" />
+                  {/* Targeting reticle overlay */}
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div className="w-44 h-44 border-2 border-emerald-400/70 rounded-2xl relative shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                      <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl -mt-1 -ml-1"></div>
+                      <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr -mt-1 -mr-1"></div>
+                      <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl -mb-1 -ml-1"></div>
+                      <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-400 rounded-br -mb-1 -mr-1"></div>
+                      <div className="w-full h-0.5 bg-emerald-400/90 shadow-[0_0_8px_#10b981] absolute top-1/2 -translate-y-1/2 animate-pulse"></div>
                     </div>
                   </div>
-                ) : (
+                  <div className="absolute bottom-2.5 left-0 right-0 text-center pointer-events-none">
+                    <span className="text-[11px] font-semibold bg-black/75 text-emerald-300 px-3 py-1 rounded-full backdrop-blur-sm">
+                      Align Processor's Pickup QR inside the box
+                    </span>
+                  </div>
+                </div>
+
+                {!isPickupCameraActive && (
                   <div className="p-4 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 text-center space-y-2">
                     <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
                       <QrCode className="h-5 w-5" />
@@ -2725,65 +2785,6 @@ export function DistributorDashboard() {
                     </div>
                   </div>
                 )}
-
-                {/* Manual Input or Quick Fill (Secondary Fallback) */}
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
-                      Or Enter Dispatch Token Manually
-                    </label>
-                    {(pickupVerifyModal.req?.pickup_token || pickupVerifyModal.req?.pickup_qr_token) && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPickupVerifyModal((prev) => ({
-                            ...prev!,
-                            manualTokenInput:
-                              pickupVerifyModal.req.pickup_token ||
-                              pickupVerifyModal.req.pickup_qr_token
-                          }))
-                        }
-                        className="text-[11px] font-mono underline font-bold text-emerald-700 hover:text-emerald-900"
-                      >
-                        Auto-fill Expected Token
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={pickupVerifyModal.manualTokenInput || ""}
-                      onChange={(e) =>
-                        setPickupVerifyModal((prev) => ({
-                          ...prev!,
-                          manualTokenInput: e.target.value
-                        }))
-                      }
-                      placeholder="PKP_... or scan with camera above"
-                      className="flex-1 px-3 py-2 text-xs border border-slate-300 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                    />
-                    <Button
-                      type="button"
-                      onClick={() =>
-                        handleVerifyScannedToken(
-                          pickupVerifyModal.manualTokenInput ||
-                            pickupVerifyModal.req?.pickup_token ||
-                            pickupVerifyModal.req?.pickup_qr_token ||
-                            pickupVerifyModal.req?.batch_number ||
-                            `PKP_${pickupVerifyModal.req?.id}`
-                        )
-                      }
-                      disabled={pickupVerifyModal.loading}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold px-4"
-                    >
-                      {pickupVerifyModal.loading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        "Verify Token"
-                      )}
-                    </Button>
-                  </div>
-                </div>
 
                 {/* Origin Facility Summary */}
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
