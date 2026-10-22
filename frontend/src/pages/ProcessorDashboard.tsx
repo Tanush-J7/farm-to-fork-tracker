@@ -376,7 +376,16 @@ export function ProcessorDashboard() {
         let changed = false
         const next = { ...prev }
         active.forEach(p => {
-          if (p.status === "Processing" || p.status === "In Transit" || p.status === "At Retailer") {
+          const pId = String(p.id)
+          const bNum = String(p.batch_number || "")
+          const isAcceptedByMe =
+            decisions[pId]?.decision === "Accepted" ||
+            (bNum && decisions[bNum]?.decision === "Accepted") ||
+            Boolean(receipts[pId]) ||
+            (bNum && Boolean(receipts[bNum]))
+
+          // Only reconstruct batches for products that this processor has actually received & accepted
+          if (isAcceptedByMe && (p.status === "Processing" || p.status === "In Transit" || p.status === "At Retailer")) {
             const hasBatch = Object.values(next).some(b => b.productId === p.id || b.batchId === p.batch_number)
             if (!hasBatch) {
               changed = true
@@ -401,6 +410,25 @@ export function ProcessorDashboard() {
             }
           }
         })
+
+        // Clean out any stale synthetic batches that were never accepted by this processor
+        Object.keys(next).forEach(k => {
+          const b = next[k]
+          if (b && b.batchId && b.batchId.startsWith("PB-")) {
+            const pId = String(b.productId || b.originalProduct?.id)
+            const bNum = String(b.batchId || b.originalProduct?.batch_number)
+            const isMine =
+              decisions[pId]?.decision === "Accepted" ||
+              (bNum && decisions[bNum]?.decision === "Accepted") ||
+              Boolean(receipts[pId]) ||
+              (bNum && Boolean(receipts[bNum]))
+            if (!isMine) {
+              delete next[k]
+              changed = true
+            }
+          }
+        })
+
         if (changed) {
           try { localStorage.setItem("processor_batches", JSON.stringify(next)) } catch {}
           return next
@@ -1715,109 +1743,225 @@ export function ProcessorDashboard() {
     return Array.from(map.values())
   }
 
+  // Lightweight counts for Left Navigation Sidebar
+  const authenticInventoryCount = Object.values(batches).filter((b: any) => {
+    const pId = String(b.productId || b.originalProduct?.id)
+    const bNum = String(b.batchId || b.originalProduct?.batch_number)
+    return (
+      decisions[pId]?.decision === "Accepted" ||
+      (bNum && decisions[bNum]?.decision === "Accepted") ||
+      Boolean(receipts[pId]) ||
+      Boolean(receipts[bNum])
+    )
+  }).length
+
+  const activePipelineBatchesCount = deduplicateBatches(Object.values(batches)).filter(
+    b => b.stage !== "Transferred" && !b.deliveryRequestStatus
+  ).length
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 pb-20 pt-6">
-      {/* Header bar */}
-      <div className="border-b border-emerald-200 pb-5">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-700 border border-emerald-200">
-            {activeTab === "demands" ? (
-              <Store className="h-7 w-7" />
-            ) : activeTab === "inventory" ? (
-              <Boxes className="h-7 w-7" />
-            ) : activeTab === "profile" ? (
-              <ShieldCheck className="h-7 w-7" />
-            ) : (
-              <Factory className="h-7 w-7" />
-            )}
+    <div className="max-w-[1600px] mx-auto px-3 sm:px-6 pb-20 pt-4 sm:pt-6">
+      {/* Mobile Top Header / Horizontal Tab Selector (< lg screens) */}
+      <div className="lg:hidden mb-6 space-y-3">
+        <div className="flex items-center gap-3 p-3.5 rounded-3xl bg-white border border-emerald-200 shadow-xs">
+          <div className="p-2.5 rounded-2xl bg-emerald-600 text-white shadow-xs shrink-0">
+            <Factory className="h-5 w-5" />
           </div>
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-emerald-950">
-              {activeTab === "browse" && "Processor Operations & Marketplace"}
-              {activeTab === "pipeline" && "Processing Pipeline & Dispatch"}
-              {activeTab === "inventory" && "Warehouse Inventory & Stock Management"}
-              {activeTab === "demands" && "Retailer Demand Desk"}
-              {activeTab === "history" && "Operational History & Audit"}
-              {activeTab === "profile" && "Facility Profile & Compliance"}
-            </h1>
-            <p className="text-slate-600 text-sm mt-0.5 font-medium">
-              {activeTab === "browse" && "Browse, source, and inspect crops registered by local farmers."}
-              {activeTab === "pipeline" && "Track gate intake, AI quality inspection, crate packaging, and distributor handover."}
-              {activeTab === "inventory" && "Manage farmer produce batches, track available vs allocated stock, and fulfill retailer demands."}
-              {activeTab === "demands" && "Review incoming retailer purchase orders. Fulfill from stock or broadcast to farmers."}
-              {activeTab === "history" && "Chronological audit logs and history of all processor facility transactions."}
-              {activeTab === "profile" && "Manage verified legal facility name, FSSAI / trade license, and physical pickup address."}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-base font-black text-slate-900 truncate">{processorName}</h1>
+            <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Processor Hub • Active Node
             </p>
           </div>
         </div>
 
-        {/* Tab Quick Selector (White & Green Theme) */}
-        <div className="flex overflow-x-auto gap-2 mt-5 pt-1 pb-1 no-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0">
-          <button
-            onClick={() => setActiveTab("browse")}
-            className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "browse"
-                ? "bg-emerald-600 text-white shadow-xs"
-                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
-            }`}
-          >
-            Farmer Crops & Batches
-          </button>
-          <button
-            onClick={() => setActiveTab("pipeline")}
-            className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "pipeline"
-                ? "bg-emerald-600 text-white shadow-xs"
-                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
-            }`}
-          >
-            Processing Pipeline
-          </button>
-          <button
-            onClick={() => setActiveTab("inventory")}
-            className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "inventory"
-                ? "bg-emerald-600 text-white shadow-xs"
-                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
-            }`}
-          >
-            <Boxes className="h-3.5 w-3.5" />
-            Inventory & Stock
-          </button>
-          <button
-            onClick={() => setActiveTab("demands")}
-            className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "demands"
-                ? "bg-emerald-600 text-white shadow-xs"
-                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
-            }`}
-          >
-            <Store className="h-3.5 w-3.5" />
-            Retailer Demand Desk
-          </button>
-          <button
-            onClick={() => setActiveTab("history")}
-            className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "history"
-                ? "bg-emerald-600 text-white shadow-xs"
-                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
-            }`}
-          >
-            Operational History
-          </button>
-          <button
-            onClick={() => setActiveTab("profile")}
-            className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "profile"
-                ? "bg-emerald-600 text-white shadow-xs"
-                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
-            }`}
-          >
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-            Facility Profile
-          </button>
+        {/* Mobile Horizontal Scrollable Tab Bar */}
+        <div className="flex overflow-x-auto gap-1.5 pb-1 no-scrollbar">
+          {[
+            { id: "browse", label: "Farmer Crops", icon: Star },
+            { id: "pipeline", label: "Pipeline", icon: Factory },
+            { id: "inventory", label: "Inventory & Stock", icon: Boxes },
+            { id: "demands", label: "Retailer Demands", icon: Store },
+            { id: "history", label: "History", icon: Clock },
+            { id: "profile", label: "Profile", icon: ShieldCheck }
+          ].map((tab) => {
+            const Icon = tab.icon
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-3 py-2 rounded-2xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-all cursor-pointer ${
+                  isActive
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "bg-white text-slate-700 hover:bg-emerald-50 border border-emerald-200"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            )
+          })}
         </div>
       </div>
+
+      {/* Main Two-Column Layout: Left Sidebar + Right Content Canvas */}
+      <div className="lg:flex lg:gap-8 items-start">
+        {/* LEFT SIDEBAR NAVIGATION ("keep all those in left side of the dashboard") */}
+        <aside className="hidden lg:block w-72 xl:w-80 shrink-0 sticky top-6 space-y-4">
+          {/* Facility Brand Card */}
+          <Card className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-xs space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-emerald-600 text-white shadow-xs shrink-0">
+                <Factory className="h-6 w-6" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="font-black text-slate-900 text-base leading-tight truncate">
+                  {processorName}
+                </h2>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[11px] font-bold text-emerald-800">Processing Hub Active</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-emerald-100 pt-3 text-xs text-slate-600 space-y-1">
+              <div className="flex items-center gap-1.5 text-slate-700">
+                <MapPin className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                <span className="truncate font-medium">{processorAddress}</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-emerald-700 font-semibold pt-0.5">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                <span>FSSAI & Traceability Node #04</span>
+              </div>
+            </div>
+          </Card>
+
+          {/* Navigation Menu Card ("keep all those in left side of the dashboard") */}
+          <Card className="rounded-3xl border border-emerald-200 bg-white p-3 shadow-xs space-y-1.5">
+            <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+              Facility Operations
+            </div>
+
+            {[
+              {
+                id: "browse",
+                label: "Farmer Crops & Batches",
+                icon: Star,
+                count: products.length,
+                description: "Crop Marketplace & Sourcing"
+              },
+              {
+                id: "pipeline",
+                label: "Processing Pipeline",
+                icon: Factory,
+                count: activePipelineBatchesCount,
+                description: "Sorting, Packaging & Dispatch"
+              },
+              {
+                id: "inventory",
+                label: "Inventory & Stock",
+                icon: Boxes,
+                count: authenticInventoryCount,
+                description: "Warehouse Balance & Retailer Link"
+              },
+              {
+                id: "demands",
+                label: "Retailer Demand Desk",
+                icon: Store,
+                description: "Supermarket Purchase Orders"
+              },
+              {
+                id: "history",
+                label: "Operational History",
+                icon: Clock,
+                description: "Audit Logs & Dispatch Ledger"
+              },
+              {
+                id: "profile",
+                label: "Facility Profile",
+                icon: ShieldCheck,
+                description: "FSSAI & Pickup Compliance"
+              }
+            ].map((tab) => {
+              const Icon = tab.icon
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`w-full text-left p-3 rounded-2xl flex items-center justify-between transition-all cursor-pointer ${
+                    isActive
+                      ? "bg-emerald-600 text-white font-bold shadow-xs"
+                      : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-950 font-medium"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`p-2 rounded-xl shrink-0 ${
+                      isActive ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-700"
+                    }`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold truncate leading-tight">{tab.label}</p>
+                      <p className={`text-[10px] truncate ${isActive ? "text-emerald-100" : "text-slate-400"}`}>
+                        {tab.description}
+                      </p>
+                    </div>
+                  </div>
+                  {tab.count !== undefined && tab.count > 0 && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                      isActive
+                        ? "bg-white/25 text-white"
+                        : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    }`}>
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </Card>
+        </aside>
+
+        {/* RIGHT MAIN CANVAS ("fill this ui") */}
+        <div className="flex-1 min-w-0 space-y-6">
+          {/* Active View Title Header */}
+          <div className="border-b border-emerald-200 pb-5">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">
+                {activeTab === "demands" ? (
+                  <Store className="h-7 w-7" />
+                ) : activeTab === "inventory" ? (
+                  <Boxes className="h-7 w-7" />
+                ) : activeTab === "profile" ? (
+                  <ShieldCheck className="h-7 w-7" />
+                ) : (
+                  <Factory className="h-7 w-7" />
+                )}
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-emerald-950">
+                  {activeTab === "browse" && "Processor Operations & Marketplace"}
+                  {activeTab === "pipeline" && "Processing Pipeline & Dispatch"}
+                  {activeTab === "inventory" && "Warehouse Inventory & Stock Management"}
+                  {activeTab === "demands" && "Retailer Demand Desk"}
+                  {activeTab === "history" && "Operational History & Audit"}
+                  {activeTab === "profile" && "Facility Profile & Compliance"}
+                </h1>
+                <p className="text-slate-600 text-xs sm:text-sm mt-0.5 font-medium">
+                  {activeTab === "browse" && "Browse, source, and inspect crops registered by local farmers."}
+                  {activeTab === "pipeline" && "Track gate intake, AI quality inspection, crate packaging, and distributor handover."}
+                  {activeTab === "inventory" && "Manage farmer produce batches, track available vs allocated stock, and fulfill retailer demands."}
+                  {activeTab === "demands" && "Review incoming retailer purchase orders. Fulfill from stock or broadcast to farmers."}
+                  {activeTab === "history" && "Chronological audit logs and history of all processor facility transactions."}
+                  {activeTab === "profile" && "Manage verified legal facility name, FSSAI / trade license, and physical pickup address."}
+                </p>
+              </div>
+            </div>
+          </div>
 
       {/* Tabs rendering */}
       {activeTab === "browse" && (
@@ -3897,6 +4041,8 @@ export function ProcessorDashboard() {
           }}
         />
       )}
+        </div>
+      </div>
 
       {/* DISTRIBUTOR LOGISTICS & DISPATCH MODAL */}
       {dispatchModalBatch && (

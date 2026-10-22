@@ -185,26 +185,50 @@ export function ProcessorInventory({
     const list: InventoryItem[] = []
     const seenIds = new Set<string>()
 
-    // 1. Processed Batches in Facility Warehouse
+    // 1. Processed Batches in Facility Warehouse (Only authentically accepted produce)
     Object.values(batches).forEach((b: any) => {
       if (!b || !b.originalProduct) return
       const p = b.originalProduct
       const pId = String(p.id || b.productId)
+      const bNum = String(b.batchId || p.batch_number)
+
+      // Strictly verify this batch was accepted and belongs to this processor:
+      const isAccepted =
+        decisions[pId]?.decision === "Accepted" ||
+        (bNum && decisions[bNum]?.decision === "Accepted") ||
+        Boolean(receipts[pId]) ||
+        Boolean(receipts[bNum]) ||
+        b.stageLogs?.some((l: any) => l.stage === "Accepted" || l.stage === "Processing Started" || l.stage === "Transferred")
+
+      if (!isAccepted) return
+
       const bKey = `BATCH_${b.batchId}`
       seenIds.add(pId)
       seenIds.add(b.batchId)
+      if (bNum) seenIds.add(bNum)
+
+      const st = (b.deliveryRequestStatus || "").toUpperCase()
+      const isCollectedByCarrier =
+        st === "IN_TRANSIT" ||
+        st === "PICKED_UP" ||
+        st === "ARRIVED_AT_RETAILER" ||
+        st === "DELIVERED" ||
+        st === "COMPLETED"
 
       // Physical Intake Weight from Gate Receipt or initial batch quantity
       const receiptWeight = receipts[pId]?.receivedQty || p.quantity || 100
       const initialQty = b.processedQuantity || receiptWeight
 
-      // Current Available Quantity with override fallback
+      // Current Available Quantity in facility warehouse (0 if already collected by carrier)
       const overrideQty = quantityOverrides[bKey] ?? quantityOverrides[pId]
-      const availableQty = overrideQty !== undefined ? overrideQty : (b.processedQuantity || receiptWeight)
+      const availableQty = isCollectedByCarrier
+        ? 0
+        : overrideQty !== undefined
+        ? overrideQty
+        : (b.processedQuantity || receiptWeight)
 
       // Allocated Quantity (already earmarked for active delivery or retailer order)
-      const isTransferredOrInTransit = b.stage === "Transferred" || Boolean(b.deliveryRequestStatus)
-      const allocated = isTransferredOrInTransit ? initialQty : Math.max(0, initialQty - availableQty)
+      const allocated = isCollectedByCarrier ? initialQty : Math.max(0, initialQty - availableQty)
 
       // Calculate Days until Expiry
       let daysUntilExpiry: number | undefined = undefined
@@ -253,16 +277,23 @@ export function ProcessorInventory({
       })
     })
 
-    // 2. Farm Gate Products (Raw Crops received/accepted from farmers)
+    // 2. Farm Gate Products (Raw Crops received & accepted from farmers)
     products.forEach((p: any) => {
       const pId = String(p.id)
-      if (seenIds.has(pId) || seenIds.has(p.batch_number)) return
-      // Only include products that are at least Accepted, Processing, or in Warehouse
-      const isAccepted = decisions[pId]?.decision === "Accepted" || decisions[p.batch_number]?.decision === "Accepted"
-      const isInInventory = isAccepted || p.status === "Processing" || p.status === "Harvested" || p.status === "Delivered"
+      const bNum = String(p.batch_number || "")
+      if (seenIds.has(pId) || (bNum && seenIds.has(bNum))) return
 
-      if (!isInInventory) return
+      // ONLY include products that were physically accepted and received by this processor:
+      const isAccepted =
+        decisions[pId]?.decision === "Accepted" ||
+        (bNum && decisions[bNum]?.decision === "Accepted")
+      const hasReceipt = Boolean(receipts[pId] || (bNum && receipts[bNum]))
+
+      // Strictly exclude products that have not been accepted by this processor!
+      if (!isAccepted && !hasReceipt) return
+
       seenIds.add(pId)
+      if (bNum) seenIds.add(bNum)
 
       const initialQty = receipts[pId]?.receivedQty || p.quantity || 100
       const overrideQty = quantityOverrides[pId]
