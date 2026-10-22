@@ -516,37 +516,83 @@ export function ProcessorDashboard() {
         let localDeals = JSON.parse(localStorage.getItem("farmer_deals") || "{}")
         let localDeclined = JSON.parse(localStorage.getItem("processor_declined_products") || "{}")
 
-        // Sanitize batches: only keep batches that match valid products in DB
-        const rawBatches = { ...(cloud.batches || {}), ...localBatches }
+        const stageWeight = (s?: string) => {
+          switch (s) {
+            case "Transferred": return 6
+            case "Processing Completed": return 5
+            case "Quality Check": return 4
+            case "Processing In Progress": return 3
+            case "Processing Started": return 2
+            case "Accepted": return 1
+            default: return 0
+          }
+        }
+
+        // Cloud is authoritative source of truth across all devices
+        const cloudBatches: Record<string, ProcessingBatch> = cloud.batches || {}
         const mergedBatches: Record<string, ProcessingBatch> = {}
         const seenBatchedProducts = new Set<string>()
 
-        for (const [k, b] of Object.entries(rawBatches) as [string, any][]) {
-          if (!b || !b.originalProduct) continue
-          const pId = String(b.productId || b.originalProduct?.id || "")
-          const bNum = String(b.originalProduct?.batch_number || b.originalProduct?.batchNumber || "")
+        // Check all batch keys from cloud and local
+        const allKeys = Array.from(new Set([...Object.keys(cloudBatches), ...Object.keys(localBatches)]))
+
+        for (const k of allKeys) {
+          const cB = cloudBatches[k]
+          const lB = localBatches[k]
+
+          // Decide winning batch: Cloud is authoritative, but if both exist pick highest progress stage
+          let chosen = cB || lB
+          if (cB && lB) {
+            if (stageWeight(lB.stage) > stageWeight(cB.stage)) {
+              chosen = { ...cB, ...lB }
+            } else {
+              chosen = { ...lB, ...cB }
+            }
+          }
+
+          if (!chosen || !chosen.originalProduct) continue
+          const pId = String(chosen.productId || chosen.originalProduct?.id || "")
+          const bNum = String(chosen.originalProduct?.batch_number || (chosen.originalProduct as any)?.batchNumber || "")
+
           if (products.length > 0) {
             const exists = products.some(p => String(p.id) === pId || (bNum && p.batch_number === bNum))
             if (!exists) continue
           }
+
           const dedupeKey = pId || bNum || k
           if (!seenBatchedProducts.has(dedupeKey)) {
             seenBatchedProducts.add(dedupeKey)
-            mergedBatches[k] = b
+            mergedBatches[k] = chosen
+          } else {
+            // Deduplicate by keeping the most advanced stage
+            const existingKey = Object.keys(mergedBatches).find(ek => {
+              const eb = mergedBatches[ek]
+              return String(eb.productId || eb.originalProduct?.id || "") === pId ||
+                (bNum && String(eb.originalProduct?.batch_number || "") === bNum)
+            })
+            if (existingKey) {
+              const existingBatch = mergedBatches[existingKey]
+              if (stageWeight(chosen.stage) > stageWeight(existingBatch.stage)) {
+                delete mergedBatches[existingKey]
+                mergedBatches[k] = chosen
+              }
+            }
           }
         }
-        const mergedReceipts = { ...(cloud.receipts || {}), ...localReceipts }
-        const mergedVerifications = { ...(cloud.verifications || {}), ...localVerifications }
-        const mergedInspections = { ...(cloud.inspections || {}), ...localInspections }
-        const mergedDecisions = { ...(cloud.decisions || {}), ...localDecisions }
+
+        // Cloud overrides local for receipts, verifications, inspections, decisions, deals, and declined
+        const mergedReceipts = { ...localReceipts, ...(cloud.receipts || {}) }
+        const mergedVerifications = { ...localVerifications, ...(cloud.verifications || {}) }
+        const mergedInspections = { ...localInspections, ...(cloud.inspections || {}) }
+        const mergedDecisions = { ...localDecisions, ...(cloud.decisions || {}) }
         
         const existingLogIds = new Set(localLogs.map((l: any) => l.id))
         const newCloudLogs = (cloud.auditLogs || []).filter((l: any) => !existingLogIds.has(l.id))
         const mergedLogs = [...localLogs, ...newCloudLogs]
 
-        const mergedInterests = Array.from(new Set([...(cloud.interests || []), ...localInterests]))
-        const mergedDeals = { ...(cloud.deals || {}), ...localDeals }
-        const mergedDeclined = { ...(cloud.declinedProducts || {}), ...localDeclined }
+        const mergedInterests = Array.from(new Set([...localInterests, ...(cloud.interests || [])]))
+        const mergedDeals = { ...localDeals, ...(cloud.deals || {}) }
+        const mergedDeclined = { ...localDeclined, ...(cloud.declinedProducts || {}) }
 
         setBatches(mergedBatches)
         setReceipts(mergedReceipts)
@@ -1299,7 +1345,9 @@ export function ProcessorDashboard() {
                 r.id === b.trackingId
             )
             if (matchedReq) {
+              const isNowTransferred = b.stage !== "Transferred"
               if (
+                isNowTransferred ||
                 b.deliveryRequestStatus !== matchedReq.status ||
                 (matchedReq.status === "DECLINED" && b.declineReason !== matchedReq.decline_reason) ||
                 b.pickupQrToken !== matchedReq.pickup_qr_token ||
@@ -1308,6 +1356,7 @@ export function ProcessorDashboard() {
                 hasChanges = true
                 nextBatches[batchId] = {
                   ...b,
+                  stage: "Transferred",
                   deliveryRequestStatus: matchedReq.status,
                   declineReason: matchedReq.decline_reason,
                   distributorName: matchedReq.distributor?.name || b.distributorName,
@@ -1953,12 +2002,14 @@ export function ProcessorDashboard() {
           !isProductDecidedOrBatched(p)
         )
 
-        const activeProcessingBatchesList = deduplicateBatches(
-          Object.values(batches).filter(b => b.stage !== "Processing Completed" && b.stage !== "Transferred")
+        const allUniqueBatches = deduplicateBatches(Object.values(batches))
+
+        const activeProcessingBatchesList = allUniqueBatches.filter(
+          b => b.stage !== "Processing Completed" && b.stage !== "Transferred" && !b.deliveryRequestStatus
         )
 
-        const transferredBatchesList = deduplicateBatches(
-          Object.values(batches).filter(b => b.stage === "Transferred" || b.stageLogs.some(l => l.stage === "Transferred"))
+        const transferredBatchesList = allUniqueBatches.filter(
+          b => b.stage === "Transferred" || Boolean(b.deliveryRequestStatus) || b.stageLogs?.some(l => l.stage === "Transferred")
         )
 
         return (

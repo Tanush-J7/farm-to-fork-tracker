@@ -200,15 +200,15 @@ export function FarmerDashboard() {
         let localDeleted = JSON.parse(localStorage.getItem("farmer_deleted_products") || "[]")
         let localLocations = JSON.parse(localStorage.getItem("product_farmer_locations") || "{}")
 
-        const mergedDeals = { ...(cloud.deals || {}), ...localDeals }
+        const mergedDeals = { ...localDeals, ...(cloud.deals || {}) }
         
         const existingNotifIds = new Set(localNotifs.map((n: any) => n.id))
         const newCloudNotifs = (cloud.notifications || []).filter((n: any) => !existingNotifIds.has(n.id))
         const mergedNotifs = [...localNotifs, ...newCloudNotifs]
         
-        const mergedDecisions = { ...(cloud.decisions || {}), ...localDecisions }
-        const mergedDeleted = Array.from(new Set([...(cloud.deletedProducts || []), ...localDeleted]))
-        const mergedLocations = { ...(cloud.productLocations || {}), ...localLocations }
+        const mergedDecisions = { ...localDecisions, ...(cloud.decisions || {}) }
+        const mergedDeleted = Array.from(new Set([...localDeleted, ...(cloud.deletedProducts || [])]))
+        const mergedLocations = { ...localLocations, ...(cloud.productLocations || {}) }
 
         setDeals(mergedDeals)
         setNotifications(mergedNotifs)
