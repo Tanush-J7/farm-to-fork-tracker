@@ -189,8 +189,12 @@ export function ReceiveProduct() {
         setHasTorch(false)
       }
 
-      // Small delay to ensure the video DOM element is mounted
-      await new Promise((r) => setTimeout(r, 80))
+      // Wait until the video DOM element is mounted
+      let attempts = 0
+      while (!videoRef.current && attempts < 20) {
+        await new Promise((r) => setTimeout(r, 50))
+        attempts++
+      }
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream

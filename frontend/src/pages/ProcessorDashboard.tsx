@@ -701,6 +701,7 @@ export function ProcessorDashboard() {
     const handleFocus = () => {
       if (document.visibilityState === "visible") {
         fetchProducts()
+        syncDeliveryRequests()
         fetchProcessorCloudState()
       }
     }
@@ -1683,7 +1684,34 @@ export function ProcessorDashboard() {
       return 0
     })
 
+  // Strict Active DB Product Validation & Deduplication across pipeline & history
+  const validProductIds = new Set(products.map(p => String(p.id)))
+  const validBatchNumbers = new Set(products.map(p => String(p.batch_number || "")).filter(Boolean))
 
+  const isValidBatch = (b: ProcessingBatch) => {
+    if (!b || !b.originalProduct) return false
+    const pId = String(b.productId || b.originalProduct?.id || "")
+    const bNum = String(b.originalProduct?.batch_number || (b.originalProduct as any)?.batchNumber || "")
+    return validProductIds.has(pId) || (bNum && validBatchNumbers.has(bNum))
+  }
+
+  const deduplicateBatches = (batchList: ProcessingBatch[]) => {
+    const map = new Map<string, ProcessingBatch>()
+    for (const b of batchList) {
+      if (!isValidBatch(b)) continue
+      const key = String(b.productId || b.originalProduct?.id || b.originalProduct?.batch_number || b.batchId)
+      if (!map.has(key)) {
+        map.set(key, b)
+      } else {
+        const existing = map.get(key)!
+        const stageWeight = (s: string) => s === "Transferred" ? 3 : s === "Processing Completed" ? 2 : 1
+        if (stageWeight(b.stage) >= stageWeight(existing.stage)) {
+          map.set(key, b)
+        }
+      }
+    }
+    return Array.from(map.values())
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 pb-20 pt-6">
@@ -1929,35 +1957,6 @@ export function ProcessorDashboard() {
       )}
 
       {activeTab === "pipeline" && (() => {
-        // Strict Active DB Product Validation & Deduplication
-        const validProductIds = new Set(products.map(p => String(p.id)))
-        const validBatchNumbers = new Set(products.map(p => String(p.batch_number || "")).filter(Boolean))
-
-        const isValidBatch = (b: ProcessingBatch) => {
-          if (!b || !b.originalProduct) return false
-          const pId = String(b.productId || b.originalProduct?.id || "")
-          const bNum = String(b.originalProduct?.batch_number || (b.originalProduct as any)?.batchNumber || "")
-          return validProductIds.has(pId) || (bNum && validBatchNumbers.has(bNum))
-        }
-
-        const deduplicateBatches = (batchList: ProcessingBatch[]) => {
-          const map = new Map<string, ProcessingBatch>()
-          for (const b of batchList) {
-            if (!isValidBatch(b)) continue
-            const key = String(b.productId || b.originalProduct?.id || b.originalProduct?.batch_number || b.batchId)
-            if (!map.has(key)) {
-              map.set(key, b)
-            } else {
-              const existing = map.get(key)!
-              const stageWeight = (s: string) => s === "Transferred" ? 3 : s === "Processing Completed" ? 2 : 1
-              if (stageWeight(b.stage) >= stageWeight(existing.stage)) {
-                map.set(key, b)
-              }
-            }
-          }
-          return Array.from(map.values())
-        }
-
         const isProductDispatched = (p: Product) => {
           const isDeclined = Boolean(
             deals[String(p.id)] === "declined" ||
@@ -2008,8 +2007,28 @@ export function ProcessorDashboard() {
           b => b.stage !== "Processing Completed" && b.stage !== "Transferred" && !b.deliveryRequestStatus
         )
 
+        // Helper to check if a batch has been physically collected / in transit / delivered by distributor
+        const isBatchCollectedByDistributor = (b: ProcessingBatch) => {
+          const st = (b.deliveryRequestStatus || "").toUpperCase()
+          return (
+            st === "IN_TRANSIT" ||
+            st === "PICKED_UP" ||
+            st === "ARRIVED_AT_RETAILER" ||
+            st === "DELIVERED" ||
+            st === "COMPLETED"
+          )
+        }
+
+        // Active batches awaiting carrier assignment, pickup QR generation, or driver dock scan
         const transferredBatchesList = allUniqueBatches.filter(
-          b => b.stage === "Transferred" || Boolean(b.deliveryRequestStatus) || b.stageLogs?.some(l => l.stage === "Transferred")
+          b => (b.stage === "Transferred" || Boolean(b.deliveryRequestStatus) || b.stageLogs?.some(l => l.stage === "Transferred")) &&
+               !isBatchCollectedByDistributor(b)
+        )
+
+        // Batches already collected by carrier (custody handed over and en route or delivered)
+        const collectedBatchesList = allUniqueBatches.filter(
+          b => (b.stage === "Transferred" || Boolean(b.deliveryRequestStatus) || b.stageLogs?.some(l => l.stage === "Transferred")) &&
+               isBatchCollectedByDistributor(b)
         )
 
         return (
@@ -2311,21 +2330,67 @@ export function ProcessorDashboard() {
             {pipelineStep === "completed" && (
               <div className="space-y-6">
                 <div className="border-b border-emerald-100 pb-4">
-                  <h3 className="text-xl font-black flex items-center gap-2 text-emerald-950">
-                    <Truck className="h-6 w-6 text-emerald-600" />
-                    Transferred to Distributor (Dispatch Manifest)
-                  </h3>
-                  <p className="text-slate-600 text-sm">
-                    Verified agricultural yields packaged, quality-certified, and handed over to logistics partners with complete chain-of-custody tracking.
-                  </p>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-xl font-black flex items-center gap-2 text-emerald-950">
+                        <Truck className="h-6 w-6 text-emerald-600" />
+                        Transferred to Distributor (Dispatch Manifest)
+                      </h3>
+                      <p className="text-slate-600 text-sm">
+                        Verified agricultural yields packaged, quality-certified, and awaiting carrier pickup and blockchain handoff verification.
+                      </p>
+                    </div>
+                    {collectedBatchesList.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setActiveTab("history")
+                          setHistorySubTab("transferred")
+                        }}
+                        className="border-emerald-300 text-emerald-800 hover:bg-emerald-100/60 rounded-xl text-xs font-bold gap-1.5 self-start sm:self-auto shrink-0"
+                      >
+                        <Clock className="h-3.5 w-3.5" />
+                        View Past Dispatches ({collectedBatchesList.length})
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {transferredBatchesList.length === 0 ? (
-                  <div className="text-center py-20 text-slate-500 space-y-2">
-                    <Truck className="h-12 w-12 mx-auto text-emerald-300 mb-2" />
-                    <p className="font-bold text-lg text-slate-800">No batches transferred yet</p>
-                    <p className="text-sm text-slate-500">Package and transfer an active processing batch to generate its dispatch manifest here.</p>
-                  </div>
+                  collectedBatchesList.length > 0 ? (
+                    <div className="text-center py-16 px-4 bg-emerald-50/40 border border-emerald-200 rounded-3xl space-y-4">
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-xs">
+                        <CheckCircle className="h-7 w-7" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-black text-lg text-emerald-950">All Dispatches Collected by Carrier</p>
+                        <p className="text-sm text-slate-600 max-w-md mx-auto">
+                          Distributor drivers have scanned the pickup QR and taken physical custody of all transferred batches. No batches are currently awaiting dock collection.
+                        </p>
+                      </div>
+                      <div className="pt-2 flex items-center justify-center gap-3">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => {
+                            setActiveTab("history")
+                            setHistorySubTab("transferred")
+                          }}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold gap-1.5 shadow-xs"
+                        >
+                          <Clock className="h-3.5 w-3.5" />
+                          View Collected Dispatches in History ({collectedBatchesList.length})
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-20 text-slate-500 space-y-2">
+                      <Truck className="h-12 w-12 mx-auto text-emerald-300 mb-2" />
+                      <p className="font-bold text-lg text-slate-800">No batches transferred yet</p>
+                      <p className="text-sm text-slate-500">Package and transfer an active processing batch to generate its dispatch manifest here.</p>
+                    </div>
+                  )
                 ) : (
                   <div className="grid gap-6">
                     {transferredBatchesList.map(b => {
@@ -2352,9 +2417,27 @@ export function ProcessorDashboard() {
                                 {b.originalProduct.name}
                               </h4>
                             </div>
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                              b.deliveryRequestStatus === "DECLINED"
+                                ? "bg-red-100 text-red-900 border border-red-300"
+                                : b.deliveryRequestStatus === "ACCEPTED"
+                                ? "bg-indigo-100 text-indigo-900 border border-indigo-300"
+                                : b.deliveryRequestStatus === "PICKUP_QR_GENERATED"
+                                ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                : b.deliveryRequestStatus === "REQUESTED"
+                                ? "bg-blue-100 text-blue-900 border border-blue-300"
+                                : "bg-emerald-100 text-emerald-900 border border-emerald-300"
+                            }`}>
                               <Truck className="h-3.5 w-3.5 text-emerald-600" />
-                              Dispatched to Distributor (In Transit)
+                              {b.deliveryRequestStatus === "DECLINED"
+                                ? "Carrier Declined"
+                                : b.deliveryRequestStatus === "ACCEPTED"
+                                ? "Carrier Accepted — Ready for QR"
+                                : b.deliveryRequestStatus === "PICKUP_QR_GENERATED"
+                                ? "Pickup QR Active — Awaiting Driver Scan"
+                                : b.deliveryRequestStatus === "REQUESTED"
+                                ? "Delivery Requested (Pending Review)"
+                                : "Awaiting Carrier Assignment"}
                             </span>
                           </div>
 
@@ -2700,7 +2783,7 @@ export function ProcessorDashboard() {
                 <div className="flex justify-between"><span>✅ Accepted:</span> <strong className="text-emerald-700 font-bold">{Object.values(decisions).filter(d => d.decision === "Accepted").length}</strong></div>
                 <div className="flex justify-between"><span>❌ Rejected:</span> <strong className="text-red-600 font-bold">{Object.values(decisions).filter(d => d.decision === "Rejected").length}</strong></div>
                 <div className="flex justify-between"><span>🏭 Processing:</span> <strong className="text-emerald-700 font-bold">{Object.keys(batches).length}</strong></div>
-                <div className="flex justify-between"><span>🚚 Transferred:</span> <strong className="text-emerald-700 font-bold">{Object.values(batches).filter(b => b.stageLogs.some(log => log.stage === "Transferred")).length}</strong></div>
+                <div className="flex justify-between"><span>🚚 Transferred:</span> <strong className="text-emerald-700 font-bold">{deduplicateBatches(Object.values(batches)).filter((b: ProcessingBatch) => b.stage === "Transferred" || Boolean(b.deliveryRequestStatus) || b.stageLogs?.some((log: any) => log.stage === "Transferred")).length}</strong></div>
               </div>
             </div>
           </Card>
@@ -2768,14 +2851,22 @@ export function ProcessorDashboard() {
                   ))}
                 </div>
               )
-            ) : (
-              Object.values(batches).filter(b => b.stage === "Transferred").length === 0 ? (
-                <div className="text-center py-20 text-slate-500">
-                  <Truck className="h-10 w-10 mx-auto text-emerald-300 mb-3" />
-                  <p className="font-bold text-lg text-slate-800">No transferred batches found</p>
-                  <p className="text-sm text-slate-500">Distributor transfer records will appear here after shipment dispatch.</p>
-                </div>
-              ) : (
+            ) : (() => {
+              const historicalTransferredBatches: ProcessingBatch[] = deduplicateBatches(Object.values(batches)).filter(
+                (b: ProcessingBatch) => b.stage === "Transferred" || Boolean(b.deliveryRequestStatus) || b.stageLogs?.some((l: any) => l.stage === "Transferred")
+              )
+
+              if (historicalTransferredBatches.length === 0) {
+                return (
+                  <div className="text-center py-20 text-slate-500">
+                    <Truck className="h-10 w-10 mx-auto text-emerald-300 mb-3" />
+                    <p className="font-bold text-lg text-slate-800">No transferred batches found</p>
+                    <p className="text-sm text-slate-500">Distributor transfer records will appear here after shipment dispatch.</p>
+                  </div>
+                )
+              }
+
+              return (
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-left text-xs">
                     <thead>
@@ -2789,10 +2880,11 @@ export function ProcessorDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-emerald-100 text-slate-800">
-                      {Object.values(batches).filter(b => b.stage === "Transferred").map(b => {
+                      {historicalTransferredBatches.map((b: ProcessingBatch) => {
                         const originalId = (b.originalProduct.product_id && b.originalProduct.product_id >= 100000 && b.originalProduct.product_id <= 999999) 
                           ? b.originalProduct.product_id 
                           : 100000 + (Math.abs(Number(b.originalProduct.product_id || 0)) % 899999)
+                        const st = (b.deliveryRequestStatus || "").toUpperCase()
                         return (
                           <tr key={b.batchId} className="hover:bg-emerald-50/50 transition-colors">
                             <td className="py-3.5 px-3 font-bold text-slate-900 flex items-center gap-1.5">
@@ -2801,10 +2893,34 @@ export function ProcessorDashboard() {
                             </td>
                             <td className="py-3.5 px-3 font-mono text-slate-600 font-medium">FP-{originalId}</td>
                             <td className="py-3.5 px-3 font-mono text-emerald-800 font-bold">{b.batchId}</td>
-                            <td className="py-3.5 px-3 font-semibold text-slate-800">{b.distributor || "XYZ Logistics"}</td>
+                            <td className="py-3.5 px-3 font-semibold text-slate-800">{b.distributorName || b.distributor || "Assigned Carrier"}</td>
                             <td className="py-3.5 px-3">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">
-                                In Transit
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                st === "COMPLETED"
+                                  ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
+                                  : st === "ARRIVED_AT_RETAILER"
+                                  ? "bg-purple-100 text-purple-900 border border-purple-300"
+                                  : st === "IN_TRANSIT"
+                                  ? "bg-cyan-100 text-cyan-900 border border-cyan-300"
+                                  : st === "PICKUP_QR_GENERATED"
+                                  ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                  : st === "ACCEPTED"
+                                  ? "bg-indigo-100 text-indigo-900 border border-indigo-300"
+                                  : "bg-slate-100 text-slate-800 border border-slate-300"
+                              }`}>
+                                {st === "COMPLETED"
+                                  ? "Delivered & Verified"
+                                  : st === "ARRIVED_AT_RETAILER"
+                                  ? "Arrived at Retailer"
+                                  : st === "IN_TRANSIT"
+                                  ? "In Transit (Collected)"
+                                  : st === "PICKUP_QR_GENERATED"
+                                  ? "Pickup QR Active"
+                                  : st === "ACCEPTED"
+                                  ? "Carrier Accepted"
+                                  : st === "REQUESTED"
+                                  ? "Delivery Requested"
+                                  : "Transferred"}
                               </span>
                             </td>
                             <td className="py-3.5 px-3 text-right text-slate-600">
@@ -2818,7 +2934,7 @@ export function ProcessorDashboard() {
                   </table>
                 </div>
               )
-            )}
+            })()}
           </Card>
         </div>
       )}

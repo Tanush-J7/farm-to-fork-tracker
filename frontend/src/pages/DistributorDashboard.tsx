@@ -291,8 +291,13 @@ export function DistributorDashboard() {
       pickupStreamRef.current = stream
       setIsPickupCameraActive(true)
 
-      // Ensure video element receives the stream
-      await new Promise((r) => setTimeout(r, 60))
+      // Wait until video element is mounted in the DOM
+      let attempts = 0
+      while (!pickupVideoRef.current && attempts < 20) {
+        await new Promise((r) => setTimeout(r, 50))
+        attempts++
+      }
+
       if (pickupVideoRef.current) {
         pickupVideoRef.current.srcObject = stream
         try {
