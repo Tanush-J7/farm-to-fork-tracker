@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import axios from "axios"
 import {
   LayoutDashboard, Leaf, PackageSearch, Truck,
-  Factory, LogOut, BarChart3, Menu, X, Edit3, Camera, MapPin, Locate, Loader2, CheckCircle2, Clock, QrCode, Trash2, ShoppingCart, Package, DollarSign, RefreshCw, AlertTriangle, LinkIcon, Wand2, Store, ShieldCheck, Sparkles
+  Factory, LogOut, BarChart3, Menu, X, Edit3, Camera, MapPin, Locate, Loader2, CheckCircle2, Clock, QrCode, Trash2, ShoppingCart, Package, DollarSign, RefreshCw, AlertTriangle, LinkIcon, Wand2, Store, ShieldCheck, Sparkles, Boxes
 } from "lucide-react"
 import { cn } from "../../utils"
 import { useAuth } from "../../context/AuthContext"
@@ -26,10 +26,11 @@ const roleNavMap: Record<string, { name: string; path: string; icon: React.Eleme
   processor: [
     { name: "Dashboard", path: "/processor?tab=browse", icon: LayoutDashboard },
     { name: "Processing", path: "/processor?tab=pipeline", icon: Factory },
+    { name: "Inventory & Stock", path: "/processor?tab=inventory", icon: Boxes },
     { name: "Retailer Demands", path: "/processor?tab=demands", icon: Store },
-    { name: "Facility Profile", path: "/processor?tab=profile", icon: ShieldCheck },
     { name: "Operational History", path: "/processor?tab=history", icon: Clock },
     { name: "Track Product", path: "/track", icon: PackageSearch },
+    { name: "Facility Profile", path: "/processor?tab=profile", icon: ShieldCheck },
   ],
   distributor: [
     { name: "Command Overview", path: "/distributor?tab=overview", icon: Sparkles },
@@ -308,7 +309,15 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
                   location.pathname === "/distributor" &&
                   (!location.search || location.search === "" || location.search.includes("tab=overview"))
 
+                const isProcessorDashboard =
+                  item.path.startsWith("/processor") &&
+                  item.path.includes("tab=browse") &&
+                  location.pathname === "/processor" &&
+                  (!location.search || location.search === "" || location.search.includes("tab=browse"))
+
                 const isActive = isDistributorOverview
+                  ? true
+                  : isProcessorDashboard
                   ? true
                   : item.path.includes("?")
                   ? (currentFull === item.path || (item.path.includes("tab=profile") && location.pathname.endsWith("/profile")))
@@ -422,9 +431,9 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
         )}
 
         {/* Nav */}
-        <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
+        <nav className="flex-1 flex flex-col justify-between p-3 overflow-y-auto">
           {role !== "processor" ? (
-            <>
+            <div className="space-y-1">
               {navItems.map((item) => {
                 const currentFull = location.pathname + location.search
                 const isDistributorOverview =
@@ -433,7 +442,15 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
                   location.pathname === "/distributor" &&
                   (!location.search || location.search === "" || location.search.includes("tab=overview"))
 
+                const isProcessorDashboard =
+                  item.path.startsWith("/processor") &&
+                  item.path.includes("tab=browse") &&
+                  location.pathname === "/processor" &&
+                  (!location.search || location.search === "" || location.search.includes("tab=browse"))
+
                 const isActive = isDistributorOverview
+                  ? true
+                  : isProcessorDashboard
                   ? true
                   : item.path.includes("?")
                   ? (currentFull === item.path || (item.path.includes("tab=profile") && location.pathname.endsWith("/profile")))
@@ -443,7 +460,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
                 const isFleetRoutes = item.path.includes("tab=fleet")
 
                 return (
-                  <Link key={item.path} to={item.path}>
+                  <Link key={item.path} to={item.path} title={item.name}>
                     <div className={cn(
                       "flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer",
                       isActive
@@ -475,107 +492,136 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
               {role === "farmer" && (
                 <button
                   onClick={handleOpenModal}
+                  title="Settings"
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 text-muted-foreground hover:bg-emerald-50 hover:text-primary text-sm font-medium cursor-pointer"
                 >
                   <Edit3 className="h-5 w-5 shrink-0" />
                   {!collapsed && <span>Settings</span>}
                 </button>
               )}
-            </>
+            </div>
           ) : (
-            <div className="space-y-1">
-              {/* Dashboard */}
-              <Link
-                to="/processor?tab=browse"
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
-                  location.pathname === "/processor" && (location.search === "" || location.search.includes("tab=browse"))
-                    ? "bg-emerald-100 text-primary"
-                    : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
-                )}
-              >
-                <LayoutDashboard className="h-5 w-5 shrink-0" />
-                {!collapsed && <span>Dashboard</span>}
-              </Link>
+            <div className="flex flex-col h-full justify-between">
+              {/* Main Operations List */}
+              <div className="space-y-1">
+                {/* Dashboard */}
+                <Link
+                  to="/processor?tab=browse"
+                  title="Dashboard"
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
+                    location.pathname === "/processor" && (location.search === "" || location.search.includes("tab=browse"))
+                      ? "bg-emerald-100 text-primary font-semibold"
+                      : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
+                  )}
+                >
+                  <LayoutDashboard className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span>Dashboard</span>}
+                </Link>
 
-              {/* Processing */}
-              <Link
-                to="/processor?tab=pipeline"
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
-                  location.pathname === "/processor" && location.search.includes("tab=pipeline")
-                    ? "bg-emerald-100 text-primary"
-                    : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
-                )}
-              >
-                <Factory className="h-5 w-5 shrink-0" />
-                {!collapsed && <span>Processing</span>}
-              </Link>
+                {/* Processing */}
+                <Link
+                  to="/processor?tab=pipeline"
+                  title="Processing"
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
+                    location.pathname === "/processor" && location.search.includes("tab=pipeline")
+                      ? "bg-emerald-100 text-primary font-semibold"
+                      : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
+                  )}
+                >
+                  <Factory className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span>Processing</span>}
+                </Link>
 
-              {/* Retailer Demands */}
-              <Link
-                to="/processor?tab=demands"
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
-                  location.pathname === "/processor" && location.search.includes("tab=demands")
-                    ? "bg-emerald-100 text-primary font-semibold"
-                    : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
-                )}
-              >
-                <Store className="h-5 w-5 shrink-0" />
-                {!collapsed && <span>Retailer Demands</span>}
-              </Link>
+                {/* Inventory & Stock */}
+                <Link
+                  to="/processor?tab=inventory"
+                  title="Inventory & Stock"
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
+                    location.pathname === "/processor" && location.search.includes("tab=inventory")
+                      ? "bg-emerald-100 text-primary font-semibold"
+                      : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
+                  )}
+                >
+                  <Boxes className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span>Inventory & Stock</span>}
+                </Link>
 
-              {/* Facility Profile */}
-              <Link
-                to="/processor?tab=profile"
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
-                  location.pathname === "/processor" && location.search.includes("tab=profile")
-                    ? "bg-emerald-100 text-primary font-semibold"
-                    : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
-                )}
-              >
-                <ShieldCheck className="h-5 w-5 shrink-0" />
-                {!collapsed && <span>Facility Profile</span>}
-              </Link>
+                {/* Retailer Demands */}
+                <Link
+                  to="/processor?tab=demands"
+                  title="Retailer Demands"
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
+                    location.pathname === "/processor" && location.search.includes("tab=demands")
+                      ? "bg-emerald-100 text-primary font-semibold"
+                      : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
+                  )}
+                >
+                  <Store className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span>Retailer Demands</span>}
+                </Link>
 
-              {/* History */}
-              <Link
-                to="/processor?tab=history"
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
-                  location.pathname === "/processor" && location.search.includes("tab=history")
-                    ? "bg-emerald-100 text-primary"
-                    : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
-                )}
-              >
-                <Clock className="h-5 w-5 shrink-0" />
-                {!collapsed && <span>History</span>}
-              </Link>
+                {/* History */}
+                <Link
+                  to="/processor?tab=history"
+                  title="Operational History"
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
+                    location.pathname === "/processor" && location.search.includes("tab=history")
+                      ? "bg-emerald-100 text-primary font-semibold"
+                      : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
+                  )}
+                >
+                  <Clock className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span>Operational History</span>}
+                </Link>
 
-              {/* Track Product */}
-              <Link
-                to="/track"
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
-                  location.pathname === "/track"
-                    ? "bg-emerald-100 text-primary"
-                    : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
-                )}
-              >
-                <PackageSearch className="h-5 w-5 shrink-0" />
-                {!collapsed && <span>Track Product</span>}
-              </Link>
+                {/* Track Product */}
+                <Link
+                  to="/track"
+                  title="Track Product"
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
+                    location.pathname === "/track"
+                      ? "bg-emerald-100 text-primary font-semibold"
+                      : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
+                  )}
+                >
+                  <PackageSearch className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span>Track Product</span>}
+                </Link>
+              </div>
 
-              {/* Settings */}
-              <button
-                onClick={handleOpenModal}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 text-muted-foreground hover:bg-emerald-50 hover:text-primary text-sm font-medium cursor-pointer"
-              >
-                <Edit3 className="h-5 w-5 shrink-0" />
-                {!collapsed && <span>Settings</span>}
-              </button>
+              {/* Bottom Section: Profile at bottom & Settings */}
+              <div className="pt-3 border-t border-emerald-100 space-y-1 mt-auto">
+                {/* Facility Profile at bottom */}
+                <Link
+                  to="/processor?tab=profile"
+                  title="Facility Profile"
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
+                    location.pathname === "/processor" && location.search.includes("tab=profile")
+                      ? "bg-emerald-100 text-primary font-semibold"
+                      : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
+                  )}
+                >
+                  <ShieldCheck className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span>Facility Profile</span>}
+                </Link>
+
+                {/* Settings */}
+                <button
+                  onClick={handleOpenModal}
+                  title="Settings"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 text-muted-foreground hover:bg-emerald-50 hover:text-primary text-sm font-medium cursor-pointer"
+                >
+                  <Edit3 className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span>Settings</span>}
+                </button>
+              </div>
             </div>
           )}
         </nav>

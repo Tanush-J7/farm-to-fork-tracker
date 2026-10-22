@@ -73,7 +73,7 @@ export function DashboardLayout() {
 
         {/* Scrollable Dashboard Viewport */}
         <main className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_right,_#e8f8ef_0%,_#fbfefc_42%,_#ffffff_100%)] p-3 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-6xl">
+          <div className="mx-auto max-w-7xl w-full">
             <Outlet />
           </div>
         </main>

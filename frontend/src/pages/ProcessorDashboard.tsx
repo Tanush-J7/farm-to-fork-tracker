@@ -161,9 +161,14 @@ export function ProcessorDashboard() {
   const processorAddress = user?.address || localStorage.getItem("processor_address") || "Processing Facility"
 
   // Tabs state
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = (searchParams.get("tab") as "browse" | "pipeline" | "inventory" | "demands" | "history" | "profile") || "browse"
   const [activeTab, setActiveTab] = useState<"browse" | "pipeline" | "inventory" | "demands" | "history" | "profile">(tabParam)
+
+  const switchTab = useCallback((tab: "browse" | "pipeline" | "inventory" | "demands" | "history" | "profile") => {
+    setActiveTab(tab)
+    setSearchParams({ tab })
+  }, [setSearchParams])
 
   useEffect(() => {
     if (tabParam) {
@@ -1761,8 +1766,8 @@ export function ProcessorDashboard() {
 
   return (
     <div className="max-w-[1600px] mx-auto px-3 sm:px-6 pb-20 pt-4 sm:pt-6">
-      {/* Mobile Top Header / Horizontal Tab Selector (< lg screens) */}
-      <div className="lg:hidden mb-6 space-y-3">
+      {/* Mobile Top Header / Horizontal Tab Selector (< md screens) */}
+      <div className="md:hidden mb-4 space-y-3">
         <div className="flex items-center gap-3 p-3.5 rounded-3xl bg-white border border-emerald-200 shadow-xs">
           <div className="p-2.5 rounded-2xl bg-emerald-600 text-white shadow-xs shrink-0">
             <Factory className="h-5 w-5" />
@@ -1779,9 +1784,9 @@ export function ProcessorDashboard() {
         {/* Mobile Horizontal Scrollable Tab Bar */}
         <div className="flex overflow-x-auto gap-1.5 pb-1 no-scrollbar">
           {[
-            { id: "browse", label: "Farmer Crops", icon: Star },
-            { id: "pipeline", label: "Pipeline", icon: Factory },
-            { id: "inventory", label: "Inventory & Stock", icon: Boxes },
+            { id: "browse", label: "Farmer Crops", icon: Star, count: products.length },
+            { id: "pipeline", label: "Pipeline", icon: Factory, count: activePipelineBatchesCount },
+            { id: "inventory", label: "Inventory & Stock", icon: Boxes, count: authenticInventoryCount },
             { id: "demands", label: "Retailer Demands", icon: Store },
             { id: "history", label: "History", icon: Clock },
             { id: "profile", label: "Profile", icon: ShieldCheck }
@@ -1791,7 +1796,7 @@ export function ProcessorDashboard() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => switchTab(tab.id as any)}
                 className={`px-3 py-2 rounded-2xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-all cursor-pointer ${
                   isActive
                     ? "bg-emerald-600 text-white shadow-xs"
@@ -1799,137 +1804,25 @@ export function ProcessorDashboard() {
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
-                {tab.label}
+                <span>{tab.label}</span>
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    isActive ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
               </button>
             )
           })}
         </div>
       </div>
 
-      {/* Main Two-Column Layout: Left Sidebar + Right Content Canvas */}
-      <div className="lg:flex lg:gap-8 items-start">
-        {/* LEFT SIDEBAR NAVIGATION ("keep all those in left side of the dashboard") */}
-        <aside className="hidden lg:block w-72 xl:w-80 shrink-0 sticky top-6 space-y-4">
-          {/* Facility Brand Card */}
-          <Card className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-xs space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-emerald-600 text-white shadow-xs shrink-0">
-                <Factory className="h-6 w-6" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="font-black text-slate-900 text-base leading-tight truncate">
-                  {processorName}
-                </h2>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[11px] font-bold text-emerald-800">Processing Hub Active</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-emerald-100 pt-3 text-xs text-slate-600 space-y-1">
-              <div className="flex items-center gap-1.5 text-slate-700">
-                <MapPin className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                <span className="truncate font-medium">{processorAddress}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-emerald-700 font-semibold pt-0.5">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                <span>FSSAI & Traceability Node #04</span>
-              </div>
-            </div>
-          </Card>
-
-          {/* Navigation Menu Card ("keep all those in left side of the dashboard") */}
-          <Card className="rounded-3xl border border-emerald-200 bg-white p-3 shadow-xs space-y-1.5">
-            <div className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-              Facility Operations
-            </div>
-
-            {[
-              {
-                id: "browse",
-                label: "Farmer Crops & Batches",
-                icon: Star,
-                count: products.length,
-                description: "Crop Marketplace & Sourcing"
-              },
-              {
-                id: "pipeline",
-                label: "Processing Pipeline",
-                icon: Factory,
-                count: activePipelineBatchesCount,
-                description: "Sorting, Packaging & Dispatch"
-              },
-              {
-                id: "inventory",
-                label: "Inventory & Stock",
-                icon: Boxes,
-                count: authenticInventoryCount,
-                description: "Warehouse Balance & Retailer Link"
-              },
-              {
-                id: "demands",
-                label: "Retailer Demand Desk",
-                icon: Store,
-                description: "Supermarket Purchase Orders"
-              },
-              {
-                id: "history",
-                label: "Operational History",
-                icon: Clock,
-                description: "Audit Logs & Dispatch Ledger"
-              },
-              {
-                id: "profile",
-                label: "Facility Profile",
-                icon: ShieldCheck,
-                description: "FSSAI & Pickup Compliance"
-              }
-            ].map((tab) => {
-              const Icon = tab.icon
-              const isActive = activeTab === tab.id
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`w-full text-left p-3 rounded-2xl flex items-center justify-between transition-all cursor-pointer ${
-                    isActive
-                      ? "bg-emerald-600 text-white font-bold shadow-xs"
-                      : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-950 font-medium"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`p-2 rounded-xl shrink-0 ${
-                      isActive ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-700"
-                    }`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold truncate leading-tight">{tab.label}</p>
-                      <p className={`text-[10px] truncate ${isActive ? "text-emerald-100" : "text-slate-400"}`}>
-                        {tab.description}
-                      </p>
-                    </div>
-                  </div>
-                  {tab.count !== undefined && tab.count > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-                      isActive
-                        ? "bg-white/25 text-white"
-                        : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                    }`}>
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </Card>
-        </aside>
-
-        {/* RIGHT MAIN CANVAS ("fill this ui") */}
-        <div className="flex-1 min-w-0 space-y-6">
-          {/* Active View Title Header */}
-          <div className="border-b border-emerald-200 pb-5">
+      {/* Main Full-Width Content Canvas */}
+      <div className="w-full space-y-6">
+        {/* Active View Title Header */}
+        <div className="border-b border-emerald-200 pb-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">
                 {activeTab === "demands" ? (
@@ -1961,7 +1854,21 @@ export function ProcessorDashboard() {
                 </p>
               </div>
             </div>
+
+            {/* Facility Hub Status Pill */}
+            <div className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-2xl bg-white border border-emerald-200 shadow-2xs self-start shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold text-slate-800">{processorName}</span>
+              </div>
+              <span className="text-slate-300">|</span>
+              <span className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
+                <MapPin className="h-3 w-3 shrink-0" />
+                <span className="max-w-[180px] truncate">{processorAddress}</span>
+              </span>
+            </div>
           </div>
+        </div>
 
       {/* Tabs rendering */}
       {activeTab === "browse" && (
@@ -2506,7 +2413,7 @@ export function ProcessorDashboard() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setActiveTab("history")
+                          switchTab("history")
                           setHistorySubTab("transferred")
                         }}
                         className="border-emerald-300 text-emerald-800 hover:bg-emerald-100/60 rounded-xl text-xs font-bold gap-1.5 self-start sm:self-auto shrink-0"
@@ -2535,7 +2442,7 @@ export function ProcessorDashboard() {
                           variant="default"
                           size="sm"
                           onClick={() => {
-                            setActiveTab("history")
+                            switchTab("history")
                             setHistorySubTab("transferred")
                           }}
                           className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold gap-1.5 shadow-xs"
@@ -3134,7 +3041,7 @@ export function ProcessorDashboard() {
           }}
           onOpenPipeline={(step) => {
             if (step) setPipelineStep(step as any)
-            setActiveTab("pipeline")
+            switchTab("pipeline")
           }}
         />
       )}
@@ -4041,7 +3948,6 @@ export function ProcessorDashboard() {
           }}
         />
       )}
-        </div>
       </div>
 
       {/* DISTRIBUTOR LOGISTICS & DISPATCH MODAL */}
@@ -4227,7 +4133,7 @@ export function ProcessorDashboard() {
                         type="button"
                         onClick={() => {
                           setDispatchModalBatch(null)
-                          setActiveTab("profile")
+                          switchTab("profile")
                         }}
                         className="text-[10px] text-emerald-700 hover:text-emerald-900 hover:underline font-bold cursor-pointer"
                       >
