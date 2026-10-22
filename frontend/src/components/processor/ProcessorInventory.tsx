@@ -5,7 +5,7 @@ import {
   SlidersHorizontal, AlertTriangle, CheckCircle2, Clock,
   ArrowRight, Sparkles, RefreshCw, Store, Scale,
   X, TrendingUp, ChevronRight,
-  ShieldCheck, Loader2, Send
+  ShieldCheck, Loader2, Send, Trash2
 } from "lucide-react"
 import { Card } from "../ui/Card"
 import { Button } from "../ui/Button"
@@ -44,6 +44,7 @@ interface ProcessorInventoryProps {
   decisions: Record<string, any>
   onRefreshProducts: () => void
   onAdjustBatchQuantity?: (batchId: string, newQty: number, reason: string) => void
+  onRemoveInventoryItem?: (item: InventoryItem) => void
   onOpenPipeline?: (step?: string) => void
 }
 
@@ -56,6 +57,7 @@ export function ProcessorInventory({
   decisions,
   onRefreshProducts,
   onAdjustBatchQuantity,
+  onRemoveInventoryItem,
   onOpenPipeline
 }: ProcessorInventoryProps) {
   // Navigation / Filter State
@@ -100,6 +102,31 @@ export function ProcessorInventory({
   const [sourcing, setSourcing] = useState<boolean>(false)
   const [sourceSuccess, setSourceSuccess] = useState<string>("")
   const [sourceError, setSourceError] = useState<string>("")
+
+  // Track manually deleted / removed products from inventory
+  const [deletedItemIds, setDeletedItemIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem("processor_deleted_inventory")
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  })
+
+  // Modal: Delete confirmation
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<InventoryItem | null>(null)
+
+  const handleConfirmRemove = (item: InventoryItem) => {
+    const updated = Array.from(new Set([...deletedItemIds, item.id, item.batchNumber, item.productId]))
+    setDeletedItemIds(updated)
+    try {
+      localStorage.setItem("processor_deleted_inventory", JSON.stringify(updated))
+    } catch {}
+
+    if (onRemoveInventoryItem) {
+      onRemoveInventoryItem(item)
+    }
+  }
 
   // Local overrides for real-time quantity updates before next API cycle
   const [quantityOverrides, setQuantityOverrides] = useState<Record<string, number>>(() => {
@@ -184,6 +211,7 @@ export function ProcessorInventory({
   const inventoryItems = useMemo<InventoryItem[]>(() => {
     const list: InventoryItem[] = []
     const seenIds = new Set<string>()
+    const deletedSet = new Set(deletedItemIds.map(String))
 
     // 1. Processed Batches in Facility Warehouse (Only authentically accepted produce)
     Object.values(batches).forEach((b: any) => {
@@ -191,6 +219,25 @@ export function ProcessorInventory({
       const p = b.originalProduct
       const pId = String(p.id || b.productId)
       const bNum = String(b.batchId || p.batch_number)
+
+      // Skip manually removed products
+      if (deletedSet.has(b.batchId) || deletedSet.has(pId) || (bNum && deletedSet.has(bNum))) return
+
+      // Automatically clear completed or dispatched products that have left the facility
+      const st = (b.deliveryRequestStatus || "").toUpperCase()
+      const isCollectedOrCompleted =
+        st === "IN_TRANSIT" ||
+        st === "PICKED_UP" ||
+        st === "ARRIVED_AT_RETAILER" ||
+        st === "DELIVERED" ||
+        st === "COMPLETED" ||
+        p.status === "Completed" ||
+        p.status === "Delivered" ||
+        p.status === "At Retailer" ||
+        p.status === "Sold" ||
+        (b.stage === "Transferred" && st !== "" && st !== "REQUESTED" && st !== "DECLINED")
+
+      if (isCollectedOrCompleted) return
 
       // Strictly verify this batch was accepted and belongs to this processor:
       const isAccepted =
@@ -210,28 +257,21 @@ export function ProcessorInventory({
       seenIds.add(b.batchId)
       if (bNum) seenIds.add(bNum)
 
-      const st = (b.deliveryRequestStatus || "").toUpperCase()
-      const isCollectedByCarrier =
-        st === "IN_TRANSIT" ||
-        st === "PICKED_UP" ||
-        st === "ARRIVED_AT_RETAILER" ||
-        st === "DELIVERED" ||
-        st === "COMPLETED"
-
       // Physical Intake Weight from Gate Receipt or initial batch quantity
       const receiptWeight = receipts[pId]?.receivedQty || p.quantity || 100
       const initialQty = b.processedQuantity || receiptWeight
 
-      // Current Available Quantity in facility warehouse (0 if already collected by carrier)
+      // Current Available Quantity in facility warehouse
       const overrideQty = quantityOverrides[bKey] ?? quantityOverrides[pId]
-      const availableQty = isCollectedByCarrier
-        ? 0
-        : overrideQty !== undefined
+      const availableQty = overrideQty !== undefined
         ? overrideQty
         : (b.processedQuantity || receiptWeight)
 
+      // Automatically clear product if available stock is 0 and it has been dispatched/transferred
+      if (availableQty <= 0 && (b.stage === "Transferred" || st !== "")) return
+
       // Allocated Quantity (already earmarked for active delivery or retailer order)
-      const allocated = isCollectedByCarrier ? initialQty : Math.max(0, initialQty - availableQty)
+      const allocated = Math.max(0, initialQty - availableQty)
 
       // Calculate Days until Expiry
       let daysUntilExpiry: number | undefined = undefined
@@ -285,6 +325,10 @@ export function ProcessorInventory({
       const pId = String(p.id)
       const bNum = String(p.batch_number || "")
       if (seenIds.has(pId) || (bNum && seenIds.has(bNum))) return
+      if (deletedSet.has(pId) || (bNum && deletedSet.has(bNum)) || deletedSet.has(`RAW-${p.id}`)) return
+
+      // Auto-clear raw crops that are completed, transferred, or in transit
+      if (p.status === "Completed" || p.status === "Delivered" || p.status === "At Retailer" || p.status === "Sold" || p.status === "Processing" || p.status === "In Transit") return
 
       // ONLY include products that were physically accepted and received by this processor:
       const isAccepted =
@@ -301,6 +345,9 @@ export function ProcessorInventory({
       const initialQty = receipts[pId]?.receivedQty || p.quantity || 100
       const overrideQty = quantityOverrides[pId]
       const availableQty = overrideQty !== undefined ? overrideQty : initialQty
+
+      // If available stock is 0, auto-clear from active inventory
+      if (availableQty <= 0) return
 
       let daysUntilExpiry = 10
       if (p.expiry_date) {
@@ -343,7 +390,7 @@ export function ProcessorInventory({
     })
 
     return list
-  }, [products, batches, receipts, decisions, quantityOverrides, storageLocations, safetyThresholds])
+  }, [products, batches, receipts, decisions, quantityOverrides, storageLocations, safetyThresholds, deletedItemIds])
 
   // Key KPI Aggregations
   const totalFarmIntakeKg = useMemo(() => {
@@ -1240,6 +1287,17 @@ export function ProcessorInventory({
                                   Process &rarr;
                                 </Button>
                               )}
+
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setDeleteConfirmItem(item)}
+                                className="h-8 px-2.5 rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 text-xs font-bold gap-1 shadow-xs cursor-pointer"
+                                title="Remove / delete product from warehouse inventory"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Remove
+                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -1667,6 +1725,80 @@ export function ProcessorInventory({
               >
                 {sourcing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                 Broadcast to Farmers
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* MODAL 4: CONFIRM REMOVE FROM INVENTORY */}
+      {deleteConfirmItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in">
+          <Card className="max-w-md w-full rounded-3xl border border-rose-200 bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-rose-100 text-rose-600 shrink-0">
+                <Trash2 className="h-6 w-6" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-lg font-black text-slate-900 leading-tight">Remove from Inventory?</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Clear this produce batch from warehouse stock ledger.
+                </p>
+              </div>
+              <button
+                onClick={() => setDeleteConfirmItem(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Produce Name:</span>
+                <span className="font-bold text-slate-900 capitalize">{deleteConfirmItem.name}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Batch / Lot #:</span>
+                <span className="font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  {deleteConfirmItem.batchNumber}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Available Stock:</span>
+                <span className="font-bold text-slate-900">
+                  {deleteConfirmItem.availableQuantity} {deleteConfirmItem.unit}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Storage Location:</span>
+                <span className="text-slate-700 truncate max-w-[180px]">{deleteConfirmItem.storageZone}</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              This product will be removed from your warehouse balance and will no longer appear in retailer fulfillment or inventory counts.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteConfirmItem(null)}
+                className="rounded-xl text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  handleConfirmRemove(deleteConfirmItem)
+                  setDeleteConfirmItem(null)
+                }}
+                className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold gap-1.5 shadow-xs cursor-pointer"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Yes, Remove Product
               </Button>
             </div>
           </Card>

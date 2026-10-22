@@ -377,12 +377,21 @@ export function ProcessorDashboard() {
       )
       setProducts(active)
       // Auto-reconstruct active batches across devices (e.g. laptop) from database products
+      let deletedBatchesList: string[] = []
+      try {
+        deletedBatchesList = JSON.parse(localStorage.getItem("processor_deleted_batches") || "[]")
+      } catch {
+        deletedBatchesList = []
+      }
+      const deletedBatchesSet = new Set(deletedBatchesList.map(String))
+
       setBatches(prev => {
         let changed = false
         const next = { ...prev }
         active.forEach(p => {
           const pId = String(p.id)
           const bNum = String(p.batch_number || "")
+          if (deletedBatchesSet.has(pId) || (bNum && deletedBatchesSet.has(bNum))) return
           const isAcceptedByMe =
             decisions[pId]?.decision === "Accepted" ||
             (bNum && decisions[bNum]?.decision === "Accepted") ||
@@ -579,7 +588,16 @@ export function ProcessorDashboard() {
         // Check all batch keys from cloud and local
         const allKeys = Array.from(new Set([...Object.keys(cloudBatches), ...Object.keys(localBatches)]))
 
+        let deletedBatchesList: string[] = []
+        try {
+          deletedBatchesList = JSON.parse(localStorage.getItem("processor_deleted_batches") || "[]")
+        } catch {
+          deletedBatchesList = []
+        }
+        const deletedBatchesSet = new Set(deletedBatchesList.map(String))
+
         for (const k of allKeys) {
+          if (deletedBatchesSet.has(k)) continue
           const cB = cloudBatches[k]
           const lB = localBatches[k]
 
@@ -603,6 +621,8 @@ export function ProcessorDashboard() {
           if (!chosen || !chosen.originalProduct) continue
           const pId = String(chosen.productId || chosen.originalProduct?.id || "")
           const bNum = String(chosen.originalProduct?.batch_number || (chosen.originalProduct as any)?.batchNumber || "")
+
+          if (deletedBatchesSet.has(pId) || (bNum && deletedBatchesSet.has(bNum))) continue
 
           const dedupeKey = pId || bNum || k
           if (!seenBatchedProducts.has(dedupeKey)) {
@@ -1461,8 +1481,17 @@ export function ProcessorDashboard() {
             }
           })
           // Auto-reconstruct missing dispatched batches from server requests
+          let deletedBatchesList: string[] = []
+          try {
+            deletedBatchesList = JSON.parse(localStorage.getItem("processor_deleted_batches") || "[]")
+          } catch {
+            deletedBatchesList = []
+          }
+          const deletedBatchesSet = new Set(deletedBatchesList.map(String))
+
           serverRequests.forEach((req: any) => {
             const batchNum = req.batch_number || `PB-${req.id?.slice(0, 6)}`
+            if (deletedBatchesSet.has(batchNum) || (req.product_id && deletedBatchesSet.has(String(req.product_id)))) return
             const alreadyExists = Object.values(nextBatches).some(
               b => b.batchId === batchNum || b.trackingId === req.id || b.trackingId === req.tracking_id
             )
@@ -3091,6 +3120,27 @@ export function ProcessorDashboard() {
               return next
             })
             addLog(`Adjusted inventory quantity for Batch ${batchId} to ${newQty} kg (${reason})`, "Stock Adjusted", undefined, batchId)
+          }}
+          onRemoveInventoryItem={(item) => {
+            setBatches(prev => {
+              const next = { ...prev }
+              delete next[item.batchNumber]
+              delete next[item.id]
+              delete next[item.productId]
+              try {
+                localStorage.setItem("processor_batches", JSON.stringify(next))
+              } catch {}
+              persistProcessorState({ batches: next })
+              return next
+            })
+
+            try {
+              const stored = JSON.parse(localStorage.getItem("processor_deleted_batches") || "[]")
+              const updated = Array.from(new Set([...stored, item.batchNumber, item.id, item.productId]))
+              localStorage.setItem("processor_deleted_batches", JSON.stringify(updated))
+            } catch {}
+
+            addLog(`Removed product ${item.name} (${item.batchNumber}) from warehouse inventory`, "Stock Removed", item.productId, item.batchNumber)
           }}
           onOpenPipeline={(step) => {
             if (step) setPipelineStep(step as any)
