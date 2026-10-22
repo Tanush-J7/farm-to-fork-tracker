@@ -112,13 +112,19 @@ export const fulfillRequestFromStock = async (req: Request, res: Response): Prom
       console.warn('Shipment record creation error (non-fatal):', shipErr.message);
     }
 
-    // 5. Update Product Status to In Transit
+    // 5. Update Product Status & Deduct Available Inventory Quantity
     let txHash: string | null = null;
+    const requestedQty = Number(request.quantity) || 0;
+    const currentQty = Number(product.quantity) || 0;
+    const remainingQty = Math.max(0, currentQty - requestedQty);
+    const isFullyDepleted = remainingQty <= 0;
+
     const { error: prodUpdateErr } = await supabase
       .from('products')
       .update({
-        status: 'In Transit',
-        current_owner_id: distributor_id || processorId,
+        status: isFullyDepleted ? 'In Transit' : product.status,
+        quantity: isFullyDepleted ? currentQty : remainingQty,
+        current_owner_id: isFullyDepleted ? (distributor_id || processorId) : product.current_owner_id,
         updated_at: new Date().toISOString()
       })
       .eq('id', product.id);
@@ -1231,5 +1237,93 @@ export const notifyFarmerIntake = async (req: Request, res: Response): Promise<v
     res.status(200).json({ success: true, message: 'Farmer notified successfully' });
   } catch (err: any) {
     res.status(500).json({ success: false, message: 'Error notifying farmer', error: err.message });
+  }
+};
+
+/**
+ * PUT /api/processor/inventory/:id/adjust
+ * Allows processor to manage stock quantity:
+ * Add fresh intake, record sorting & grading losses, register damage/trimming, or recount physical stock.
+ */
+export const adjustInventoryQuantity = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { new_quantity, change_amount, reason, notes } = req.body;
+    const processorId = (req as any).user?.id;
+
+    if (!processorId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    // 1. Fetch target product batch
+    const { data: product, error: fetchErr } = await supabase
+      .from('products')
+      .select('*')
+      .or(`id.eq.${id},product_id.eq.${Number(id) || -1},batch_number.eq.${id}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (fetchErr || !product) {
+      res.status(404).json({ success: false, message: 'Product batch not found in inventory' });
+      return;
+    }
+
+    const oldQty = Number(product.quantity) || 0;
+    let targetQty = oldQty;
+
+    if (new_quantity !== undefined && !isNaN(Number(new_quantity))) {
+      targetQty = Math.max(0, Number(new_quantity));
+    } else if (change_amount !== undefined && !isNaN(Number(change_amount))) {
+      targetQty = Math.max(0, oldQty + Number(change_amount));
+    } else {
+      res.status(400).json({ success: false, message: 'Provide either new_quantity or change_amount' });
+      return;
+    }
+
+    // 2. Update Supabase record
+    const { data: updatedProduct, error: updateErr } = await supabase
+      .from('products')
+      .update({
+        quantity: targetQty,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', product.id)
+      .select()
+      .single();
+
+    if (updateErr) {
+      res.status(500).json({ success: false, message: 'Failed to update stock quantity', error: updateErr.message });
+      return;
+    }
+
+    // 3. Log event into traceability_events
+    try {
+      await supabase.from('traceability_events').insert({
+        product_id: product.id,
+        batch_number: product.batch_number,
+        event_type: 'INVENTORY_ADJUSTED',
+        actor_id: processorId,
+        location: 'Processor Facility Storage',
+        metadata: {
+          old_quantity: oldQty,
+          new_quantity: targetQty,
+          change: targetQty - oldQty,
+          reason: reason || 'Manual Stock Count Adjustment',
+          notes: notes || '',
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (e: any) {
+      console.warn('Traceability event warning:', e.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Inventory stock adjusted successfully for Batch ${product.batch_number}: ${oldQty} kg -> ${targetQty} kg`,
+      data: updatedProduct
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };

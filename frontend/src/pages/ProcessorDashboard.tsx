@@ -6,13 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../co
 import {
   Factory, AlertCircle, Search, ShieldCheck, Camera, Brain, Clock, User, MapPin,
   Star, Package, Truck, Loader2, QrCode, Upload, Printer, Video, VideoOff, Download, X,
-  Trash2, Scale, Lock, CheckCircle, Store, Thermometer, Phone, ExternalLink, CheckCircle2, Send
+  Trash2, Scale, Lock, CheckCircle, Store, Thermometer, Phone, ExternalLink, CheckCircle2, Send,
+  Boxes
 } from "lucide-react"
 import { Html5Qrcode } from "html5-qrcode"
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
 import jsQR from "jsqr"
 import { getFarmerLocation, getProcessorLocation, getRetailerLocation } from "../utils"
 import { RetailerDemandDesk } from "../components/processor/RetailerDemandDesk"
+import { ProcessorInventory } from "../components/processor/ProcessorInventory"
 import { ProfileManagementSection } from "../components/profile/ProfileManagementSection"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
@@ -160,8 +162,8 @@ export function ProcessorDashboard() {
 
   // Tabs state
   const [searchParams] = useSearchParams()
-  const tabParam = (searchParams.get("tab") as "browse" | "pipeline" | "demands" | "history" | "profile") || "browse"
-  const [activeTab, setActiveTab] = useState<"browse" | "pipeline" | "demands" | "history" | "profile">(tabParam)
+  const tabParam = (searchParams.get("tab") as "browse" | "pipeline" | "inventory" | "demands" | "history" | "profile") || "browse"
+  const [activeTab, setActiveTab] = useState<"browse" | "pipeline" | "inventory" | "demands" | "history" | "profile">(tabParam)
 
   useEffect(() => {
     if (tabParam) {
@@ -1721,6 +1723,8 @@ export function ProcessorDashboard() {
           <div className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-700 border border-emerald-200">
             {activeTab === "demands" ? (
               <Store className="h-7 w-7" />
+            ) : activeTab === "inventory" ? (
+              <Boxes className="h-7 w-7" />
             ) : activeTab === "profile" ? (
               <ShieldCheck className="h-7 w-7" />
             ) : (
@@ -1731,6 +1735,7 @@ export function ProcessorDashboard() {
             <h1 className="text-3xl font-extrabold tracking-tight text-emerald-950">
               {activeTab === "browse" && "Processor Operations & Marketplace"}
               {activeTab === "pipeline" && "Processing Pipeline & Dispatch"}
+              {activeTab === "inventory" && "Warehouse Inventory & Stock Management"}
               {activeTab === "demands" && "Retailer Demand Desk"}
               {activeTab === "history" && "Operational History & Audit"}
               {activeTab === "profile" && "Facility Profile & Compliance"}
@@ -1738,6 +1743,7 @@ export function ProcessorDashboard() {
             <p className="text-slate-600 text-sm mt-0.5 font-medium">
               {activeTab === "browse" && "Browse, source, and inspect crops registered by local farmers."}
               {activeTab === "pipeline" && "Track gate intake, AI quality inspection, crate packaging, and distributor handover."}
+              {activeTab === "inventory" && "Manage farmer produce batches, track available vs allocated stock, and fulfill retailer demands."}
               {activeTab === "demands" && "Review incoming retailer purchase orders. Fulfill from stock or broadcast to farmers."}
               {activeTab === "history" && "Chronological audit logs and history of all processor facility transactions."}
               {activeTab === "profile" && "Manage verified legal facility name, FSSAI / trade license, and physical pickup address."}
@@ -1766,6 +1772,17 @@ export function ProcessorDashboard() {
             }`}
           >
             Processing Pipeline
+          </button>
+          <button
+            onClick={() => setActiveTab("inventory")}
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "inventory"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
+            }`}
+          >
+            <Boxes className="h-3.5 w-3.5" />
+            Inventory & Stock
           </button>
           <button
             onClick={() => setActiveTab("demands")}
@@ -2937,6 +2954,45 @@ export function ProcessorDashboard() {
             })()}
           </Card>
         </div>
+      )}
+
+      {/* Warehouse Inventory & Stock Management Tab */}
+      {activeTab === "inventory" && (
+        <ProcessorInventory
+          api={API}
+          token={token}
+          products={products}
+          batches={batches}
+          receipts={receipts}
+          decisions={decisions}
+          onRefreshProducts={fetchProducts}
+          onAdjustBatchQuantity={(batchId, newQty, reason) => {
+            setBatches(prev => {
+              if (!prev[batchId]) return prev
+              const updated = {
+                ...prev[batchId],
+                processedQuantity: newQty,
+                stageLogs: [
+                  ...(prev[batchId].stageLogs || []),
+                  {
+                    stage: "Stock Adjusted",
+                    date: new Date().toLocaleDateString("en-GB"),
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    remarks: `Quantity adjusted to ${newQty} kg (${reason})`
+                  }
+                ]
+              }
+              const next = { ...prev, [batchId]: updated }
+              persistProcessorState({ batches: next })
+              return next
+            })
+            addLog(`Adjusted inventory quantity for Batch ${batchId} to ${newQty} kg (${reason})`, "Stock Adjusted", undefined, batchId)
+          }}
+          onOpenPipeline={(step) => {
+            if (step) setPipelineStep(step as any)
+            setActiveTab("pipeline")
+          }}
+        />
       )}
 
       {/* Retailer Demand Desk Tab */}

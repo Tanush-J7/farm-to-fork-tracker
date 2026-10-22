@@ -273,7 +273,7 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
 export const updateProductStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { status, current_owner_id, blockchain_hash, extraInfo } = req.body;
+    const { status, current_owner_id, blockchain_hash, extraInfo, quantity } = req.body;
 
     // 1. Fetch current product record
     const { data: existingProduct, error: fetchErr } = await supabase
@@ -311,6 +311,7 @@ export const updateProductStatus = async (req: Request, res: Response) => {
         status: status || existingProduct.status,
         current_owner_id: current_owner_id || existingProduct.current_owner_id,
         blockchain_hash: finalBlockchainHash || undefined,
+        ...(quantity !== undefined && !isNaN(Number(quantity)) ? { quantity: Math.max(0, Number(quantity)) } : {}),
       })
       .eq('id', existingProduct.id)
       .select('*, farmer:farmer_id(id, name, email, role, availability_status, wallet_address)')

@@ -13,7 +13,8 @@ import {
   confirmProcessorDispatch,
   getProcessorState,
   saveProcessorState,
-  notifyFarmerIntake
+  notifyFarmerIntake,
+  adjustInventoryQuantity
 } from '../controllers/processorController';
 
 const router = Router();
@@ -26,10 +27,11 @@ router.get('/state', authorize('processor', 'admin'), getProcessorState);
 router.put('/state', authorize('processor', 'admin'), saveProcessorState);
 router.post('/notify-farmer', authorize('processor', 'admin'), notifyFarmerIntake);
 
-// Processor Demand Desk routes
+// Processor Demand Desk & Inventory routes
 router.get('/requests', authorize('processor', 'admin'), getRetailerRequests);
 router.put('/requests/:id/fulfill', authorize('processor', 'admin'), fulfillRequestFromStock);
 router.put('/requests/:id/source-farmers', authorize('processor', 'admin'), sourceFromFarmers);
+router.put('/inventory/:id/adjust', authorize('processor', 'admin'), adjustInventoryQuantity);
 
 // Distributor Fleet Intelligence, Requests & Assignment
 router.get('/distributors', authorize('processor', 'admin'), getAvailableDistributors);
