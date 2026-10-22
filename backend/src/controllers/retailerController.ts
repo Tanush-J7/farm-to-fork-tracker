@@ -24,7 +24,20 @@ const generateRequestId = async () => {
 
 export const createProductRequest = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { product_name, quantity, unit, required_date, priority, notes } = req.body;
+    const {
+      product_name,
+      quantity,
+      unit,
+      required_date,
+      priority,
+      notes,
+      category,
+      quality_grade,
+      target_price,
+      organic_preferred,
+      packaging_preference,
+      delivery_location
+    } = req.body;
     const retailer_id = (req as any).user?.id;
 
     if (!retailer_id) {
@@ -39,17 +52,32 @@ export const createProductRequest = async (req: Request, res: Response): Promise
 
     const request_id = await generateRequestId();
 
+    // Consolidate rich specifications into notes cleanly
+    let consolidatedNotes = (notes || '').trim();
+    const metadataTags: string[] = [];
+    if (category) metadataTags.push(`Category: ${category}`);
+    if (quality_grade) metadataTags.push(`Quality Grade: ${quality_grade}`);
+    if (target_price) metadataTags.push(`Target Price: ${target_price}`);
+    if (organic_preferred) metadataTags.push(`Organic Certified: Yes`);
+    if (packaging_preference) metadataTags.push(`Packaging: ${packaging_preference}`);
+    if (delivery_location) metadataTags.push(`Receiving Dock: ${delivery_location}`);
+
+    if (metadataTags.length > 0) {
+      const specHeader = `[SPECIFICATIONS]\n${metadataTags.join('\n')}`;
+      consolidatedNotes = consolidatedNotes ? `${specHeader}\n\n[NOTES]\n${consolidatedNotes}` : specHeader;
+    }
+
     const { data: request, error } = await supabase
       .from('product_requests')
       .insert({
         request_id,
         retailer_id,
-        product_name,
-        quantity,
+        product_name: product_name.trim(),
+        quantity: Number(quantity),
         unit,
         required_date,
         priority: priority || 'NORMAL',
-        notes: notes || null,
+        notes: consolidatedNotes || null,
         status: 'PENDING'
       })
       .select()
