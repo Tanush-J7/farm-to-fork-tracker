@@ -516,7 +516,25 @@ export function ProcessorDashboard() {
         let localDeals = JSON.parse(localStorage.getItem("farmer_deals") || "{}")
         let localDeclined = JSON.parse(localStorage.getItem("processor_declined_products") || "{}")
 
-        const mergedBatches = { ...(cloud.batches || {}), ...localBatches }
+        // Sanitize batches: only keep batches that match valid products in DB
+        const rawBatches = { ...(cloud.batches || {}), ...localBatches }
+        const mergedBatches: Record<string, ProcessingBatch> = {}
+        const seenBatchedProducts = new Set<string>()
+
+        for (const [k, b] of Object.entries(rawBatches) as [string, any][]) {
+          if (!b || !b.originalProduct) continue
+          const pId = String(b.productId || b.originalProduct?.id || "")
+          const bNum = String(b.originalProduct?.batch_number || b.originalProduct?.batchNumber || "")
+          if (products.length > 0) {
+            const exists = products.some(p => String(p.id) === pId || (bNum && p.batch_number === bNum))
+            if (!exists) continue
+          }
+          const dedupeKey = pId || bNum || k
+          if (!seenBatchedProducts.has(dedupeKey)) {
+            seenBatchedProducts.add(dedupeKey)
+            mergedBatches[k] = b
+          }
+        }
         const mergedReceipts = { ...(cloud.receipts || {}), ...localReceipts }
         const mergedVerifications = { ...(cloud.verifications || {}), ...localVerifications }
         const mergedInspections = { ...(cloud.inspections || {}), ...localInspections }
@@ -1861,16 +1879,98 @@ export function ProcessorDashboard() {
         </Card>
       )}
 
-      {activeTab === "pipeline" && (
+      {activeTab === "pipeline" && (() => {
+        // Strict Active DB Product Validation & Deduplication
+        const validProductIds = new Set(products.map(p => String(p.id)))
+        const validBatchNumbers = new Set(products.map(p => String(p.batch_number || "")).filter(Boolean))
+
+        const isValidBatch = (b: ProcessingBatch) => {
+          if (!b || !b.originalProduct) return false
+          const pId = String(b.productId || b.originalProduct?.id || "")
+          const bNum = String(b.originalProduct?.batch_number || (b.originalProduct as any)?.batchNumber || "")
+          return validProductIds.has(pId) || (bNum && validBatchNumbers.has(bNum))
+        }
+
+        const deduplicateBatches = (batchList: ProcessingBatch[]) => {
+          const map = new Map<string, ProcessingBatch>()
+          for (const b of batchList) {
+            if (!isValidBatch(b)) continue
+            const key = String(b.productId || b.originalProduct?.id || b.originalProduct?.batch_number || b.batchId)
+            if (!map.has(key)) {
+              map.set(key, b)
+            } else {
+              const existing = map.get(key)!
+              const stageWeight = (s: string) => s === "Transferred" ? 3 : s === "Processing Completed" ? 2 : 1
+              if (stageWeight(b.stage) >= stageWeight(existing.stage)) {
+                map.set(key, b)
+              }
+            }
+          }
+          return Array.from(map.values())
+        }
+
+        const isProductDispatched = (p: Product) => {
+          const isDeclined = Boolean(
+            deals[String(p.id)] === "declined" ||
+            deals[p.batch_number || ""] === "declined" ||
+            deals[p.id] === "declined" ||
+            declinedProducts[p.id] ||
+            declinedProducts[String(p.id)] ||
+            (p.batch_number && declinedProducts[p.batch_number]) ||
+            ((p as any).batchNumber && declinedProducts[(p as any).batchNumber])
+          )
+          if (isDeclined) return false
+
+          return (
+            p.status === "In Transit" ||
+            p.status === "Processing" ||
+            p.status === "Delivered" ||
+            deals[String(p.id)] === "dispatched" ||
+            deals[p.batch_number || ""] === "dispatched" ||
+            deals[p.id] === "dispatched"
+          )
+        }
+
+        const isProductDecidedOrBatched = (p: Product) => {
+          const pId = String(p.id)
+          const bNum = String(p.batch_number || "")
+          const hasDecision = Boolean(decisions[pId] || (bNum && decisions[bNum]))
+          const hasBatch = Object.values(batches).some(b => 
+            isValidBatch(b) && (String(b.productId) === pId || String(b.originalProduct?.id) === pId || (bNum && String(b.originalProduct?.batch_number) === bNum))
+          )
+          return hasDecision || hasBatch
+        }
+
+        const interestedProductsList = products.filter(p => 
+          (interests.includes(String(p.id)) || interests.includes(p.id)) &&
+          !isProductDispatched(p) &&
+          !isProductDecidedOrBatched(p)
+        )
+
+        const receivedProductsList = products.filter(p => 
+          (interests.includes(String(p.id)) || interests.includes(p.id) || p.status === "In Transit" || p.status === "Processing") &&
+          isProductDispatched(p) &&
+          !isProductDecidedOrBatched(p)
+        )
+
+        const activeProcessingBatchesList = deduplicateBatches(
+          Object.values(batches).filter(b => b.stage !== "Processing Completed" && b.stage !== "Transferred")
+        )
+
+        const transferredBatchesList = deduplicateBatches(
+          Object.values(batches).filter(b => b.stage === "Transferred" || b.stageLogs.some(l => l.stage === "Transferred"))
+        )
+
+        return (
         <div className="grid gap-6 lg:grid-cols-4">
           {/* Pipeline Sidebar Step controls */}
           <Card className="col-span-1 rounded-3xl border border-emerald-200 bg-white shadow-sm p-4 h-fit space-y-2">
             <h3 className="font-black text-lg px-2 mb-3 text-emerald-950">Pipeline Status</h3>
             {[
-              { id: "interested", label: "★ Interested Products", count: products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).length },
-              { id: "received", label: "📥 Received / Verify QR", count: products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id]).length },
-              { id: "processing", label: "🏭 Active Processing", count: Object.values(batches).filter(b => b.stage !== "Processing Completed" && b.stage !== "Transferred").length },
-              { id: "completed", label: "🚚 Transferred to Distributor", count: Object.values(batches).filter(b => b.stage === "Transferred" || b.stageLogs.some(l => l.stage === "Transferred")).length }
+              { id: "interested", label: "★ Interested Products", count: interestedProductsList.length },
+              { id: "received", label: "📥 Received / Verify QR", count: receivedProductsList.length },
+              { id: "processing", label: "🏭 Active Processing", count: activeProcessingBatchesList.length },
+              { id: "completed", label: "🚚 Transferred to Distributor", count: transferredBatchesList.length }
             ].map((step) => (
               <button
                 key={step.id}
@@ -1895,18 +1995,18 @@ export function ProcessorDashboard() {
               <div className="space-y-4">
                 <div className="border-b border-emerald-100 pb-4">
                   <h3 className="text-xl font-black text-emerald-950">Interested Farmer Yields</h3>
-                  <p className="text-slate-600 text-sm">Farmer registered products you marked interest in. Once they arrive physically, record their receipt.</p>
+                  <p className="text-slate-600 text-sm">Farmer registered products you marked interest in. Once the farmer prepares and dispatches them, they move to "Received / Verify QR".</p>
                 </div>
 
-                {products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).length === 0 ? (
+                {interestedProductsList.length === 0 ? (
                   <div className="text-center py-20 text-slate-500">
                     <Star className="h-10 w-10 mx-auto text-emerald-300 mb-3" />
-                    <p className="font-bold text-lg text-slate-800">No interested products</p>
-                    <p className="text-sm text-slate-500">Browse available products and click "Express Interest" to add them here.</p>
+                    <p className="font-bold text-lg text-slate-800">No pending interested products</p>
+                    <p className="text-sm text-slate-500">Browse available products and click "Express Interest" to request them from farmers.</p>
                   </div>
                 ) : (
                   <div className="grid gap-4">
-                    {products.filter(p => (interests.includes(String(p.id)) || interests.includes(p.id)) && !receipts[String(p.id)] && !receipts[p.id]).map(p => {
+                    {interestedProductsList.map(p => {
                       const isDeclined = Boolean(
                         deals[String(p.id)] === "declined" ||
                         deals[p.batch_number || ""] === "declined" ||
@@ -1916,27 +2016,8 @@ export function ProcessorDashboard() {
                         (p.batch_number && declinedProducts[p.batch_number]) ||
                         ((p as any).batchNumber && declinedProducts[(p as any).batchNumber])
                       )
-                      const isDispatched = !isDeclined && (
-                        p.status === "In Transit" ||
-                        p.status === "Processing" ||
-                        deals[String(p.id)] === "dispatched" ||
-                        deals[p.batch_number || ""] === "dispatched" ||
-                        deals[p.id] === "dispatched"
-                      )
-                      const isAccepted = !isDeclined && (
-                        isDispatched ||
-                        p.status === "Accepted" ||
-                        deals[String(p.id)] === "accepted" ||
-                        deals[p.batch_number || ""] === "accepted" ||
-                        deals[p.id] === "accepted"
-                      )
-                      const dealStatus = isDeclined 
-                        ? "declined" 
-                        : isDispatched 
-                        ? "dispatched" 
-                        : isAccepted 
-                        ? "accepted" 
-                        : "requested"
+                      const isAccepted = deals[String(p.id)] === "accepted" || deals[p.batch_number || ""] === "accepted" || deals[p.id] === "accepted" || p.status === "Accepted"
+                      const dealStatus = isDeclined ? "declined" : isAccepted ? "accepted" : "requested"
 
                       if (isDeclined || dealStatus === "declined") {
                         return (
@@ -1989,7 +2070,6 @@ export function ProcessorDashboard() {
                                 {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : "🌱"}
                                 {p.name}
                               </h4>
-                              {/* Dynamic Deal Progress Tag */}
                               {dealStatus === "requested" && (
                                 <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
                                   ⏳ Awaiting Farmer Acceptance
@@ -1998,11 +2078,6 @@ export function ProcessorDashboard() {
                               {dealStatus === "accepted" && (
                                 <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1">
                                   📦 Farmer Preparing Batch
-                                </span>
-                              )}
-                              {dealStatus === "dispatched" && (
-                                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1">
-                                  🚚 In Transit / Gate Intake Ready
                                 </span>
                               )}
                             </div>
@@ -2017,32 +2092,15 @@ export function ProcessorDashboard() {
                             >
                               Details
                             </Button>
-                            {isDispatched ? (
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedProduct(p)
-                                  setReceivedQtyInput(String(p.quantity))
-                                  setRemarksInput("")
-                                  setIsInspectionConfirmed(false)
-                                  setIsVerifyModalOpen(true)
-                                }}
-                                className="rounded-xl text-white bg-emerald-600 hover:bg-emerald-500 flex-1 md:flex-initial gap-1.5 font-bold shadow-xs cursor-pointer"
-                              >
-                                <QrCode className="h-4 w-4" />
-                                Scan QR & Verify
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                disabled
-                                title={dealStatus === "requested" ? "Waiting for farmer to accept your interest request." : "Waiting for farmer to mark batch ready for dispatch."}
-                                className="rounded-xl text-slate-400 bg-slate-100 border border-slate-200 flex-1 md:flex-initial gap-1.5 font-medium cursor-not-allowed"
-                              >
-                                <Lock className="h-3.5 w-3.5" />
-                                {dealStatus === "requested" ? "Awaiting Acceptance" : "Awaiting Dispatch"}
-                              </Button>
-                            )}
+                            <Button
+                              size="sm"
+                              disabled
+                              title={dealStatus === "requested" ? "Waiting for farmer to accept your interest request." : "Waiting for farmer to mark batch ready for dispatch."}
+                              className="rounded-xl text-slate-400 bg-slate-100 border border-slate-200 flex-1 md:flex-initial gap-1.5 font-medium cursor-not-allowed"
+                            >
+                              <Lock className="h-3.5 w-3.5" />
+                              {dealStatus === "requested" ? "Awaiting Acceptance" : "Awaiting Dispatch"}
+                            </Button>
                           </div>
                         </div>
                       )
@@ -2056,40 +2114,55 @@ export function ProcessorDashboard() {
               <div className="space-y-4">
                 <div className="border-b border-emerald-100 pb-4">
                   <h3 className="text-xl font-black text-emerald-950">Received Products & Verification</h3>
-                  <p className="text-slate-600 text-sm">Physically received products awaiting QR code authenticity verification and quality grading.</p>
+                  <p className="text-slate-600 text-sm">Physically received produce arrived at the gate. Scan product QR code to verify blockchain authenticity and certify scale weight.</p>
                 </div>
 
-                {products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id]).length === 0 ? (
+                {receivedProductsList.length === 0 ? (
                   <div className="text-center py-20 text-slate-500">
                     <Package className="h-10 w-10 mx-auto text-emerald-300 mb-3" />
                     <p className="font-bold text-lg text-slate-800">No received items awaiting check</p>
-                    <p className="text-sm text-slate-500">Receive a product from the "Interested" tab to start verification.</p>
+                    <p className="text-sm text-slate-500">Produce dispatched by farmers will arrive here automatically for gate intake and QR code scanning.</p>
                   </div>
                 ) : (
                   <div className="grid gap-4">
-                    {products.filter(p => (receipts[String(p.id)] || receipts[p.id]) && !decisions[String(p.id)] && !decisions[p.id]).map(p => (
+                    {receivedProductsList.map(p => (
                       <div key={p.id} className="p-5 rounded-2xl border border-emerald-200 bg-white hover:border-emerald-300 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all">
                         <div>
-                          <h4 className="font-bold text-lg text-slate-900 flex items-center gap-1.5">
-                            {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : "🌱"}
-                            {p.name}
-                          </h4>
-                          <p className="text-xs text-slate-600">Registered: {p.quantity} kg • Received: {receipts[p.id]?.receivedQty} kg</p>
-                          <p className="text-xs text-slate-500 mt-1">Arrival: {receipts[p.id]?.arrivalDate} • {receipts[p.id]?.arrivalTime}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-bold text-lg text-slate-900 flex items-center gap-1.5">
+                              {p.name.includes("Tomato") ? "🍅" : p.name.includes("Mango") ? "🥭" : "🌱"}
+                              {p.name}
+                            </h4>
+                            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1">
+                              🚚 Arrived at Gate / Ready for Inspection
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-600 mt-1">Farmer: {p.farmer?.name || "Ravi"} • Registered: {p.quantity} kg • Batch: {p.batch_number || p.id}</p>
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedProduct(p)
-                            setReceivedQtyInput(String(receipts[p.id]?.receivedQty || p.quantity))
-                            setRemarksInput("")
-                            setIsInspectionConfirmed(false)
-                            setIsVerifyModalOpen(true)
-                          }}
-                          className="rounded-xl text-white bg-emerald-600 hover:bg-emerald-500 font-bold shadow-xs w-full md:w-auto cursor-pointer"
-                        >
-                          Scan QR & Verify
-                        </Button>
+                        <div className="flex gap-2 w-full md:w-auto items-center">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedProduct(p)}
+                            className="rounded-xl flex-1 md:flex-initial border-emerald-200 text-emerald-800 hover:bg-emerald-50 font-bold"
+                          >
+                            Details
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedProduct(p)
+                              setReceivedQtyInput(String(receipts[p.id]?.receivedQty || p.quantity))
+                              setRemarksInput("")
+                              setIsInspectionConfirmed(false)
+                              setIsVerifyModalOpen(true)
+                            }}
+                            className="rounded-xl text-white bg-emerald-600 hover:bg-emerald-500 font-bold shadow-xs flex-1 md:flex-initial cursor-pointer gap-2"
+                          >
+                            <QrCode className="h-4 w-4" />
+                            Scan QR & Verify
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2104,15 +2177,15 @@ export function ProcessorDashboard() {
                   <p className="text-slate-600 text-sm">Accepted batches currently undergoing sorting, processing, packaging or final verification.</p>
                 </div>
 
-                {Object.values(batches).filter(b => b.stage !== "Processing Completed" && b.stage !== "Transferred").length === 0 ? (
+                {activeProcessingBatchesList.length === 0 ? (
                   <div className="text-center py-20 text-slate-500">
                     <Factory className="h-10 w-10 mx-auto text-emerald-300 mb-3" />
                     <p className="font-bold text-lg text-slate-800">No active batches in processing</p>
-                    <p className="text-sm text-slate-500">Accept a received product to create a processing batch.</p>
+                    <p className="text-sm text-slate-500">Accept a received product from "Received / Verify QR" to create a processing batch.</p>
                   </div>
                 ) : (
                   <div className="grid gap-6">
-                    {Object.values(batches).filter(b => b.stage !== "Processing Completed" && b.stage !== "Transferred").map(b => (
+                    {activeProcessingBatchesList.map(b => (
                       <div key={b.batchId} className="p-6 rounded-3xl border border-emerald-200 bg-white space-y-5 shadow-xs">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                           <div>
@@ -2171,7 +2244,7 @@ export function ProcessorDashboard() {
                             variant="outline"
                             size="sm"
                             onClick={() => setQrViewBatch(b)}
-                            className="rounded-xl text-xs font-bold gap-1.5 border-emerald-200 text-emerald-800 hover:bg-emerald-50"
+                            className="rounded-xl text-xs font-bold gap-1.5 border-emerald-200 text-emerald-800 hover:bg-emerald-50 cursor-pointer"
                           >
                             <QrCode className="h-3.5 w-3.5" />
                             Batch QR Sticker
@@ -2196,7 +2269,7 @@ export function ProcessorDashboard() {
                   </p>
                 </div>
 
-                {Object.values(batches).filter(b => b.stage === "Transferred" || b.stageLogs.some(l => l.stage === "Transferred")).length === 0 ? (
+                {transferredBatchesList.length === 0 ? (
                   <div className="text-center py-20 text-slate-500 space-y-2">
                     <Truck className="h-12 w-12 mx-auto text-emerald-300 mb-2" />
                     <p className="font-bold text-lg text-slate-800">No batches transferred yet</p>
@@ -2204,7 +2277,7 @@ export function ProcessorDashboard() {
                   </div>
                 ) : (
                   <div className="grid gap-6">
-                    {Object.values(batches).filter(b => b.stage === "Transferred" || b.stageLogs.some(l => l.stage === "Transferred")).map(b => {
+                    {transferredBatchesList.map(b => {
                       const originalId = (b.originalProduct.product_id && b.originalProduct.product_id >= 100000 && b.originalProduct.product_id <= 999999) 
                         ? b.originalProduct.product_id 
                         : 100000 + (Math.abs(Number(b.originalProduct.product_id || 0)) % 899999)
@@ -2236,7 +2309,6 @@ export function ProcessorDashboard() {
 
                           {/* 4-Grid Key Logistics Details */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-                            {/* Processed Quantity */}
                             <div className="p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-100 space-y-1">
                               <span className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
                                 📦 Processed Quantity
@@ -2245,7 +2317,6 @@ export function ProcessorDashboard() {
                               <p className="text-[11px] text-emerald-700 font-semibold">Output Packaged Produce</p>
                             </div>
 
-                            {/* Estimated Shelf Life */}
                             <div className="p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-100 space-y-1">
                               <span className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
                                 ⏳ Estimated Shelf Life
@@ -2254,7 +2325,6 @@ export function ProcessorDashboard() {
                               <p className="text-[11px] text-slate-600 font-medium">{b.expiryDate ? `~${b.estimatedShelfLifeDays || 14} Days Certified` : "Certified Shelf Life"}</p>
                             </div>
 
-                            {/* Certified Quality & Grade */}
                             <div className="p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-100 space-y-1">
                               <span className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
                                 🏅 Certified Quality & Grade
@@ -2265,7 +2335,6 @@ export function ProcessorDashboard() {
                               <p className="text-[11px] text-slate-600 font-medium">Gate Physical Inspection</p>
                             </div>
 
-                            {/* Processing Completion Timestamp */}
                             <div className="p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-100 space-y-1">
                               <span className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
                                 🕒 Processing Completed
@@ -2548,7 +2617,7 @@ export function ProcessorDashboard() {
                               variant="outline"
                               size="sm"
                               onClick={() => setQrViewBatch(b)}
-                              className="rounded-xl text-xs font-bold gap-1.5 border-emerald-200 text-emerald-800 hover:bg-emerald-50"
+                              className="rounded-xl text-xs font-bold gap-1.5 border-emerald-200 text-emerald-800 hover:bg-emerald-50 cursor-pointer"
                             >
                               <QrCode className="h-3.5 w-3.5" />
                               View Batch QR Sticker
@@ -2563,7 +2632,8 @@ export function ProcessorDashboard() {
             )}
           </Card>
         </div>
-      )}
+        )
+      })()}
 
       {activeTab === "history" && (
         <div className="grid gap-6 lg:grid-cols-4">
