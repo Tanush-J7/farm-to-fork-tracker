@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router-dom"
-import { Leaf } from "lucide-react"
+import { Leaf, QrCode } from "lucide-react"
 import { Button } from "../ui/Button"
 
 export function PublicLayout() {
@@ -26,6 +26,13 @@ export function PublicLayout() {
           >
             Home
           </Link>
+          <a 
+            className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 transition-colors cursor-pointer flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20"
+            href={getHomeHash("#consumer-scanner")}
+          >
+            <QrCode className="w-3.5 h-3.5" />
+            Scan Product QR
+          </a>
           <Link 
             className="text-sm font-medium hover:text-primary transition-colors cursor-pointer" 
             to="/track"

@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom"
 import { Button } from "../components/ui/Button"
+import { ConsumerScanner } from "../components/consumer/ConsumerScanner"
 import {
   Leaf, ShieldCheck, ArrowRight, QrCode,
   Brain, Users, Package, Truck, Factory, Store
@@ -22,14 +23,40 @@ export function LandingPage() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto justify-center">
+              <a href="#consumer-scanner">
+                <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg rounded-full text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/25">
+                  <QrCode className="mr-2 h-5 w-5" />
+                  Scan Product QR Code
+                </Button>
+              </a>
               <Link to="/register">
-                <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg rounded-full text-white bg-primary hover:bg-primary/95">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto h-14 px-8 text-lg rounded-full">
                   Get Started
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Consumer QR Scanner Section */}
+      <section id="consumer-scanner" className="w-full py-16 md:py-24 bg-gradient-to-b from-emerald-50/60 via-white to-slate-50 dark:from-emerald-950/20 dark:via-zinc-950 dark:to-zinc-900 border-y border-emerald-500/20 scroll-mt-20">
+        <div className="container px-4 md:px-6 mx-auto">
+          <div className="text-center max-w-3xl mx-auto mb-10 space-y-3">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-semibold uppercase tracking-wider">
+              <QrCode className="w-3.5 h-3.5" />
+              Direct Consumer Traceability
+            </div>
+            <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight">
+              Scan & Verify Your Food&apos;s Journey
+            </h2>
+            <p className="text-muted-foreground text-base md:text-lg">
+              Scan the retail product QR code or enter the batch code to instantly verify authenticity, harvest dates, cold-chain temperature logs, farmer profile, and expiration date on the blockchain.
+            </p>
+          </div>
+
+          <ConsumerScanner />
         </div>
       </section>
 
