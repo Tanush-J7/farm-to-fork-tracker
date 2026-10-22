@@ -75,6 +75,9 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
   const [newName, setNewName] = useState("")
   const [newEmail, setNewEmail] = useState("")
   const [newPhone, setNewPhone] = useState("")
+  const [newLicense, setNewLicense] = useState("")
+  const [newFacilityType, setNewFacilityType] = useState("")
+  const [newCapacity, setNewCapacity] = useState("")
   const [successMsg, setSuccessMsg] = useState("")
   const [lat, setLat] = useState<number | null>(null)
   const [lng, setLng] = useState<number | null>(null)
@@ -159,6 +162,9 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
     setNewName(user?.name || "")
     setNewEmail(user?.email || "")
     setNewPhone(user?.phone || "")
+    setNewLicense((user as any)?.license_number || (user as any)?.license || "")
+    setNewFacilityType((user as any)?.facility_type || "")
+    setNewCapacity((user as any)?.storage_capacity || "")
     setLat(null)
     setLng(null)
     setSuccessMsg("")
@@ -223,6 +229,9 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
     if (newPhone !== user?.phone) updates.phone = newPhone
     if (newAddress !== user?.address) updates.address = newAddress
     if (newPhoto) updates.photo = newPhoto
+    if (newLicense) updates.license_number = newLicense
+    if (newFacilityType) updates.facility_type = newFacilityType
+    if (newCapacity) updates.storage_capacity = newCapacity
     updates.settingsLastUpdated = nowISO
 
     if (Object.keys(updates).length > 0) {
@@ -395,8 +404,20 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
                 )
               })}
 
-              {/* Mobile Settings Button for Farmer & Processor */}
-              {(role === "farmer" || role === "processor") && (
+              {/* Mobile Profile Link for Farmer */}
+              {role === "farmer" && (
+                <Link
+                  to="/farmer?tab=profile"
+                  onClick={() => onMobileClose?.()}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left transition-all duration-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-950 text-sm font-semibold cursor-pointer"
+                >
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <span>Farm Profile</span>
+                </Link>
+              )}
+
+              {/* Mobile Settings Button for Processor */}
+              {role === "processor" && (
                 <button
                   onClick={() => {
                     onMobileClose?.()
@@ -533,16 +554,21 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
                 )
               })}
 
-              {/* Farmer Settings Nav Button */}
+              {/* Farmer Profile Nav Link */}
               {role === "farmer" && (
-                <button
-                  onClick={handleOpenModal}
-                  title="Settings"
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 text-muted-foreground hover:bg-emerald-50 hover:text-primary text-sm font-medium cursor-pointer"
+                <Link
+                  to="/farmer?tab=profile"
+                  title="Farm Profile"
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 text-sm font-medium cursor-pointer",
+                    location.pathname === "/farmer" && location.search.includes("tab=profile")
+                      ? "bg-emerald-100 text-primary font-semibold"
+                      : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
+                  )}
                 >
-                  <Edit3 className="h-5 w-5 shrink-0" />
-                  {!collapsed && <span>Settings</span>}
-                </button>
+                  <ShieldCheck className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span>Farm Profile</span>}
+                </Link>
               )}
             </div>
           ) : (
@@ -692,7 +718,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
                 {user?.role === "farmer" ? (
                   <>
                     <Leaf className="h-5 w-5 text-emerald-600" />
-                    <span>⚙️ Farmer Settings</span>
+                    <span>👤 Farmer Profile</span>
                   </>
                 ) : (
                   <span>⚙️ Processor Settings</span>
@@ -786,11 +812,53 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
                 />
               </div>
 
-              {/* 5. Address */}
+              {/* 5. License / Kisan ID */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <span>{user?.role === "farmer" ? "5. 📜 Agricultural Reg / Kisan ID / FSSAI" : "5. 📜 FSSAI / Trade License"}</span>
+                </label>
+                <input
+                  type="text"
+                  value={newLicense}
+                  onChange={(e) => setNewLicense(e.target.value)}
+                  placeholder={user?.role === "farmer" ? "e.g. KISAN-KA-8491 or ORG-IND-2026-98124" : "e.g. FSSAI-11223344556677"}
+                  className="flex h-9 w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 font-mono"
+                />
+              </div>
+
+              {/* 6. Farm / Facility Type */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <span>{user?.role === "farmer" ? "6. 🌱 Farm & Cultivation Type" : "6. 🏭 Facility Classification"}</span>
+                </label>
+                <input
+                  type="text"
+                  value={newFacilityType}
+                  onChange={(e) => setNewFacilityType(e.target.value)}
+                  placeholder={user?.role === "farmer" ? "e.g. Certified Organic Polyhouse & Farmland" : "e.g. Chilled Agro-Processing Warehouse"}
+                  className="flex h-9 w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+                />
+              </div>
+
+              {/* 7. Storage Capacity */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  <span>{user?.role === "farmer" ? "7. 📦 Farm Storage / Harvest Capacity" : "7. 📦 Storage & Dock Capacity"}</span>
+                </label>
+                <input
+                  type="text"
+                  value={newCapacity}
+                  onChange={(e) => setNewCapacity(e.target.value)}
+                  placeholder={user?.role === "farmer" ? "e.g. 50 Metric Tons Farm Cold Shed" : "e.g. 500 Metric Tons Chilled"}
+                  className="flex h-9 w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+                />
+              </div>
+
+              {/* 8. Address */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                    <span>{user?.role === "farmer" ? "5. 📍 Farm Address" : "5. 📍 Facility Address"}</span>
+                    <span>{user?.role === "farmer" ? "8. 📍 Farm Address" : "8. 📍 Facility Address"}</span>
                   </label>
                   <button
                     type="button"

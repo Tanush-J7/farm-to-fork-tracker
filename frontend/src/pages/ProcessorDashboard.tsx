@@ -403,7 +403,7 @@ export function ProcessorDashboard() {
             const hasBatch = Object.values(next).some(b => b.productId === p.id || b.batchId === p.batch_number)
             if (!hasBatch) {
               changed = true
-              const synthId = p.batch_number?.startsWith("PB-") ? p.batch_number : `PB-${p.batch_number || p.id.slice(0, 6)}`
+              const synthId = p.batch_number || p.id
               next[synthId] = {
                 batchId: synthId,
                 productId: p.id,
@@ -428,7 +428,7 @@ export function ProcessorDashboard() {
         // Clean out only unaccepted synthetic batches that have zero operational history
         Object.keys(next).forEach(k => {
           const b = next[k]
-          if (b && b.batchId && b.batchId.startsWith("PB-")) {
+          if (b && b.batchId) {
             const pId = String(b.productId || b.originalProduct?.id)
             const bNum = String(b.batchId || b.originalProduct?.batch_number)
             const hasIntakeRecord =
@@ -1256,14 +1256,14 @@ export function ProcessorDashboard() {
         ai_quality_label: `Grade ${autoGrade}`
       }
 
-      // Create batch ID: PB-XXXXXX mapped randomly
-      const randomBatchId = `PB-${Math.floor(10000 + Math.random() * 90000)}`
+      // Keep batch ID constant throughout processor across all fields from farmer to retailer
+      const batchId = selectedProduct.batch_number || (selectedProduct as any).batchNumber || selectedProduct.id
       const remarksText = hasShortage
         ? `Batch verified & accepted at gate. Scale Weight: ${verifiedQty} kg (${shortageAmount} kg Shortage [${shortagePercent}%], Reason: ${transitLossReasonInput}). Quality Score: ${computedScore}% (Grade ${autoGrade}). Remarks: ${remarksInput || "Standard Intake"}`
         : `Batch verified & accepted at gate. Scale Weight: ${verifiedQty} kg. Quality Score: ${computedScore}% (Grade ${autoGrade}). Remarks: ${remarksInput || "Standard Intake"}`
 
       const newBatch: ProcessingBatch = {
-        batchId: randomBatchId,
+        batchId: batchId,
         productId: selectedProduct.id,
         originalProduct: verifiedProduct,
         processorName: processorName,
@@ -1273,14 +1273,14 @@ export function ProcessorDashboard() {
         createdDate: formattedDate,
         createdTime: formattedTime
       }
-      const updatedBatches = { ...batches, [randomBatchId]: newBatch }
+      const updatedBatches = { ...batches, [batchId]: newBatch }
       persistProcessorState({
         receipts: updatedReceipts,
         batches: updatedBatches,
         decisions: updatedDecisions
       })
 
-      addLog(`Accepted product ${selectedProduct.name} (Batch: ${randomBatchId}) - Scale Weight: ${verifiedQty} kg, Quality: ${computedScore}% (Grade ${autoGrade})`, "Accepted - Ready for Processing", selectedProduct.id, randomBatchId)
+      addLog(`Accepted product ${selectedProduct.name} (Batch: ${batchId}) - Scale Weight: ${verifiedQty} kg, Quality: ${computedScore}% (Grade ${autoGrade})`, "Accepted - Ready for Processing", selectedProduct.id, batchId)
 
       // Notify Farmer of Acceptance & sync across cloud
       try {
@@ -1490,7 +1490,7 @@ export function ProcessorDashboard() {
           const deletedBatchesSet = new Set(deletedBatchesList.map(String))
 
           serverRequests.forEach((req: any) => {
-            const batchNum = req.batch_number || `PB-${req.id?.slice(0, 6)}`
+            const batchNum = req.batch_number || req.id
             if (deletedBatchesSet.has(batchNum) || (req.product_id && deletedBatchesSet.has(String(req.product_id)))) return
             const alreadyExists = Object.values(nextBatches).some(
               b => b.batchId === batchNum || b.trackingId === req.id || b.trackingId === req.tracking_id
@@ -3738,7 +3738,7 @@ export function ProcessorDashboard() {
                 </div>
                 <div>
                   <span className="text-xs text-slate-500 uppercase font-bold">Harvest Batch</span>
-                  <p className="font-bold font-mono text-xs text-emerald-900">{selectedProduct.batch_number || (selectedProduct as any).batchNumber || "BCH-20260903-RH59"}</p>
+                  <p className="font-bold font-mono text-xs text-emerald-900">{selectedProduct.batch_number || (selectedProduct as any).batchNumber || selectedProduct.id}</p>
                 </div>
                 <div>
                   <span className="text-xs text-slate-500 uppercase font-bold">Current Status</span>

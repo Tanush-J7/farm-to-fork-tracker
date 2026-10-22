@@ -4,8 +4,9 @@ import { Button } from "../components/ui/Button"
 import {
   Leaf, Plus, X, CheckCircle2, Clock, Truck, Factory,
   ShoppingBag, AlertCircle, RefreshCw, Wheat, Star, ImagePlus, CalendarDays, Wand2, Trash2, QrCode, Printer, Download,
-  Bell, PackageCheck, Check, ShoppingCart, ArrowRight
+  Bell, PackageCheck, Check, ShoppingCart, ArrowRight, ShieldCheck, Camera, Sparkles
 } from "lucide-react"
+import { ProfileManagementSection } from "../components/profile/ProfileManagementSection"
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
 import axios from "axios"
 import { useAuth } from "../context/AuthContext"
@@ -29,19 +30,35 @@ export interface FarmerNotification {
   message: string
 }
 
+export const CROP_PRESETS = [
+  { name: "Organic Tomatoes", category: "Vegetables", shelfDays: 14, icon: "🍅" },
+  { name: "Farm Fresh Potatoes", category: "Vegetables", shelfDays: 60, icon: "🥔" },
+  { name: "Red Onions", category: "Vegetables", shelfDays: 60, icon: "🧅" },
+  { name: "Crisp Apples", category: "Fruits", shelfDays: 21, icon: "🍎" },
+  { name: "Golden Wheat", category: "Grains & Cereals", shelfDays: 180, icon: "🌾" },
+  { name: "Basmati Rice", category: "Grains & Cereals", shelfDays: 180, icon: "🍚" },
+  { name: "Fresh Carrots", category: "Vegetables", shelfDays: 14, icon: "🥕" },
+  { name: "Sweet Mangoes", category: "Fruits", shelfDays: 10, icon: "🥭" },
+  { name: "Fresh Dairy Milk", category: "Dairy & Poultry", shelfDays: 4, icon: "🥛" },
+]
+
+export const addDaysToToday = (days: number) => {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  return d.toISOString().split("T")[0]
+}
+
 const generateBatchNumber = () => {
-  const date = new Date()
-  const datePart = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`
-  const randomPart = Math.random().toString(36).slice(2, 6).toUpperCase()
-  return `BCH-${datePart}-${randomPart}`
+  const num = Math.floor(1000 + Math.random() * 9000)
+  return `BCH-${num}`
 }
 
 const createProductForm = () => ({
   name: "",
-  category: "",
+  category: "Vegetables",
   quantity: "",
   batchNumber: generateBatchNumber(),
-  expiryDate: "",
+  expiryDate: addDaysToToday(14),
   organicStatus: true,
 })
 
@@ -102,7 +119,9 @@ export function FarmerDashboard() {
 
   const currentTab = location.pathname.includes("supply-requests") || searchParams.get("tab") === "supply-requests"
     ? "supply-requests"
-    : searchParams.get("tab") || "farm"
+    : searchParams.get("tab") === "profile"
+    ? "profile"
+    : "farm"
 
   // Form state
   const [showForm, setShowForm] = useState(false)
@@ -110,6 +129,30 @@ export function FarmerDashboard() {
   const [imageData, setImageData] = useState("")
   const [imagePreview, setImagePreview] = useState("")
   const photoInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+
+  const handleApplyCropPreset = (preset: typeof CROP_PRESETS[0]) => {
+    setForm(prev => ({
+      ...prev,
+      name: preset.name,
+      category: preset.category,
+      expiryDate: addDaysToToday(preset.shelfDays),
+    }))
+  }
+
+  const handleQuickExpiry = (days: number) => {
+    setForm(prev => ({
+      ...prev,
+      expiryDate: addDaysToToday(days),
+    }))
+  }
+
+  const handleRegenerateBatch = () => {
+    setForm(prev => ({
+      ...prev,
+      batchNumber: generateBatchNumber(),
+    }))
+  }
   const [submitting, setSubmitting] = useState(false)
   const [formMsg, setFormMsg] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
@@ -684,15 +727,15 @@ export function FarmerDashboard() {
       </div>
 
       {/* Primary Tab Navigation */}
-      <div className="flex items-center gap-2 border-b border-emerald-100 pb-3">
+      <div className="flex items-center gap-2 border-b border-emerald-100 pb-3 overflow-x-auto">
         <button
           onClick={() => {
             setSearchParams({})
             if (location.pathname.includes("supply-requests")) navigate("/farmer")
           }}
           className={cn(
-            "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all cursor-pointer",
-            currentTab !== "supply-requests"
+            "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all cursor-pointer whitespace-nowrap",
+            currentTab === "farm"
               ? "bg-emerald-600 text-white shadow-md shadow-emerald-700/20"
               : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
           )}
@@ -701,7 +744,7 @@ export function FarmerDashboard() {
           <span>My Farm & Batches</span>
           <span className={cn(
             "px-2 py-0.5 text-xs rounded-full font-bold",
-            currentTab !== "supply-requests" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
+            currentTab === "farm" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
           )}>
             {products.length}
           </span>
@@ -712,7 +755,7 @@ export function FarmerDashboard() {
             setSearchParams({ tab: "supply-requests" })
           }}
           className={cn(
-            "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all cursor-pointer relative",
+            "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all cursor-pointer relative whitespace-nowrap",
             currentTab === "supply-requests"
               ? "bg-emerald-600 text-white shadow-md shadow-emerald-700/20"
               : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
@@ -726,9 +769,26 @@ export function FarmerDashboard() {
             </span>
           )}
         </button>
+
+        <button
+          onClick={() => {
+            setSearchParams({ tab: "profile" })
+          }}
+          className={cn(
+            "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all cursor-pointer whitespace-nowrap",
+            currentTab === "profile"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-700/20"
+              : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
+          )}
+        >
+          <ShieldCheck className="h-4 w-4" />
+          <span>Farm Profile & Compliance</span>
+        </button>
       </div>
 
-      {currentTab === "supply-requests" ? (
+      {currentTab === "profile" ? (
+        <ProfileManagementSection role="farmer" />
+      ) : currentTab === "supply-requests" ? (
         <FarmerSupplyRequestsDesk
           sourcingOrders={sourcingOrders}
           products={products}
@@ -1049,65 +1109,192 @@ export function FarmerDashboard() {
             </div>
 
             <form onSubmit={handleRegister} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {[
-                  { label: "Product Name", name: "name", placeholder: "e.g. Organic Tomatoes" },
-                  { label: "Category", name: "category", placeholder: "e.g. Vegetables" },
-                  { label: "Quantity (kg)", name: "quantity", placeholder: "500", type: "number" },
-                  { label: "Expiry Date", name: "expiryDate", placeholder: "", type: "date" },
-                  { label: "Batch Number", name: "batchNumber", placeholder: "", readOnly: true },
-                ].map(f => (
-                  <div key={f.name} className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">{f.label}</label>
-                    <input
-                      type={f.type || "text"}
-                      name={f.name}
-                      min={f.type === "number" ? "0" : undefined}
-                      step={f.type === "number" ? "any" : undefined}
-                      onKeyDown={f.type === "number" ? (e) => { if (e.key === "-" || e.key === "e") e.preventDefault() } : undefined}
-                      value={(form as any)[f.name]}
-                      onChange={handleFormChange}
-                      placeholder={f.placeholder}
-                      readOnly={f.readOnly}
-                      className="flex h-11 w-full rounded-2xl border border-emerald-200 bg-white px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                    />
-                  </div>
-                ))}
+              {/* Quick Crop Selector Pills */}
+              <div className="space-y-2 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-3.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+                    Quick Crop Presets (1-Click Auto-Fill)
+                  </span>
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md">Smart Shelf-Life</span>
+                </div>
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  {CROP_PRESETS.map((p) => (
+                    <button
+                      key={p.name}
+                      type="button"
+                      onClick={() => handleApplyCropPreset(p)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap border transition-all cursor-pointer",
+                        form.name === p.name
+                          ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                          : "bg-white text-slate-700 border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50"
+                      )}
+                    >
+                      <span>{p.icon}</span>
+                      <span>{p.name.replace("Organic ", "").replace("Farm Fresh ", "").replace("Fresh ", "")}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <div>
-                    <label htmlFor="productPhoto" className="text-xs font-bold text-slate-800">Product Photo</label>
-                    <p className="text-xs text-slate-500 mt-0.5">Upload a clear photo for computer-vision quality scoring.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* Product Name */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Product Name *</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={form.name}
+                    onChange={handleFormChange}
+                    placeholder="e.g. Organic Tomatoes"
+                    required
+                    className="flex h-10 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-semibold"
+                  />
+                </div>
+
+                {/* Category Dropdown */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Category *</label>
+                  <select
+                    name="category"
+                    value={form.category}
+                    onChange={handleFormChange}
+                    className="flex h-10 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-semibold cursor-pointer"
+                  >
+                    <option value="Vegetables">Vegetables</option>
+                    <option value="Fruits">Fruits</option>
+                    <option value="Grains & Cereals">Grains & Cereals</option>
+                    <option value="Pulses & Legumes">Pulses & Legumes</option>
+                    <option value="Dairy & Poultry">Dairy & Poultry</option>
+                    <option value="Spices & Herbs">Spices & Herbs</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                {/* Quantity */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700">Quantity (kg) *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="any"
+                    name="quantity"
+                    value={form.quantity}
+                    onChange={handleFormChange}
+                    placeholder="500"
+                    required
+                    className="flex h-10 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-bold"
+                  />
+                </div>
+
+                {/* Batch Number (Small & Constant) */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700">Batch Code (Small & Constant) *</label>
+                    <button
+                      type="button"
+                      onClick={handleRegenerateBatch}
+                      title="Roll a fresh small batch code"
+                      className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-200 cursor-pointer"
+                    >
+                      <RefreshCw className="h-2.5 w-2.5" />
+                      <span>New</span>
+                    </button>
                   </div>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs text-emerald-700 border border-emerald-200 font-bold">
+                  <input
+                    type="text"
+                    name="batchNumber"
+                    value={form.batchNumber}
+                    onChange={handleFormChange}
+                    placeholder="e.g. BCH-4821"
+                    required
+                    className="flex h-10 w-full rounded-xl border border-emerald-200 bg-emerald-50/50 px-3 py-2 text-xs font-mono font-bold text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                  <span className="text-[10px] text-slate-500 block leading-tight">
+                    Maintained constant across Processor, Distributor & Retailer.
+                  </span>
+                </div>
+
+                {/* Expiry Date with Smart Quick Pills */}
+                <div className="space-y-1 sm:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700">Expiry Date (Shelf Life) *</label>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-400 mr-1 hidden sm:inline">Quick shelf-life:</span>
+                      {[
+                        { label: "+7d", days: 7 },
+                        { label: "+14d", days: 14 },
+                        { label: "+30d", days: 30 },
+                        { label: "+60d", days: 60 },
+                        { label: "+180d", days: 180 },
+                      ].map((q) => (
+                        <button
+                          key={q.label}
+                          type="button"
+                          onClick={() => handleQuickExpiry(q.days)}
+                          className="px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold cursor-pointer"
+                        >
+                          {q.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <input
+                    type="date"
+                    name="expiryDate"
+                    value={form.expiryDate}
+                    onChange={handleFormChange}
+                    required
+                    className="flex h-10 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* Product Photo: Upload & Camera */}
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
+                <div className="flex items-center justify-between gap-3 mb-2.5">
+                  <div>
+                    <label className="text-xs font-bold text-slate-800">Product Photo</label>
+                    <p className="text-xs text-slate-500 mt-0.5">Upload file or take live camera photo for computer-vision quality scoring.</p>
+                  </div>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs text-emerald-700 border border-emerald-200 font-bold shadow-2xs">
                     <Wand2 className="h-3 w-3" /> AI ready
                   </span>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3 items-start">
-                  <label htmlFor="productPhoto" className="flex min-h-20 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-emerald-300 bg-white px-4 py-4 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors">
-                    <ImagePlus className="h-5 w-5" />
-                    {imagePreview ? "Choose another photo" : "Upload product photo"}
-                  </label>
-                  <input ref={photoInputRef} id="productPhoto" type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoChange} className="sr-only" />
+
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-start">
+                  <div className="flex-1 grid grid-cols-2 gap-2">
+                    <label htmlFor="productPhoto" className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-emerald-300 bg-white px-3 py-2.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition-colors shadow-2xs">
+                      <ImagePlus className="h-4 w-4 shrink-0" />
+                      <span>{imagePreview ? "Change Photo" : "Upload Photo"}</span>
+                    </label>
+                    <input ref={photoInputRef} id="productPhoto" type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoChange} className="sr-only" />
+
+                    <label htmlFor="cameraPhoto" className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-600 px-3 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 transition-colors shadow-2xs">
+                      <Camera className="h-4 w-4 shrink-0" />
+                      <span>Take Live Photo</span>
+                    </label>
+                    <input ref={cameraInputRef} id="cameraPhoto" type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} className="sr-only" />
+                  </div>
+
                   {imagePreview && (
-                    <div className="relative h-20 w-full sm:w-28 shrink-0">
-                      <img src={imagePreview} alt="Product preview" className="h-20 w-full rounded-2xl border border-emerald-200 object-cover" />
-                      <button type="button" onClick={removePhoto} className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200 bg-white text-rose-500 shadow-sm hover:bg-rose-50 cursor-pointer" aria-label="Remove uploaded photo">
-                        <Trash2 className="h-3.5 w-3.5" />
+                    <div className="relative h-16 w-full sm:w-24 shrink-0">
+                      <img src={imagePreview} alt="Product preview" className="h-16 w-full rounded-xl border border-emerald-200 object-cover" />
+                      <button type="button" onClick={removePhoto} className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full border border-emerald-200 bg-white text-rose-500 shadow-sm hover:bg-rose-50 cursor-pointer" aria-label="Remove uploaded photo">
+                        <Trash2 className="h-3 w-3" />
                       </button>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-3.5 py-2.5 text-xs text-emerald-800 font-medium">
+              <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-3.5 py-2 text-xs text-emerald-800 font-medium">
                 <CalendarDays className="h-4 w-4 shrink-0 text-emerald-600" />
                 Expiry date is required for smart shelf-life and freshness monitoring.
               </div>
 
-              <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-200">
+              <div className="flex items-center gap-3 p-3 rounded-2xl bg-emerald-50/50 border border-emerald-200">
                 <input
                   type="checkbox"
                   id="organicStatus"
@@ -1116,7 +1303,7 @@ export function FarmerDashboard() {
                   onChange={handleFormChange}
                   className="h-4 w-4 accent-emerald-600 cursor-pointer"
                 />
-                <label htmlFor="organicStatus" className="text-sm font-medium text-slate-800 cursor-pointer">
+                <label htmlFor="organicStatus" className="text-xs font-bold text-slate-800 cursor-pointer">
                   Certified Organic Produce (Pesticide-Free)
                 </label>
               </div>

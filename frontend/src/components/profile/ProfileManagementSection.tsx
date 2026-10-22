@@ -18,7 +18,8 @@ import {
   Warehouse,
   Store,
   Truck,
-  UserCheck
+  UserCheck,
+  Leaf
 } from "lucide-react"
 import { Button } from "../ui/Button"
 import { LocationPickerMap } from "./LocationPickerMap"
@@ -103,6 +104,7 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
   const isProcessor = role === "processor"
   const isRetailer = role === "retailer"
   const isDistributor = role === "distributor"
+  const isFarmer = role === "farmer"
 
   const fetchProfileData = async () => {
     try {
@@ -131,9 +133,18 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                 ? "Refrigerated Fleet Depot & Transit Logistics Hub"
                 : isRetailer
                 ? "Direct Retail Supermarket"
+                : isFarmer
+                ? "Certified Organic Farm & Harvest Logistics Base"
                 : "Chilled Cold-Storage Depot")
           )
-          setOperatingHours(active_profile.operating_hours || (isDistributor ? "24/7 Logistics Operation" : "06:00 AM - 10:00 PM"))
+          setOperatingHours(
+            active_profile.operating_hours ||
+              (isDistributor
+                ? "24/7 Logistics Operation"
+                : isFarmer
+                ? "06:00 AM - 06:00 PM (Harvest Hours)"
+                : "06:00 AM - 10:00 PM")
+          )
           setContactPerson(active_profile.contact_person_name || user?.name || "")
           setContactEmail(active_profile.contact_email || user?.email || "")
           setStorageCapacity(
@@ -142,6 +153,8 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                 ? "20 Reefer Trucks & 400 MT Cold Bay"
                 : isRetailer
                 ? "120 Metric Tons Retail Shelf"
+                : isFarmer
+                ? "50 Metric Tons Farm Cold Shed & Silo"
                 : "500 Metric Tons Chilled")
           )
           if (active_profile.coordinates) {
@@ -287,6 +300,8 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
               <Truck className="h-6 w-6 text-emerald-600" />
             ) : isProcessor ? (
               <Warehouse className="h-6 w-6 text-emerald-600" />
+            ) : isFarmer ? (
+              <Leaf className="h-6 w-6 text-emerald-600" />
             ) : (
               <Store className="h-6 w-6 text-emerald-600" />
             )}
@@ -295,12 +310,18 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                 ? "Distributor Fleet Depot & Logistics Profile"
                 : isProcessor
                 ? "Processor Facility Profile & Logistics Hub"
+                : isFarmer
+                ? "Farm Profile & Agricultural Compliance"
                 : "Retailer Store Profile & Receiving Dock"}
             </h2>
           </div>
           <p className="text-sm text-slate-600 mt-1">
             {isDistributor
               ? "Manage your transport logistics license, fleet dispatch base, and contact details. This verified location defines your operating depot and dispatch center."
+              : isFarmer
+              ? "Manage your registered farm entity, agricultural/organic certification or Kisan ID, physical location, and contact details. This verified location is used for crop pickup and logistics routes."
+              : isRetailer
+              ? "Manage your retail store, trade license, and physical location for distributor drop-offs."
               : "Manage your legal entity, FSSAI / trade license, and physical location. This verified location is strictly used for distributor delivery routes."}
           </p>
         </div>
@@ -526,6 +547,8 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
               <Building2 className="h-5 w-5 text-emerald-600" />
               {isDistributor
                 ? "Edit Distributor Fleet & Depot Details"
+                : isFarmer
+                ? "Edit Farm & Harvest Logistics Details"
                 : isProcessor
                 ? "Edit Facility Details"
                 : "Edit Store Details"}
@@ -547,6 +570,8 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                 <Building2 className="h-3.5 w-3.5 text-emerald-600" />
                 {isDistributor
                   ? "Distributor Entity / Fleet Base Name *"
+                  : isFarmer
+                  ? "Farm Name / Registered Agricultural Entity *"
                   : isProcessor
                   ? "Legal Facility / Business Name *"
                   : "Legal Store / Business Name *"}
@@ -558,6 +583,8 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                 placeholder={
                   isDistributor
                     ? "e.g. Karnataka Cold-Haul Logistics & Dispatch Depot"
+                    : isFarmer
+                    ? "e.g. Green Valley Organic Farms"
                     : isProcessor
                     ? "e.g. Agro-Processing Unit #4"
                     : "e.g. Metro Fresh Supermarket"
@@ -576,13 +603,21 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                 <FileText className="h-3.5 w-3.5 text-emerald-600" />
                 {isDistributor
                   ? "Transport Fleet / Carrier License (MVA/FSSAI) *"
+                  : isFarmer
+                  ? "Agricultural Reg / Organic Cert / Kisan ID / FSSAI *"
                   : "Food Safety / FSSAI / Trade License Number *"}
               </label>
               <input
                 type="text"
                 value={licenseNumber}
                 onChange={(e) => setLicenseNumber(e.target.value)}
-                placeholder={isDistributor ? "e.g. MVA-KA-LOG-98214" : "e.g. FSSAI-11223344556677"}
+                placeholder={
+                  isDistributor
+                    ? "e.g. MVA-KA-LOG-98214"
+                    : isFarmer
+                    ? "e.g. ORG-IND-2026-98124 or KISAN-KA-8491"
+                    : "e.g. FSSAI-11223344556677"
+                }
                 className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 font-mono font-bold"
                 required
               />
@@ -608,6 +643,8 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
               <span className="text-[11px] text-slate-500 block">
                 {isDistributor
                   ? "Used by dispatchers, processors, and retailers for route and delivery coordination."
+                  : isFarmer
+                  ? "Used by procurement managers and logistics carriers for farm pickup and coordination."
                   : "Used by distributor drivers for gate access and handover coordination."}
               </span>
             </div>
@@ -616,7 +653,7 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Warehouse className="h-3.5 w-3.5 text-emerald-600" />
-                {isDistributor ? "Fleet & Logistics Classification" : "Facility / Store Classification"}
+                {isDistributor ? "Fleet & Logistics Classification" : isFarmer ? "Farm & Produce Classification" : "Facility / Store Classification"}
               </label>
               <select
                 value={facilityType}
@@ -636,6 +673,14 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                     <option value="Grain Milling & Secondary Processing Unit">Grain Milling & Secondary Processing Unit</option>
                     <option value="Precision Cold-Chain Packing House">Precision Cold-Chain Packing House</option>
                     <option value="Perishables Sorting & Value Addition Depot">Perishables Sorting & Value Addition Depot</option>
+                  </>
+                ) : isFarmer ? (
+                  <>
+                    <option value="Certified Organic Farm & Harvest Logistics Base">Certified Organic Farm & Harvest Logistics Base</option>
+                    <option value="Horticulture & Vegetable Polyhouse Cultivation">Horticulture & Vegetable Polyhouse Cultivation</option>
+                    <option value="Grain & Pulses Farmland with Chilled Silo">Grain & Pulses Farmland with Chilled Silo</option>
+                    <option value="Hydroponic & Controlled Agriculture Farm">Hydroponic & Controlled Agriculture Farm</option>
+                    <option value="Dairy & Livestock Farm Facility">Dairy & Livestock Farm Facility</option>
                   </>
                 ) : (
                   <>
@@ -752,13 +797,13 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5 text-emerald-600" />
-                Operating & Dock Receiving Hours
+                {isFarmer ? "Farm Gate & Harvest Operating Hours" : "Operating & Dock Receiving Hours"}
               </label>
               <input
                 type="text"
                 value={operatingHours}
                 onChange={(e) => setOperatingHours(e.target.value)}
-                placeholder="e.g. 06:00 AM - 10:00 PM (Daily)"
+                placeholder={isFarmer ? "e.g. 06:00 AM - 06:00 PM (Daily)" : "e.g. 06:00 AM - 10:00 PM (Daily)"}
                 className="w-full px-3.5 py-2 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm font-medium"
               />
             </div>
@@ -766,20 +811,26 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <UserCheck className="h-3.5 w-3.5 text-emerald-600" />
-                Operations Contact Person
+                {isFarmer ? "Lead Farmer / Estate Contact" : "Operations Contact Person"}
               </label>
               <input
                 type="text"
                 value={contactPerson}
                 onChange={(e) => setContactPerson(e.target.value)}
-                placeholder="e.g. Facility Manager Name"
+                placeholder={isFarmer ? "e.g. Farm Owner / Manager" : "e.g. Facility Manager Name"}
                 className="w-full px-3.5 py-2 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm font-medium"
               />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-800">
-                {isDistributor ? "Fleet Capacity & Active Vehicles" : isRetailer ? "Store Shelf & Receiving Capacity" : "Storage / Dock Capacity"}
+                {isDistributor
+                  ? "Fleet Capacity & Active Vehicles"
+                  : isFarmer
+                  ? "Farm Storage / Harvest Yield Capacity"
+                  : isRetailer
+                  ? "Store Shelf & Receiving Capacity"
+                  : "Storage / Dock Capacity"}
               </label>
               <input
                 type="text"
@@ -788,6 +839,8 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                 placeholder={
                   isDistributor
                     ? "e.g. 20 Reefer Trucks (10T each), 400 MT Cold Bay"
+                    : isFarmer
+                    ? "e.g. 50 Metric Tons Farm Cold Shed & Silo"
                     : isRetailer
                     ? "e.g. 120 Metric Tons Retail Shelf"
                     : "e.g. 500 Metric Tons Chilled"
