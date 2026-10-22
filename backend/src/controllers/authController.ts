@@ -161,3 +161,26 @@ export const getDistributors = async (req: Request, res: Response): Promise<void
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
+
+export const getMe = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, name, email, role, availability_status, wallet_address')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error || !user) {
+      res.status(404).json({ success: false, message: 'User not found' });
+      return;
+    }
+    res.status(200).json({ success: true, user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};

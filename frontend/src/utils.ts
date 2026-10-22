@@ -7,6 +7,8 @@ export function cn(...inputs: ClassValue[]) {
 
 export function getFarmerLocation(product: any): string {
   if (!product) return "Certified Origin Farm"
+  if (product.farmer_profile?.location_address) return product.farmer_profile.location_address
+  if (product.farmer_profile?.farm_name) return `${product.farmer_profile.farm_name}${product.farmer_profile.location_address ? ` (${product.farmer_profile.location_address})` : ''}`
   if (product.farmer?.address) return product.farmer.address
   if (product.farmer?.location) return product.farmer.location
   if (product.farm_location) return product.farm_location

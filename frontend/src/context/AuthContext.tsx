@@ -34,10 +34,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(localStorage.getItem("farmchain_token"))
   const [loading, setLoading] = useState(false)
 
+  // Synchronize authenticated user with backend on mount & focus
   useEffect(() => {
+    if (!token) return
+
+    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`
+
     const storedUser = localStorage.getItem("farmchain_user")
-    if (storedUser && token) {
-      setUser(JSON.parse(storedUser))
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser))
+      } catch {}
+    }
+
+    const refreshUserFromCloud = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (res.data?.user) {
+          const freshUser = res.data.user
+          setUser((prev) => {
+            const merged = { ...prev, ...freshUser }
+            localStorage.setItem("farmchain_user", JSON.stringify(merged))
+            return merged
+          })
+        }
+      } catch (err) {
+        console.warn("User profile sync error:", err)
+      }
+    }
+
+    refreshUserFromCloud()
+
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        refreshUserFromCloud()
+      }
+    }
+
+    window.addEventListener("focus", handleFocus)
+    window.addEventListener("visibilitychange", handleFocus)
+    return () => {
+      window.removeEventListener("focus", handleFocus)
+      window.removeEventListener("visibilitychange", handleFocus)
     }
   }, [token])
 

@@ -34,7 +34,24 @@ export function Inventory() {
   }
 
   useEffect(() => {
-    if (token) fetchInventory()
+    if (!token) return
+    fetchInventory()
+    const interval = setInterval(() => fetchInventory(false), 10000)
+
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        fetchInventory(false)
+      }
+    }
+
+    window.addEventListener("focus", handleFocus)
+    window.addEventListener("visibilitychange", handleFocus)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener("focus", handleFocus)
+      window.removeEventListener("visibilitychange", handleFocus)
+    }
   }, [token])
 
   const getExpiryStatus = (expiryDate: string | null) => {

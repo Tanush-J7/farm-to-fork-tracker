@@ -49,17 +49,37 @@ export function MyProductsPage() {
 
   const headers = { Authorization: `Bearer ${token}` }
 
-  const fetchProducts = useCallback(async () => {
-    setLoading(true); setError("")
+  const fetchProducts = useCallback(async (opts?: { silent?: boolean } | boolean | any) => {
+    const silent = opts === true || (typeof opts === "object" && opts !== null && "silent" in opts && !!opts.silent)
+    if (!silent) setLoading(true)
+    setError("")
     try {
       const res = await axios.get(`${API}/products/my`, { headers })
       setProducts(res.data.data || [])
     } catch {
-      setError("Could not load products. Make sure the backend is running.")
-    } finally { setLoading(false) }
+      if (!silent) setError("Could not load products. Make sure the backend is running.")
+    } finally { if (!silent) setLoading(false) }
   }, [token])
 
-  useEffect(() => { fetchProducts() }, [fetchProducts])
+  useEffect(() => {
+    fetchProducts(false)
+    const interval = setInterval(() => fetchProducts(true), 8000)
+
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        fetchProducts(true)
+      }
+    }
+
+    window.addEventListener("focus", handleFocus)
+    window.addEventListener("visibilitychange", handleFocus)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener("focus", handleFocus)
+      window.removeEventListener("visibilitychange", handleFocus)
+    }
+  }, [fetchProducts])
 
   const statuses = ["All", ...Object.keys(STATUS_CONFIG)]
   const filtered = products.filter(p => {
@@ -77,7 +97,7 @@ export function MyProductsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">My Products</h1>
           <p className="text-slate-400 mt-1">All batches you have registered, with live AI analysis and status.</p>
         </div>
-        <button onClick={fetchProducts} className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-primary transition-colors">
+        <button onClick={() => fetchProducts()} className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-primary transition-colors">
           <RefreshCw className="h-3.5 w-3.5" /> Refresh
         </button>
       </div>
@@ -116,7 +136,7 @@ export function MyProductsPage() {
         <div className="flex flex-col items-center justify-center py-16 gap-3 rounded-2xl border border-red-500/20 bg-red-500/5">
           <AlertCircle className="h-8 w-8 text-red-400" />
           <p className="text-red-400 text-sm">{error}</p>
-          <Button variant="outline" onClick={fetchProducts}>Retry</Button>
+          <Button variant="outline" onClick={() => fetchProducts()}>Retry</Button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3 rounded-2xl border border-slate-200 bg-white text-center shadow-sm">

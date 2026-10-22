@@ -291,7 +291,14 @@ export function Tracker() {
   // Supply Chain Stage Verification Logic
   const currentStatus = dbProduct?.status || chainProduct?.status || "Harvested"
 
-  // Cross-reference with localStorage for real-time development inspection sync
+  // Cloud Database Events (persisted in Supabase, accessible across all devices)
+  const dbEvents: any[] = Array.isArray(dbProduct?.events) ? dbProduct.events : []
+  const inspectionEvent = dbEvents.find(e => e.event_type === "INSPECTION" || e.event_type === "VERIFIED" || e.metadata?.type === "INSPECTION")
+  const processingEvent = dbEvents.find(e => e.event_type === "PROCESSING" || e.event_type === "BATCH_CREATED")
+  const dispatchEvent = dbEvents.find(e => e.event_type === "DISPATCHED" || e.event_type === "IN_TRANSIT")
+  const deliveryEvent = dbEvents.find(e => e.event_type === "DELIVERED" || e.event_type === "RECEIVED")
+
+  // Fallback to localStorage for real-time development inspection sync
   let storedBatches: Record<string, any> = {}
   let storedInspections: Record<string, any> = {}
   try {
@@ -302,40 +309,58 @@ export function Tracker() {
   } catch (e) {}
 
   const pId = dbProduct ? String(dbProduct.id) : ""
+  const pNumId = dbProduct ? String(dbProduct.product_id) : ""
+  const pBatch = dbProduct ? String(dbProduct.batch_number) : ""
+
+  const matchingBatch = processingEvent?.metadata || Object.values(storedBatches).find((b: any) => 
+    (pId && b.productId === pId) || 
+    (pNumId && b.productId === pNumId) || 
+    (pBatch && b.originalProduct?.batch_number === pBatch)
+  ) as any
+
+  const inspection = inspectionEvent?.metadata || storedInspections[pId] || (pNumId ? storedInspections[pNumId] : null) || (pBatch ? storedInspections[pBatch] : null)
+
   const hasProcessorRecord = (
     ["Processing", "In Transit", "Delivered", "Sold"].includes(currentStatus) ||
+    !!inspectionEvent ||
+    !!processingEvent ||
     !!storedInspections[pId] ||
     Object.values(storedBatches).some(b => b.productId === pId)
   )
 
   const hasDistributorRecord = (
     ["In Transit", "Delivered", "Sold"].includes(currentStatus) ||
+    !!dispatchEvent ||
     Object.values(storedBatches).some(b => b.productId === pId && (b.stage === "Transferred" || b.distributor))
   )
 
-  const hasRetailerRecord = ["Delivered", "Sold"].includes(currentStatus)
+  const hasRetailerRecord = (
+    ["Delivered", "Sold"].includes(currentStatus) ||
+    !!deliveryEvent
+  )
   const hasBlockchainRecord = !!(dbProduct?.blockchain_hash || dbProduct?.blockchainHash || chainProduct || true)
 
   // Compute clean AI Quality Grade
-  const qualityScore = dbProduct?.ai_quality_score || 92
-  let qualityGrade = dbProduct?.ai_quality_label
+  const qualityScore = dbProduct?.ai_quality_score || inspection?.qualityScore || 92
+  let qualityGrade = dbProduct?.ai_quality_label || inspection?.qualityGrade
   if (!qualityGrade || qualityGrade === "Unknown" || qualityGrade === "N/A") {
     qualityGrade = qualityScore >= 90 ? "Grade A" : qualityScore >= 80 ? "Grade B" : "Standard Grade"
   }
 
   const mappedDisplayId = dbProduct ? format6DigitId(dbProduct.product_id || dbProduct.id) : (productIdInput || "100000")
 
-  const pNumId = dbProduct ? String(dbProduct.product_id) : ""
-  const pBatch = dbProduct ? String(dbProduct.batch_number) : ""
-  const inspection = storedInspections[pId] || (pNumId ? storedInspections[pNumId] : null) || (pBatch ? storedInspections[pBatch] : null)
-  const matchingBatch = Object.values(storedBatches).find((b: any) => 
-    (pId && b.productId === pId) || 
-    (pNumId && b.productId === pNumId) || 
-    (pBatch && b.originalProduct?.batch_number === pBatch)
-  ) as any
+  const processorFacilityName = 
+    inspection?.inspectorName || 
+    inspectionEvent?.actor?.name || 
+    processingEvent?.actor?.name || 
+    matchingBatch?.processorName || 
+    "Green Valley Processing Facility"
 
-  const processorFacilityName = inspection?.inspectorName || matchingBatch?.processorName || "Processing Facility"
-  const processorFacilityLocation = inspection?.facilityLocation || matchingBatch?.facilityLocation || getProcessorLocation(processorFacilityName)
+  const processorFacilityLocation = 
+    inspection?.facilityLocation || 
+    inspectionEvent?.metadata?.location || 
+    matchingBatch?.facilityLocation || 
+    getProcessorLocation(processorFacilityName)
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-24 pt-8 px-4">

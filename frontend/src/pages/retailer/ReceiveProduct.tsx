@@ -57,9 +57,9 @@ export function ReceiveProduct() {
   const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
-    const fetchEligibleShipments = async () => {
+    const fetchEligibleShipments = async (silent = false) => {
       try {
-        setLoading(true)
+        if (!silent) setLoading(true)
         const res = await axios.get(`${API_URL}/retailer/shipments`, {
           headers: { Authorization: `Bearer ${token}` }
         })
@@ -79,12 +79,31 @@ export function ReceiveProduct() {
           setSelectedShipment(urlShipmentId)
         }
       } catch (err: any) {
-        setError(err.response?.data?.message || "Failed to load shipments")
+        if (!silent) setError(err.response?.data?.message || "Failed to load shipments")
       } finally {
-        setLoading(false)
+        if (!silent) setLoading(false)
       }
     }
-    if (token) fetchEligibleShipments()
+
+    if (token) {
+      fetchEligibleShipments(false)
+      const interval = setInterval(() => fetchEligibleShipments(true), 8000)
+
+      const handleFocus = () => {
+        if (document.visibilityState === "visible") {
+          fetchEligibleShipments(true)
+        }
+      }
+
+      window.addEventListener("focus", handleFocus)
+      window.addEventListener("visibilitychange", handleFocus)
+
+      return () => {
+        clearInterval(interval)
+        window.removeEventListener("focus", handleFocus)
+        window.removeEventListener("visibilitychange", handleFocus)
+      }
+    }
   }, [token, urlShipmentId])
 
   const fileInputRef = useRef<HTMLInputElement>(null)

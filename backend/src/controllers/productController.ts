@@ -3,6 +3,7 @@ import axios from 'axios';
 import { supabase } from '../config/supabase';
 import { ethers } from 'ethers';
 import { blockchainRelayer } from '../services/blockchainRelayer';
+import { getActiveProfile } from '../services/profileService';
 
 // Render Blueprints provide service host/port values separately from a full URL.
 // Prefer an explicitly configured URL for local development and other hosts.
@@ -132,7 +133,7 @@ export const getProducts = async (req: Request, res: Response) => {
   try {
     const { data: products, error } = await supabase
       .from('products')
-      .select('*, farmer:farmer_id(name, email)')
+      .select('*, farmer:farmer_id(id, name, email, role, availability_status, wallet_address)')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -153,7 +154,7 @@ export const getMyProducts = async (req: Request, res: Response) => {
 
     const { data: products, error } = await supabase
       .from('products')
-      .select('id, product_id, blockchain_hash, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, expiry_date, product_image_url, created_at, updated_at')
+      .select('id, product_id, blockchain_hash, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, expiry_date, product_image_url, created_at, updated_at, farmer_id, current_owner_id')
       .or(`farmer_id.eq.${farmerId},current_owner_id.eq.${farmerId}`)
       .order('created_at', { ascending: false });
 
@@ -240,7 +241,30 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
       }
     }
 
-    res.status(200).json({ success: true, data: { ...product, onchain_history: onchainHistory } });
+    // Fetch all traceability events for this product from cloud database
+    const { data: events } = await supabase
+      .from('traceability_events')
+      .select('*, actor:users!actor_id(id, name, role)')
+      .or(`product_id.eq.${product.id},batch_number.eq.${product.batch_number}`)
+      .order('created_at', { ascending: true });
+
+    // Fetch verified farmer profile if farmer_id is present
+    let farmerProfile = null;
+    if (product.farmer_id) {
+      try {
+        farmerProfile = await getActiveProfile(product.farmer_id);
+      } catch {}
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...product,
+        events: events || [],
+        farmer_profile: farmerProfile,
+        onchain_history: onchainHistory
+      }
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
@@ -289,7 +313,7 @@ export const updateProductStatus = async (req: Request, res: Response) => {
         blockchain_hash: finalBlockchainHash || undefined,
       })
       .eq('id', existingProduct.id)
-      .select('*, farmer:farmer_id(name, email)')
+      .select('*, farmer:farmer_id(id, name, email, role, availability_status, wallet_address)')
       .single();
 
     if (error) {

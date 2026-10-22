@@ -35,8 +35,9 @@ export function Dashboard() {
   }
 
   useEffect(() => {
-    const fetchDashboard = async () => {
+    const fetchDashboard = async (silent = false) => {
       try {
+        if (!silent) setLoading(true)
         const res = await axios.get(`${API_URL}/retailer/dashboard`, {
           headers: { Authorization: `Bearer ${token}` }
         })
@@ -44,10 +45,29 @@ export function Dashboard() {
       } catch (err) {
         console.error("Dashboard fetch error:", err)
       } finally {
-        setLoading(false)
+        if (!silent) setLoading(false)
       }
     }
-    if (token) fetchDashboard()
+
+    if (token) {
+      fetchDashboard(false)
+      const interval = setInterval(() => fetchDashboard(true), 8000)
+
+      const handleFocus = () => {
+        if (document.visibilityState === "visible") {
+          fetchDashboard(true)
+        }
+      }
+
+      window.addEventListener("focus", handleFocus)
+      window.addEventListener("visibilitychange", handleFocus)
+
+      return () => {
+        clearInterval(interval)
+        window.removeEventListener("focus", handleFocus)
+        window.removeEventListener("visibilitychange", handleFocus)
+      }
+    }
   }, [token])
 
   return (

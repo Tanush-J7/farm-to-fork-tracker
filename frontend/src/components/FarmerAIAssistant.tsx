@@ -25,7 +25,7 @@ import {
   ReferenceLine 
 } from "recharts"
 
-const AI_API = import.meta.env.VITE_AI_API_URL || "http://localhost:8000"
+const AI_API = import.meta.env.VITE_AI_API_URL || "https://farmchain-ai.onrender.com"
 const RUPEE = "\u20B9"
 
 interface PredictionItem {

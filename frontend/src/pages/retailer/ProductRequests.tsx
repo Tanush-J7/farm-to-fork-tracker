@@ -41,7 +41,24 @@ export function ProductRequests() {
   }
 
   useEffect(() => {
-    if (token) fetchRequests()
+    if (!token) return
+    fetchRequests()
+    const interval = setInterval(() => fetchRequests(), 10000)
+
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        fetchRequests()
+      }
+    }
+
+    window.addEventListener("focus", handleFocus)
+    window.addEventListener("visibilitychange", handleFocus)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener("focus", handleFocus)
+      window.removeEventListener("visibilitychange", handleFocus)
+    }
   }, [token])
 
   const handleSubmit = async (e: React.FormEvent) => {

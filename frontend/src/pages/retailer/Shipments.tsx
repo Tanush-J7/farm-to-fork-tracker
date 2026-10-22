@@ -13,22 +13,39 @@ export function Shipments() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
-  const fetchShipments = async () => {
+  const fetchShipments = async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
       const res = await axios.get(`${API_URL}/retailer/shipments`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setShipments(res.data.data || [])
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to load shipments")
+      if (!silent) setError(err.response?.data?.message || "Failed to load shipments")
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
   useEffect(() => {
-    if (token) fetchShipments()
+    if (!token) return
+    fetchShipments(false)
+    const interval = setInterval(() => fetchShipments(true), 8000)
+
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        fetchShipments(true)
+      }
+    }
+
+    window.addEventListener("focus", handleFocus)
+    window.addEventListener("visibilitychange", handleFocus)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener("focus", handleFocus)
+      window.removeEventListener("visibilitychange", handleFocus)
+    }
   }, [token])
 
   const getStatusColor = (status: string) => {
