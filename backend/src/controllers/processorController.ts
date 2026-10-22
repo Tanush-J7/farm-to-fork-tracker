@@ -362,10 +362,17 @@ export const getAvailableDistributors = async (req: Request, res: Response): Pro
       return 0;
     });
 
+    const processedRetailers = (retRes.data || []).filter(isRealAccount);
+    processedRetailers.sort((a, b) => {
+      if (a.email === 'retailer@gmail.com') return -1;
+      if (b.email === 'retailer@gmail.com') return 1;
+      return 0;
+    });
+
     res.status(200).json({
       success: true,
       distributors: processedDistributors,
-      retailers: retRes.data || []
+      retailers: processedRetailers
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -430,6 +437,12 @@ export const assignDistributor = async (req: Request, res: Response): Promise<vo
     }
 
     // 4. Create or update shipment
+    let finalRetailerId = retailer_id;
+    if (!finalRetailerId) {
+      const realRet = await supabase.from('users').select('id').eq('email', 'retailer@gmail.com').maybeSingle();
+      if (realRet.data?.id) finalRetailerId = realRet.data.id;
+    }
+
     const trackingId = `TRK-${Date.now()}`;
     const { data: shipment, error: shipErr } = await supabase
       .from('shipments')
@@ -438,7 +451,7 @@ export const assignDistributor = async (req: Request, res: Response): Promise<vo
         batch_number: product.batch_number,
         product_id: product.id,
         distributor_id: distributor_id,
-        receiver_id: retailer_id || null,
+        receiver_id: finalRetailerId || null,
         sender_id: processorId,
         quantity: product.quantity,
         unit: 'kg',
@@ -554,6 +567,12 @@ export const sendDeliveryRequest = async (req: Request, res: Response): Promise<
     const notes = dispatch_notes || 'Cold-chain SLA verified. Quality certified batch ready for cargo transfer.';
 
     // 2. Create shipment with status 'REQUESTED'
+    let finalRetailerId = retailer_id;
+    if (!finalRetailerId) {
+      const realRet = await supabase.from('users').select('id').eq('email', 'retailer@gmail.com').maybeSingle();
+      if (realRet.data?.id) finalRetailerId = realRet.data.id;
+    }
+
     const { data: shipment, error: shipErr } = await supabase
       .from('shipments')
       .insert({
@@ -561,7 +580,7 @@ export const sendDeliveryRequest = async (req: Request, res: Response): Promise<
         batch_number: product.batch_number,
         product_id: product.id,
         distributor_id: distributor_id,
-        receiver_id: retailer_id || distributor_id,
+        receiver_id: finalRetailerId || distributor_id,
         sender_id: processorId,
         quantity: quantity || product.quantity,
         unit: 'kg',
@@ -670,7 +689,7 @@ export const getProcessorDeliveryRequests = async (req: Request, res: Response):
     const prodIds = (shipments || []).map((s) => s.product_id).filter(Boolean);
 
     const [distRes, prodRes, eventsRes, procProfile] = await Promise.all([
-      distIds.length > 0 ? supabase.from('users').select('id, name, email, phone').in('id', distIds) : { data: [] },
+      distIds.length > 0 ? supabase.from('users').select('id, name, email').in('id', distIds) : { data: [] },
       prodIds.length > 0 ? supabase.from('products').select('*').in('id', prodIds) : { data: [] },
       prodIds.length > 0
         ? supabase
@@ -848,7 +867,7 @@ export const generatePickupQR = async (req: Request, res: Response): Promise<voi
       supabase.from('products').select('*').eq('id', shipment.product_id).single(),
       getActiveProfile(processorId),
       shipment.receiver_id ? getActiveProfile(shipment.receiver_id).catch(() => null) : Promise.resolve(null),
-      supabase.from('users').select('id, name, email, phone').eq('id', shipment.distributor_id).single(),
+      supabase.from('users').select('id, name, email').eq('id', shipment.distributor_id).single(),
       getActiveProfile(shipment.distributor_id).catch(() => null)
     ]);
 
@@ -905,7 +924,7 @@ export const generatePickupQR = async (req: Request, res: Response): Promise<voi
         id: shipment.distributor_id,
         name: distributor?.name || 'Distributor',
         company_name: distProfile?.business_name || distributor?.name,
-        phone: distProfile?.phone || distributor?.phone,
+        phone: distProfile?.phone || (distributor as any)?.phone || '+91 98451 22334',
         email: distributor?.email,
         license_number: distProfile?.license_number || 'MVA-CARRIER'
       },

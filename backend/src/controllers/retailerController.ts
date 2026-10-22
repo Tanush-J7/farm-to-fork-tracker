@@ -104,7 +104,7 @@ export const getRetailerShipments = async (req: Request, res: Response): Promise
     const { data: shipments, error } = await supabase
       .from('shipments')
       .select('*')
-      .eq('receiver_id', retailer_id)
+      .or(`receiver_id.eq.${retailer_id},receiver_id.is.null`)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -118,8 +118,8 @@ export const getRetailerShipments = async (req: Request, res: Response): Promise
     const batchNumbers = (shipments || []).map((s) => s.batch_number).filter(Boolean);
 
     const [senderUsers, distUsers, prodRes, prodByBatchRes, eventsRes] = await Promise.all([
-      senderIds.length > 0 ? supabase.from('users').select('id, name, email, phone').in('id', senderIds) : { data: [] },
-      distIds.length > 0 ? supabase.from('users').select('id, name, email, phone').in('id', distIds) : { data: [] },
+      senderIds.length > 0 ? supabase.from('users').select('id, name, email').in('id', senderIds) : { data: [] },
+      distIds.length > 0 ? supabase.from('users').select('id, name, email').in('id', distIds) : { data: [] },
       prodIds.length > 0 ? supabase.from('products').select('*').in('id', prodIds) : { data: [] },
       batchNumbers.length > 0 ? supabase.from('products').select('*').in('batch_number', batchNumbers) : { data: [] },
       prodIds.length > 0
@@ -1227,12 +1227,17 @@ export const verifyDeliveryQR = async (req: Request, res: Response): Promise<voi
     }
 
     // 2. Validate that THIS retailer is the intended receiver!
-    if (shipment.receiver_id !== retailer_id) {
+    if (shipment.receiver_id && shipment.receiver_id !== retailer_id) {
       res.status(403).json({
         success: false,
         message: 'Security Violation: This delivery is addressed to a different retailer store location.'
       });
       return;
+    }
+
+    if (!shipment.receiver_id) {
+      await supabase.from('shipments').update({ receiver_id: retailer_id }).eq('id', shipment.id);
+      shipment.receiver_id = retailer_id;
     }
 
     // 3. Prevent duplicate acceptance
@@ -1392,7 +1397,7 @@ export const confirmRetailerDelivery = async (req: Request, res: Response): Prom
     const [prodRes, retProfile, distUser, procProfile] = await Promise.all([
       supabase.from('products').select('*').eq('id', shipment.product_id).single(),
       getActiveProfile(retailer_id),
-      supabase.from('users').select('name, email, phone').eq('id', shipment.distributor_id).single(),
+      supabase.from('users').select('name, email').eq('id', shipment.distributor_id).single(),
       getActiveProfile(shipment.sender_id)
     ]);
 

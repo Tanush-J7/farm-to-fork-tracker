@@ -333,7 +333,7 @@ export const getUserDetails = async (req: Request, res: Response) => {
     // Attempt to fetch phone and address if they exist in schema, otherwise they will be undefined
     const { data: user, error: userErr } = await supabase
       .from('users')
-      .select('id, name, email, role, wallet_address, phone, address, created_at')
+      .select('id, name, email, role, wallet_address, created_at')
       .eq('id', id)
       .single();
       

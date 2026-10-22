@@ -572,7 +572,7 @@ export const verifyPickupQR = async (req: Request, res: Response): Promise<void>
       getActiveProfile(shipment.sender_id),
       shipment.receiver_id ? getActiveProfile(shipment.receiver_id).catch(() => null) : Promise.resolve(null),
       getActiveProfile(distributorId).catch(() => null),
-      supabase.from('users').select('name, email, phone').eq('id', distributorId).single()
+      supabase.from('users').select('name, email').eq('id', distributorId).single()
     ]);
 
     const product = prodRes.data;
@@ -619,7 +619,7 @@ export const verifyPickupQR = async (req: Request, res: Response): Promise<void>
         },
         carrier_defaults: {
           distributor_name: distUser.data?.name || (req as any).user?.name || 'Assigned Carrier',
-          distributor_phone: distProfile?.phone || distUser.data?.phone || '+91 98451 22334',
+          distributor_phone: distProfile?.phone || (distUser.data as any)?.phone || '+91 98451 22334',
           distributor_vehicle: 'KA-04-E-2941',
           vehicle_type: 'Refrigerated Reefer Truck (10T)',
           default_temp: '3.8°C'
@@ -702,7 +702,7 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
       getActiveProfile(shipment.sender_id),
       shipment.receiver_id ? getActiveProfile(shipment.receiver_id).catch(() => null) : Promise.resolve(null),
       getActiveProfile(distributorId).catch(() => null),
-      supabase.from('users').select('name, email, phone').eq('id', distributorId).single()
+      supabase.from('users').select('name, email').eq('id', distributorId).single()
     ]);
 
     const product = prodRes.data;
@@ -712,7 +712,7 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
 
     const cleanVehicleNumber = vehicle_number.trim().toUpperCase();
     const cleanDriverName = driver_name.trim();
-    const cleanDriverPhone = (driver_phone || distProfile?.phone || distUser.data?.phone || '+91 98451 22334').trim();
+    const cleanDriverPhone = (driver_phone || distProfile?.phone || (distUser.data as any)?.phone || '+91 98451 22334').trim();
     const cleanDepartureTemp = departure_temperature || '3.8°C Precision Chilled';
     const nowIso = new Date().toISOString();
 

@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
 import axios from "axios"
 import { useAuth } from "../../context/AuthContext"
-import { Html5QrcodeScanner, Html5Qrcode } from "html5-qrcode"
 import jsQR from "jsqr"
 import {
   QrCode,
@@ -19,7 +18,9 @@ import {
   AlertTriangle,
   Upload,
   Camera,
-  Scale
+  Scale,
+  RefreshCw,
+  Zap
 } from "lucide-react"
 
 const API_URL = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
@@ -35,6 +36,17 @@ export function ReceiveProduct() {
   const [error, setError] = useState("")
 
   const [scanning, setScanning] = useState(false)
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment")
+  const [cameraError, setCameraError] = useState("")
+  const [hasTorch, setHasTorch] = useState(false)
+  const [isTorchOn, setIsTorchOn] = useState(false)
+
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const scanAnimRef = useRef<number | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const [verifiedData, setVerifiedData] = useState<any>(null)
   const [comparisonData, setComparisonData] = useState<any>(null)
   const [verificationError, setVerificationError] = useState("")
@@ -77,6 +89,8 @@ export function ReceiveProduct() {
 
         if (urlShipmentId && eligible.some((s: any) => s.id === urlShipmentId)) {
           setSelectedShipment(urlShipmentId)
+        } else if (!selectedShipment && eligible.length > 0) {
+          setSelectedShipment(eligible[0].id)
         }
       } catch (err: any) {
         if (!silent) setError(err.response?.data?.message || "Failed to load shipments")
@@ -106,43 +120,187 @@ export function ReceiveProduct() {
     }
   }, [token, urlShipmentId])
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const stopCamera = () => {
+    if (scanAnimRef.current) {
+      cancelAnimationFrame(scanAnimRef.current)
+      scanAnimRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop()
+        } catch {}
+      })
+      streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+    setScanning(false)
+    setIsTorchOn(false)
+  }
+
+  const startCamera = async (mode: "environment" | "user" = facingMode) => {
+    setCameraError("")
+    setVerificationError("")
+    setScanning(true)
+
+    // Stop existing stream if running
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => {
+        try {
+          t.stop()
+        } catch {}
+      })
+      streamRef.current = null
+    }
+
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setCameraError("Camera access is not supported on this browser or requires an HTTPS connection. Please upload a QR photo instead.")
+      setScanning(false)
+      return
+    }
+
+    try {
+      let stream: MediaStream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: mode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        })
+      } catch (err1: any) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        })
+      }
+
+      streamRef.current = stream
+
+      try {
+        const track = stream.getVideoTracks()[0]
+        const capabilities: any = track.getCapabilities ? track.getCapabilities() : {}
+        setHasTorch(Boolean(capabilities.torch))
+      } catch {
+        setHasTorch(false)
+      }
+
+      // Small delay to ensure the video DOM element is mounted
+      await new Promise((r) => setTimeout(r, 80))
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        try {
+          await videoRef.current.play()
+        } catch (playErr) {
+          console.warn("Video play interrupted", playErr)
+        }
+      }
+
+      // Hardware-accelerated BarcodeDetector
+      let barcodeDetector: any = null
+      if ("BarcodeDetector" in window) {
+        try {
+          barcodeDetector = new (window as any).BarcodeDetector({ formats: ["qr_code"] })
+        } catch {}
+      }
+
+      // Offscreen canvas for jsQR Layer 2 fallback
+      const offscreenCanvas = canvasRef.current || document.createElement("canvas")
+      const ctx = offscreenCanvas.getContext("2d", { willReadFrequently: true })
+
+      let lastScanTime = 0
+
+      const scanLoop = async (timestamp: number) => {
+        if (!streamRef.current || !videoRef.current) return
+
+        if (timestamp - lastScanTime > 100) {
+          lastScanTime = timestamp
+          const video = videoRef.current
+
+          if (video && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+            // Layer 1: Hardware BarcodeDetector
+            if (barcodeDetector) {
+              try {
+                const barcodes = await barcodeDetector.detect(video)
+                if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                  stopCamera()
+                  await handleVerification(barcodes[0].rawValue)
+                  return
+                }
+              } catch {}
+            }
+
+            // Layer 2: jsQR canvas decoder
+            if (ctx) {
+              try {
+                if (offscreenCanvas.width !== video.videoWidth || offscreenCanvas.height !== video.videoHeight) {
+                  offscreenCanvas.width = video.videoWidth
+                  offscreenCanvas.height = video.videoHeight
+                }
+                ctx.drawImage(video, 0, 0, offscreenCanvas.width, offscreenCanvas.height)
+                const imgData = ctx.getImageData(0, 0, offscreenCanvas.width, offscreenCanvas.height)
+                const code =
+                  jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" }) ||
+                  jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "attemptBoth" })
+
+                if (code && code.data) {
+                  stopCamera()
+                  await handleVerification(code.data)
+                  return
+                }
+              } catch {}
+            }
+          }
+        }
+
+        scanAnimRef.current = requestAnimationFrame(scanLoop)
+      }
+
+      scanAnimRef.current = requestAnimationFrame(scanLoop)
+    } catch (err: any) {
+      console.error("Camera access failed:", err)
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setCameraError("Camera permission was denied. Please allow camera access in your browser address bar (lock/camera icon) or site settings.")
+      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+        setCameraError("No physical camera device was detected on your system. Please connect a webcam or upload a QR photo.")
+      } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+        setCameraError("The camera is currently in use by another application or tab. Please close other camera tabs and try again.")
+      } else {
+        setCameraError(err.message || "Failed to start camera. Please upload a QR photo instead.")
+      }
+      setScanning(false)
+    }
+  }
+
+  const toggleTorch = async () => {
+    if (!streamRef.current) return
+    try {
+      const track = streamRef.current.getVideoTracks()[0]
+      const nextState = !isTorchOn
+      await (track as any).applyConstraints({
+        advanced: [{ torch: nextState }]
+      })
+      setIsTorchOn(nextState)
+    } catch {}
+  }
+
+  const flipCamera = async () => {
+    const nextMode = facingMode === "environment" ? "user" : "environment"
+    setFacingMode(nextMode)
+    stopCamera()
+    await startCamera(nextMode)
+  }
 
   useEffect(() => {
-    let scanner: any = null
-    if (scanning) {
-      const boxSize = typeof window !== 'undefined' ? Math.min(window.innerWidth - 80, 250) : 250
-      scanner = new Html5QrcodeScanner(
-        "qr-reader",
-        { fps: 10, qrbox: { width: boxSize, height: boxSize } },
-        false
-      )
-
-      scanner.render(
-        async (decodedText: string) => {
-          try {
-            await scanner.pause(true)
-          } catch (e) {}
-          setScanning(false)
-          try {
-            await scanner.clear()
-          } catch (e) {}
-          await handleVerification(decodedText)
-        },
-        () => {
-          // scanning
-        }
-      )
-    }
-
     return () => {
-      if (scanner) {
-        try {
-          scanner.clear().catch(console.error)
-        } catch (e) {}
-      }
+      stopCamera()
     }
-  }, [scanning])
+  }, [])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -182,17 +340,6 @@ export function ReceiveProduct() {
             handleVerification(code.data)
             return
           }
-        }
-      } catch (err) {}
-
-      // 3. Html5Qrcode scanFile fallback
-      try {
-        const html5Qr = new Html5Qrcode("hidden-retailer-qr-reader")
-        const result = await html5Qr.scanFile(file, false)
-        if (result) {
-          URL.revokeObjectURL(objectUrl)
-          handleVerification(result)
-          return
         }
       } catch (err) {}
 
@@ -326,9 +473,6 @@ export function ReceiveProduct() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Hidden container for Html5Qrcode file scan */}
-      <div id="hidden-retailer-qr-reader" style={{ display: "none" }}></div>
-
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Receive Product & Dual-QR Verification</h1>
         <p className="text-sm text-slate-500">
@@ -405,7 +549,7 @@ export function ReceiveProduct() {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setScanning(!scanning)}
+                  onClick={() => (scanning ? stopCamera() : startCamera())}
                   disabled={verifying}
                   className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-3 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
                 >
@@ -457,16 +601,79 @@ export function ReceiveProduct() {
           </div>
 
           {/* RIGHT COLUMN: SCANNER / SCANNING STATUS */}
-          <div className="bg-slate-50 rounded-3xl border border-slate-200 p-6 flex flex-col items-center justify-center min-h-[360px]">
+          <div className="bg-slate-50 rounded-3xl border border-slate-200 p-6 flex flex-col items-center justify-center min-h-[380px]">
             {scanning ? (
-              <div className="w-full max-w-[320px] text-center space-y-3">
-                <div id="qr-reader" className="w-full overflow-hidden rounded-2xl border-2 border-emerald-500 shadow-md"></div>
+              <div className="w-full max-w-[340px] text-center space-y-3">
+                {/* Optical Viewfinder Box with live HTML5 video */}
+                <div className="relative overflow-hidden rounded-2xl border-2 border-emerald-500 bg-slate-950 aspect-video w-full min-h-[220px] max-h-72 flex flex-col items-center justify-center shadow-lg">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+
+                  {/* Targeting reticle overlay */}
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div className="w-44 h-44 border-2 border-emerald-400/70 rounded-2xl relative shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                      <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl -mt-1 -ml-1"></div>
+                      <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr -mt-1 -mr-1"></div>
+                      <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl -mb-1 -ml-1"></div>
+                      <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-400 rounded-br -mb-1 -mr-1"></div>
+                      {/* Animated laser scanning line */}
+                      <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent absolute top-0 animate-[pulse_2s_infinite]"></div>
+                    </div>
+                  </div>
+
+                  {/* Floating Action Buttons inside viewfinder */}
+                  <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
+                    {hasTorch && (
+                      <button
+                        type="button"
+                        onClick={toggleTorch}
+                        className={`p-2 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer ${
+                          isTorchOn
+                            ? "bg-amber-400 text-slate-950"
+                            : "bg-slate-900/80 hover:bg-slate-900 text-white"
+                        }`}
+                        title={isTorchOn ? "Turn Torch Off" : "Turn Torch On"}
+                      >
+                        <Zap className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={flipCamera}
+                      className="p-2 bg-slate-900/80 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
+                      title="Switch Camera"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={stopCamera}
+                      className="p-2 bg-rose-600/90 hover:bg-rose-600 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
+                      title="Close Camera"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="absolute bottom-2 left-2 right-2 pointer-events-none">
+                    <span className="inline-flex items-center gap-1 bg-slate-900/80 text-emerald-400 text-[10px] font-mono font-bold px-2.5 py-1 rounded-full backdrop-blur-sm mx-auto">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                      SCANNING • ALIGN DELIVERY QR
+                    </span>
+                  </div>
+                </div>
+
                 <p className="text-xs text-slate-500">
                   Align camera with the <strong>Delivery Handoff QR</strong> on the carrier driver's device.
                 </p>
                 <button
                   type="button"
-                  onClick={() => setScanning(false)}
+                  onClick={stopCamera}
                   className="text-xs text-slate-600 hover:text-slate-900 underline font-medium cursor-pointer"
                 >
                   Cancel camera
@@ -479,6 +686,30 @@ export function ReceiveProduct() {
                 </div>
                 <p className="text-sm font-bold text-slate-900">Authenticating Delivery QR...</p>
                 <p className="text-xs text-slate-500">Decrypting manifest and validating on Sepolia blockchain.</p>
+              </div>
+            ) : cameraError ? (
+              <div className="text-center space-y-3 w-full max-w-sm">
+                <div className="mx-auto h-14 w-14 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center">
+                  <AlertCircle className="h-7 w-7" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-900">Camera Access Notice</h3>
+                <p className="text-xs text-amber-800 bg-amber-50 p-3 rounded-xl border border-amber-200 leading-relaxed">
+                  {cameraError}
+                </p>
+                <div className="flex gap-2 justify-center pt-1">
+                  <button
+                    onClick={() => startCamera()}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    Retry Camera
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    Upload QR Photo
+                  </button>
+                </div>
               </div>
             ) : verificationError ? (
               <div className="text-center space-y-3 w-full max-w-sm">
@@ -510,10 +741,10 @@ export function ReceiveProduct() {
                 <div className="pt-2">
                   <button
                     type="button"
-                    onClick={() => setScanning(true)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-colors cursor-pointer"
+                    onClick={() => startCamera()}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors cursor-pointer"
                   >
-                    <Camera className="h-3.5 w-3.5" /> Open Scanner
+                    <Camera className="h-3.5 w-3.5" /> Open Live Camera
                   </button>
                 </div>
               </div>
