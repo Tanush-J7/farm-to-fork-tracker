@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
+import { useSearchParams } from "react-router-dom"
 import {
   QrCode, Camera, Upload, Search, CheckCircle2, Leaf, Factory, Truck, Store,
   Clock, ShieldCheck, AlertCircle, CalendarDays, Sparkles, RefreshCw, Printer,
@@ -58,6 +59,7 @@ export interface ConsumerTraceData {
 
 // Sample batch presets for 1-click live testing on landing page
 const SAMPLE_BATCHES = [
+  { label: "🍇 Fresh Table Grapes", batch: "BCH-20261022-HUBI", name: "Fresh Table Grapes" },
   { label: "🍅 Organic Tomatoes", batch: "BCH-4821", name: "Organic Farm Tomatoes" },
   { label: "🍎 Crisp Apples", batch: "BCH-7201", name: "Crisp Royal Apples" },
   { label: "🥔 Farm Fresh Potatoes", batch: "BCH-9134", name: "Farm Fresh Potatoes" },
@@ -65,6 +67,7 @@ const SAMPLE_BATCHES = [
 ]
 
 export const ConsumerScanner: React.FC = () => {
+  const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState<"camera" | "upload" | "manual">("camera")
   const [manualInput, setManualInput] = useState("")
   const [loading, setLoading] = useState(false)
@@ -76,6 +79,15 @@ export const ConsumerScanner: React.FC = () => {
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment")
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Auto-fetch if batch or id is in URL params
+  useEffect(() => {
+    const q = searchParams.get("batch") || searchParams.get("batch_number") || searchParams.get("id")
+    if (q) {
+      setManualInput(q)
+      fetchFullProductDetails(q)
+    }
+  }, [searchParams])
 
   // Scanned Product Result
   const [scannedProduct, setScannedProduct] = useState<ConsumerTraceData | null>(null)
@@ -93,17 +105,20 @@ export const ConsumerScanner: React.FC = () => {
       if (parsed.productId) return String(parsed.productId)
     } catch {}
 
-    if (trimmed.includes("?id=")) {
-      return trimmed.split("?id=")[1].split("&")[0]
-    }
     if (trimmed.includes("?batch=")) {
-      return trimmed.split("?batch=")[1].split("&")[0]
+      return trimmed.split("?batch=")[1].split("&")[0].split("#")[0]
+    }
+    if (trimmed.includes("?batch_number=")) {
+      return trimmed.split("?batch_number=")[1].split("&")[0].split("#")[0]
+    }
+    if (trimmed.includes("?id=")) {
+      return trimmed.split("?id=")[1].split("&")[0].split("#")[0]
     }
     if (trimmed.includes("/tracker?id=")) {
-      return trimmed.split("/tracker?id=")[1].split("&")[0]
+      return trimmed.split("/tracker?id=")[1].split("&")[0].split("#")[0]
     }
     if (trimmed.includes("/track?id=")) {
-      return trimmed.split("/track?id=")[1].split("&")[0]
+      return trimmed.split("/track?id=")[1].split("&")[0].split("#")[0]
     }
     if (trimmed.startsWith("FP-")) {
       return trimmed.replace("FP-", "")
@@ -324,24 +339,52 @@ export const ConsumerScanner: React.FC = () => {
         return
       }
 
-      // Enrich timeline events with realistic dates from Farmer -> Processor -> Distributor -> Retailer
-      const harvestDateObj = new Date(productData.created_at || Date.now() - 3 * 86400000)
-      const intakeDateObj = new Date(harvestDateObj.getTime() + 14 * 3600000)
-      const dispatchDateObj = new Date(intakeDateObj.getTime() + 18 * 3600000)
-      const retailDateObj = new Date(dispatchDateObj.getTime() + 10 * 3600000)
+      // Extract from real backend events and shipments if available
+      const events: any[] = productData.events || []
+      
+      const processorEvent = events.find(e => 
+        e.event_type === 'DISPATCHED_TO_RETAILER' || 
+        e.event_type === 'PICKUP_QR_GENERATED' || 
+        e.actor?.role === 'processor'
+      )
+      
+      const distributorEvent = events.find(e => 
+        e.event_type === 'PICKUP_VERIFIED' || 
+        e.event_type === 'DELIVERY_ACCEPTED' || 
+        e.event_type === 'DELIVERY_QR_GENERATED' ||
+        e.actor?.role === 'distributor'
+      )
+      
+      const retailerEvent = events.find(e => 
+        e.event_type === 'RETAILER_ACCEPTED' || 
+        e.event_type === 'DELIVERY_COMPLETED' || 
+        e.actor?.role === 'retailer'
+      )
 
-      // Fallback verified stakeholder names
+      const harvestDateObj = new Date(productData.created_at || Date.now() - 3 * 86400000)
+      const intakeDateObj = processorEvent?.created_at ? new Date(processorEvent.created_at) : new Date(harvestDateObj.getTime() + 14 * 3600000)
+      const dispatchDateObj = distributorEvent?.created_at ? new Date(distributorEvent.created_at) : new Date(intakeDateObj.getTime() + 18 * 3600000)
+      const retailDateObj = retailerEvent?.created_at ? new Date(retailerEvent.created_at) : new Date(dispatchDateObj.getTime() + 10 * 3600000)
+
       const farmerName = productData.farmer?.name || productData.farmer_profile?.business_name || "Green Valley Organic Farms"
       const farmerLoc = productData.farmer_profile?.address || productData.farmer?.address || "Doddaballapur Farmlands, Bengaluru North, Karnataka"
-      
-      const processorName = "Agro-Processing & Chilled Packing Unit #2"
-      const processorLoc = "Peenya Industrial Area, Bengaluru, Karnataka"
 
-      const carrierName = "Karnataka Cold-Haul Logistics Fleet"
-      const carrierVehicle = "KA-04-TR-8821 (Reefer Chilled Van)"
+      const processorName = processorEvent?.actor?.name || processorEvent?.metadata?.processor_name || "Agro-Processing & Packing Depot"
+      const processorLoc = processorEvent?.location || processorEvent?.metadata?.pickup_location || "Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru"
 
-      const retailerName = "Metro Fresh Supermarket - Koramangala Store"
-      const retailerLoc = "80 Feet Road, Koramangala 4th Block, Bengaluru"
+      const carrierName = distributorEvent?.actor?.name || distributorEvent?.metadata?.driver_name || "Karnataka Cold-Haul Logistics Fleet"
+      const carrierVehicle = distributorEvent?.metadata?.vehicle_number 
+        ? `${distributorEvent.metadata.vehicle_number} (${distributorEvent.metadata.vehicle_type || 'Reefer Van'})`
+        : "KA-04-E-2941 (Refrigerated Reefer Van)"
+      const tempLog = distributorEvent?.metadata?.departure_temperature 
+        ? `${distributorEvent.metadata.departure_temperature} Continuous Cold-Chain` 
+        : "3.8°C Continuous Cold-Chain"
+
+      const retailerName = retailerEvent?.actor?.name || productData.retailer_inventory?.retailer?.name || "John's Metro Fresh Supermarket"
+      const retailerLoc = retailerEvent?.location || "Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru"
+      const shelfStatus = productData.retailer_inventory?.status 
+        ? `In Store • ${productData.retailer_inventory.status} • Dock Temp ${retailerEvent?.metadata?.dock_temperature || '4.1°C'}`
+        : "Aisle 3 • Refrigerated Fresh Produce Display"
 
       const enriched: ConsumerTraceData = {
         ...productData,
@@ -354,19 +397,19 @@ export const ConsumerScanner: React.FC = () => {
           name: processorName,
           address: processorLoc,
           date: intakeDateObj.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-          grade: productData.ai_quality_label || "Grade A"
+          grade: productData.ai_quality_label || "Grade A Export Quality"
         },
         distributor_info: {
           carrier: carrierName,
           vehicle: carrierVehicle,
           date: dispatchDateObj.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-          temp: "4.2°C Continuous Cold-Chain"
+          temp: tempLog
         },
         retailer_info: {
           store: retailerName,
           address: retailerLoc,
           date: retailDateObj.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-          shelf_status: "Aisle 3 • Refrigerated Fresh Produce Display"
+          shelf_status: shelfStatus
         }
       }
 
@@ -652,7 +695,9 @@ export const ConsumerScanner: React.FC = () => {
                   />
                 ) : (
                   <div className="h-20 w-20 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-3xl shrink-0 shadow-2xs">
-                    {scannedProduct.name.toLowerCase().includes("tomato")
+                    {scannedProduct.name.toLowerCase().includes("grape")
+                      ? "🍇"
+                      : scannedProduct.name.toLowerCase().includes("tomato")
                       ? "🍅"
                       : scannedProduct.name.toLowerCase().includes("apple")
                       ? "🍎"

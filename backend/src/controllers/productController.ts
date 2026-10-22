@@ -172,37 +172,61 @@ export const getMyProducts = async (req: Request, res: Response) => {
 // GET /api/products/blockchain/:id - public route for verification page
 export const getProductByBlockchainId = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id || '');
     const numId = Number(id);
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 
-    // 1. Try matching product_id exact
-    let { data: products } = await supabase
-      .from('products')
-      .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id')
-      .eq('product_id', id);
+    let product: any = null;
 
-    let product = products && products.length > 0 ? products[0] : null;
+    // 1. Try matching product_id exact if numeric
+    if (!isNaN(numId) && numId > 0 && numId < 100000) {
+      const { data: prods } = await supabase
+        .from('products')
+        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, current_owner_id')
+        .eq('product_id', numId);
+      if (prods && prods.length > 0) {
+        product = prods[0];
+      }
+    }
 
-    // 2. If not found and numeric ID >= 100000, try matching small integer id (e.g. 100008 -> 8)
+    // 2. If not found and numeric ID >= 100000, try matching offset small integer id (e.g. 100008 -> 8)
     if (!product && !isNaN(numId) && numId >= 100000) {
       const originalSmallId = numId - 100000;
       const { data: offsetProds } = await supabase
         .from('products')
-        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id')
+        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, current_owner_id')
         .eq('product_id', originalSmallId);
       if (offsetProds && offsetProds.length > 0) {
         product = offsetProds[0];
       }
     }
 
-    // 3. If still not found, try matching by batch_number or UUID primary key
+    // 3. Try matching by batch_number or UUID primary key
     if (!product) {
-      const { data: batchProds } = await supabase
+      let queryBuilder = supabase
         .from('products')
-        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id')
-        .or(`batch_number.eq.${id},id.eq.${id}`);
+        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, current_owner_id');
+
+      if (isUUID) {
+        queryBuilder = queryBuilder.or(`batch_number.eq.${id},id.eq.${id}`);
+      } else {
+        queryBuilder = queryBuilder.eq('batch_number', id);
+      }
+
+      const { data: batchProds } = await queryBuilder;
       if (batchProds && batchProds.length > 0) {
         product = batchProds[0];
+      }
+    }
+
+    // 3b. Case-insensitive batch match
+    if (!product) {
+      const { data: ilikeProds } = await supabase
+        .from('products')
+        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, current_owner_id')
+        .ilike('batch_number', id);
+      if (ilikeProds && ilikeProds.length > 0) {
+        product = ilikeProds[0];
       }
     }
 
@@ -210,7 +234,7 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
     if (!product) {
       const { data: allProds } = await supabase
         .from('products')
-        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id');
+        .select('id, product_id, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, product_image_url, expiry_date, blockchain_hash, created_at, farmer_id, current_owner_id');
       if (allProds) {
         const found = allProds.find(p => {
           const pId = p.product_id;
@@ -219,7 +243,7 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
             : (Number(pId) >= 100000 && Number(pId) <= 999999)
             ? String(pId)
             : String(100000 + (Math.abs(Number(pId)) % 899999));
-          return mapped === String(id) || String(pId) === String(id);
+          return mapped === String(id) || String(pId) === String(id) || p.batch_number === String(id);
         });
         if (found) {
           product = found;
@@ -248,20 +272,40 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
       .or(`product_id.eq.${product.id},batch_number.eq.${product.batch_number}`)
       .order('created_at', { ascending: true });
 
-    // Fetch verified farmer profile if farmer_id is present
+    // Fetch verified farmer profile and user details if farmer_id is present
     let farmerProfile = null;
+    let farmerUser = null;
     if (product.farmer_id) {
       try {
         farmerProfile = await getActiveProfile(product.farmer_id);
+        const { data: u } = await supabase.from('users').select('id, name, email, role').eq('id', product.farmer_id).maybeSingle();
+        farmerUser = u;
       } catch {}
     }
+
+    // Fetch shipments relating to this product or batch
+    const { data: shipments } = await supabase
+      .from('shipments')
+      .select('*, sender:users!sender_id(id, name, role), receiver:users!receiver_id(id, name, role)')
+      .or(`product_id.eq.${product.id},batch_number.eq.${product.batch_number}`)
+      .order('created_at', { ascending: true });
+
+    // Fetch retailer inventory item if any
+    const { data: retailerInv } = await supabase
+      .from('retailer_inventory')
+      .select('*, retailer:users!retailer_id(id, name, role)')
+      .or(`product_id.eq.${product.id},batch_number.eq.${product.batch_number}`)
+      .maybeSingle();
 
     res.status(200).json({
       success: true,
       data: {
         ...product,
-        events: events || [],
+        farmer: farmerUser,
         farmer_profile: farmerProfile,
+        events: events || [],
+        shipments: shipments || [],
+        retailer_inventory: retailerInv,
         onchain_history: onchainHistory
       }
     });
@@ -272,16 +316,20 @@ export const getProductByBlockchainId = async (req: Request, res: Response) => {
 
 export const updateProductStatus = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id || '');
     const { status, current_owner_id, blockchain_hash, extraInfo, quantity } = req.body;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 
-    // 1. Fetch current product record
-    const { data: existingProduct, error: fetchErr } = await supabase
-      .from('products')
-      .select('*')
-      .or(`id.eq.${id},product_id.eq.${Number(id) || -1},batch_number.eq.${id}`)
-      .limit(1)
-      .maybeSingle();
+    // 1. Fetch current product record safely without casting batch_number to UUID
+    let fetchQuery = supabase.from('products').select('*');
+    if (isUUID) {
+      fetchQuery = fetchQuery.or(`id.eq.${id},batch_number.eq.${id}`);
+    } else if (!isNaN(Number(id))) {
+      fetchQuery = fetchQuery.or(`product_id.eq.${Number(id)},batch_number.eq.${id}`);
+    } else {
+      fetchQuery = fetchQuery.eq('batch_number', id);
+    }
+    const { data: existingProduct, error: fetchErr } = await fetchQuery.limit(1).maybeSingle();
 
     if (fetchErr || !existingProduct) {
       res.status(404).json({ success: false, message: 'Product not found' });
@@ -379,25 +427,29 @@ export const deleteProduct = async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id);
 
-    // 1. Try deleting directly by primary key 'id'
-    const { data: d1 } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', id)
-      .select();
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 
-    if (d1 && d1.length > 0) {
-      res.status(200).json({ success: true, message: 'Product deleted permanently from database' });
-      return;
+    // 1. Try deleting directly by primary key 'id' if valid UUID
+    if (isUUID) {
+      const { data: d1 } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', id)
+        .select();
+
+      if (d1 && d1.length > 0) {
+        res.status(200).json({ success: true, message: 'Product deleted permanently from database' });
+        return;
+      }
     }
 
-    // 2. If id is numeric, try deleting by product_id or integer id
+    // 2. If id is numeric, try deleting by product_id
     const numId = Number(id);
     if (!isNaN(numId) && numId > 0) {
       const { data: d2 } = await supabase
         .from('products')
         .delete()
-        .or(`product_id.eq.${numId},id.eq.${numId}`)
+        .eq('product_id', numId)
         .select();
 
       if (d2 && d2.length > 0) {
