@@ -123,6 +123,9 @@ export function DistributorDashboard() {
 
   // Pickup Verification Modal state (Processor Facility Handover)
   const pickupQrScannerRef = useRef<Html5Qrcode | null>(null)
+  const pickupVideoRef = useRef<HTMLVideoElement | null>(null)
+  const pickupStreamRef = useRef<MediaStream | null>(null)
+  const pickupScanAnimRef = useRef<number | null>(null)
   const pickupFileInputRef = useRef<HTMLInputElement>(null)
   const [isPickupCameraActive, setIsPickupCameraActive] = useState(false)
   const [pickupCameraError, setPickupCameraError] = useState("")
@@ -225,96 +228,144 @@ export function DistributorDashboard() {
   }
 
   // Pickup Verification Handlers (Processor Facility Handover)
-  const startPickupCamera = async () => {
-    setPickupCameraError("")
-    setIsPickupCameraActive(true)
-    try {
-      if (pickupQrScannerRef.current) {
-        try {
-          if (pickupQrScannerRef.current.isScanning) {
-            await pickupQrScannerRef.current.stop()
-          }
-          pickupQrScannerRef.current.clear()
-        } catch {}
-        pickupQrScannerRef.current = null
-      }
-
-      // Pre-check for mediaDevices support
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Camera API is not supported by your browser in this environment. Please ensure HTTPS or upload an image.")
-      }
-
-      // Request browser permission explicitly to produce clear error message if denied
-      let testStream: MediaStream | null = null
-      try {
-        testStream = await navigator.mediaDevices.getUserMedia({ video: true })
-        testStream.getTracks().forEach((t) => t.stop())
-      } catch (pErr: any) {
-        if (pErr.name === "NotAllowedError" || pErr.name === "PermissionDeniedError") {
-          throw new Error("Camera permission was denied. Please allow camera access in your browser settings / address bar.")
-        }
-        if (pErr.name === "NotFoundError" || pErr.name === "DevicesNotFoundError") {
-          throw new Error("No physical camera device was detected on your system. Please upload a QR image.")
-        }
-      }
-
-      // Give React DOM cycle a tick to hide the overlay
-      await new Promise((r) => setTimeout(r, 60))
-
-      const element = document.getElementById("pickup-modal-qr-reader")
-      if (!element) {
-        throw new Error("Viewfinder element not ready. Please try again.")
-      }
-
-      const html5Qr = new Html5Qrcode("pickup-modal-qr-reader")
-      pickupQrScannerRef.current = html5Qr
-
-      const onScanSuccess = (decodedText: string) => {
-        stopPickupCamera()
-        handleVerifyScannedToken(decodedText)
-      }
-
-      const qrConfig = {
-        fps: 15,
-        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-          const minDim = Math.min(viewfinderWidth, viewfinderHeight)
-          const edge = Math.max(Math.floor(minDim * 0.75), 140)
-          return { width: edge, height: edge }
-        }
-      }
-
-      // 3-Tier Camera Start: rear camera -> front webcam -> any available camera ID
-      try {
-        await html5Qr.start({ facingMode: { ideal: "environment" } }, qrConfig, onScanSuccess, () => {})
-      } catch (err1) {
-        try {
-          await html5Qr.start({ facingMode: "user" }, qrConfig, onScanSuccess, () => {})
-        } catch (err2) {
-          const cameras = await Html5Qrcode.getCameras().catch(() => [])
-          if (cameras && cameras.length > 0) {
-            await html5Qr.start(cameras[0].id, qrConfig, onScanSuccess, () => {})
-          } else {
-            throw new Error("Unable to establish camera video stream on this device. Please upload a QR image.")
-          }
-        }
-      }
-    } catch (err: any) {
-      console.error("Pickup camera error", err)
-      setPickupCameraError(err?.message || "Could not access camera. Please allow camera permissions or upload a QR image.")
-      setIsPickupCameraActive(false)
+  const stopPickupCamera = () => {
+    if (pickupScanAnimRef.current) {
+      cancelAnimationFrame(pickupScanAnimRef.current)
+      pickupScanAnimRef.current = null
     }
-  }
-
-  const stopPickupCamera = async () => {
+    if (pickupStreamRef.current) {
+      pickupStreamRef.current.getTracks().forEach((track) => track.stop())
+      pickupStreamRef.current = null
+    }
+    if (pickupVideoRef.current) {
+      pickupVideoRef.current.srcObject = null
+    }
     if (pickupQrScannerRef.current) {
       try {
         if (pickupQrScannerRef.current.isScanning) {
-          await pickupQrScannerRef.current.stop()
+          pickupQrScannerRef.current.stop().catch(() => {})
         }
         pickupQrScannerRef.current.clear()
-      } catch (e) {}
+      } catch {}
+      pickupQrScannerRef.current = null
     }
     setIsPickupCameraActive(false)
+  }
+
+  const startPickupCamera = async () => {
+    setPickupCameraError("")
+    stopPickupCamera()
+
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Camera API is not supported on this browser or connection. Please use HTTPS or upload a QR image.")
+      }
+
+      // Try environment (rear) camera first, with automatic fallback to front webcam / any video device
+      let stream: MediaStream | null = null
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        })
+      } catch (err1: any) {
+        if (err1.name === "NotAllowedError" || err1.name === "PermissionDeniedError") {
+          throw new Error("Camera permission was denied. Please allow camera access in your browser address bar (lock/camera icon) or site settings.")
+        }
+        if (err1.name === "NotFoundError" || err1.name === "DevicesNotFoundError") {
+          throw new Error("No physical camera device was detected on your system. Please connect a webcam or upload a QR image.")
+        }
+        // Fallback without constraints for webcams / laptops
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true })
+        } catch (err2: any) {
+          if (err2.name === "NotAllowedError" || err2.name === "PermissionDeniedError") {
+            throw new Error("Camera permission was denied. Please allow camera access in your browser address bar (lock/camera icon) or site settings.")
+          }
+          if (err2.name === "NotFoundError" || err2.name === "DevicesNotFoundError") {
+            throw new Error("No physical camera device was detected on your system. Please connect a webcam or upload a QR image.")
+          }
+          throw new Error(err2.message || "Unable to access video stream from camera. Please upload a QR image.")
+        }
+      }
+
+      pickupStreamRef.current = stream
+      setIsPickupCameraActive(true)
+
+      // Ensure video element receives the stream
+      await new Promise((r) => setTimeout(r, 60))
+      if (pickupVideoRef.current) {
+        pickupVideoRef.current.srcObject = stream
+        try {
+          await pickupVideoRef.current.play()
+        } catch (playErr) {
+          console.warn("Video play interrupted", playErr)
+        }
+      }
+
+      // Native BarcodeDetector (hardware-accelerated in modern Chrome/Edge/Safari)
+      let barcodeDetector: any = null
+      if ("BarcodeDetector" in window) {
+        try {
+          barcodeDetector = new (window as any).BarcodeDetector({ formats: ["qr_code"] })
+        } catch {}
+      }
+
+      // jsQR canvas fallback context
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d", { willReadFrequently: true })
+
+      let lastScanTime = 0
+
+      const scanLoop = async (timestamp: number) => {
+        if (!pickupStreamRef.current || !pickupVideoRef.current) return
+
+        // Scan every 120ms to keep smooth 60fps UI while detecting instantly
+        if (timestamp - lastScanTime > 120) {
+          lastScanTime = timestamp
+          const video = pickupVideoRef.current
+
+          if (video && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+            // Layer 1: Native BarcodeDetector
+            if (barcodeDetector) {
+              try {
+                const barcodes = await barcodeDetector.detect(video)
+                if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                  stopPickupCamera()
+                  handleVerifyScannedToken(barcodes[0].rawValue)
+                  return
+                }
+              } catch {}
+            }
+
+            // Layer 2: jsQR canvas decoder
+            if (ctx) {
+              canvas.width = video.videoWidth
+              canvas.height = video.videoHeight
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+              const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+              const code =
+                jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" }) ||
+                jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "attemptBoth" })
+
+              if (code && code.data) {
+                stopPickupCamera()
+                handleVerifyScannedToken(code.data)
+                return
+              }
+            }
+          }
+        }
+
+        pickupScanAnimRef.current = requestAnimationFrame(scanLoop)
+      }
+
+      pickupScanAnimRef.current = requestAnimationFrame(scanLoop)
+    } catch (err: any) {
+      console.error("Pickup camera error", err)
+      const errorMsg = typeof err === "string" ? err : err?.message || "Could not access camera. Please allow camera permissions or upload an image."
+      setPickupCameraError(errorMsg)
+      stopPickupCamera()
+    }
   }
 
   const handlePickupQrFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2755,7 +2806,14 @@ export function DistributorDashboard() {
 
                 {/* Optical Viewfinder Box - ALWAYS visible with real dimensions, overlay when idle */}
                 <div className="relative overflow-hidden rounded-2xl border-2 border-emerald-500 bg-slate-950 aspect-video w-full min-h-[220px] max-h-64 flex flex-col items-center justify-center shadow-lg">
-                  <div id="pickup-modal-qr-reader" className="w-full h-full" />
+                  <video
+                    ref={pickupVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={`w-full h-full object-cover ${isPickupCameraActive ? "block" : "hidden"}`}
+                  />
+                  <div id="pickup-modal-qr-reader" className="hidden" />
 
                   {isPickupCameraActive ? (
                     <>
