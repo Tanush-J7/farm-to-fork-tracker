@@ -323,7 +323,9 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
                     </div>
                   )}
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-slate-900 truncate">{user.name}</p>
+                    <p className="text-sm font-bold text-slate-900 truncate">
+                      {user.name === "admin" ? "System Administrator" : user.name}
+                    </p>
                     <p className="text-xs text-emerald-700 font-semibold capitalize">{user.role}</p>
                   </div>
                 </div>
@@ -482,8 +484,10 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
                 </div>
               )}
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{user.name}</p>
-                <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
+                <p className="text-sm font-semibold truncate text-slate-900">
+                  {user.name === "admin" ? "System Administrator" : user.name}
+                </p>
+                <p className="text-xs text-emerald-700 capitalize font-medium">{user.role}</p>
               </div>
             </div>
           </div>

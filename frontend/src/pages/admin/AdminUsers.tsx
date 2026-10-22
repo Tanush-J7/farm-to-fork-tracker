@@ -63,6 +63,24 @@ export function AdminUsers() {
     }
   }
 
+  const [cleaningUsers, setCleaningUsers] = useState(false)
+
+  const handleCleanTestUsers = async () => {
+    if (!window.confirm("Are you sure you want to clean all temporary test user accounts and keep only legitimate role accounts?")) return;
+    setCleaningUsers(true)
+    try {
+      const res = await axios.post(`${API}/admin/users/clean-test-users`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      alert(res.data?.message || "Test users cleaned successfully!")
+      fetchUsers()
+    } catch (err: any) {
+      alert(err?.response?.data?.message || "Failed to clean test users")
+    } finally {
+      setCleaningUsers(false)
+    }
+  }
+
   const handleDeleteUser = async (id: string) => {
     if (!window.confirm("Are you sure you want to permanently delete this user?")) return;
     try {
@@ -119,9 +137,21 @@ export function AdminUsers() {
           <p className="text-muted-foreground">Manage ecosystem users, accounts, and facility profile verification requests.</p>
         </div>
         {activeTab === "users" && (
-          <Button onClick={handleExportCSV} variant="outline" className="flex items-center gap-2">
-            <Download className="h-4 w-4" /> Export CSV
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={handleCleanTestUsers}
+              disabled={cleaningUsers}
+              variant="outline"
+              className="flex items-center gap-2 text-rose-600 border-rose-200 hover:bg-rose-50 cursor-pointer"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>{cleaningUsers ? "Cleaning..." : "Clean Test Users"}</span>
+            </Button>
+            <Button onClick={handleExportCSV} variant="outline" className="flex items-center gap-2 border-emerald-200 text-emerald-800 hover:bg-emerald-50 cursor-pointer">
+              <Download className="h-4 w-4 text-emerald-600" />
+              <span>Export CSV</span>
+            </Button>
+          </div>
         )}
       </div>
 
