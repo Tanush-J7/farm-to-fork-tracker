@@ -343,8 +343,8 @@ export function ProcessorDashboard() {
   }
 
   // Fetch Products
-  const fetchProducts = async () => {
-    setLoadingProducts(true)
+  const fetchProducts = async (isSilent = false) => {
+    if (!isSilent) setLoadingProducts(true)
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : {}
       const res = await axios.get(`${API}/products`, { headers })
@@ -416,18 +416,26 @@ export function ProcessorDashboard() {
           }
         })
 
-        // Clean out any stale synthetic batches that were never accepted by this processor
+        // Clean out only unaccepted synthetic batches that have zero operational history
         Object.keys(next).forEach(k => {
           const b = next[k]
           if (b && b.batchId && b.batchId.startsWith("PB-")) {
             const pId = String(b.productId || b.originalProduct?.id)
             const bNum = String(b.batchId || b.originalProduct?.batch_number)
-            const isMine =
+            const hasIntakeRecord =
               decisions[pId]?.decision === "Accepted" ||
               (bNum && decisions[bNum]?.decision === "Accepted") ||
               Boolean(receipts[pId]) ||
               (bNum && Boolean(receipts[bNum]))
-            if (!isMine) {
+            const hasOperationalActivity =
+              Boolean(b.deliveryRequestStatus) ||
+              Boolean(b.trackingId) ||
+              Boolean(b.pickupQrToken) ||
+              b.stage === "Transferred" ||
+              b.stage === "Processing Completed" ||
+              (b.stageLogs && b.stageLogs.length > 1)
+
+            if (!hasIntakeRecord && !hasOperationalActivity) {
               delete next[k]
               changed = true
             }
@@ -443,7 +451,7 @@ export function ProcessorDashboard() {
     } catch (err) {
       console.error("Failed to load products", err)
     } finally {
-      setLoadingProducts(false)
+      if (!isSilent) setLoadingProducts(false)
     }
   }
 
@@ -575,24 +583,26 @@ export function ProcessorDashboard() {
           const cB = cloudBatches[k]
           const lB = localBatches[k]
 
-          // Decide winning batch: Cloud is authoritative, but if both exist pick highest progress stage
+          // Decide winning batch: Cloud is authoritative, but if both exist pick highest progress stage and merge richest operational attributes
           let chosen = cB || lB
           if (cB && lB) {
-            if (stageWeight(lB.stage) > stageWeight(cB.stage)) {
-              chosen = { ...cB, ...lB }
-            } else {
-              chosen = { ...lB, ...cB }
+            const pickLB = stageWeight(lB.stage) > stageWeight(cB.stage)
+            chosen = {
+              ...(pickLB ? cB : lB),
+              ...(pickLB ? lB : cB),
+              deliveryRequestStatus: lB.deliveryRequestStatus || cB.deliveryRequestStatus,
+              trackingId: lB.trackingId || cB.trackingId,
+              pickupQrToken: lB.pickupQrToken || cB.pickupQrToken,
+              pickupQrData: lB.pickupQrData || cB.pickupQrData,
+              driverName: lB.driverName || cB.driverName,
+              driverPhone: lB.driverPhone || cB.driverPhone,
+              distributorName: lB.distributorName || cB.distributorName
             }
           }
 
           if (!chosen || !chosen.originalProduct) continue
           const pId = String(chosen.productId || chosen.originalProduct?.id || "")
           const bNum = String(chosen.originalProduct?.batch_number || (chosen.originalProduct as any)?.batchNumber || "")
-
-          if (products.length > 0) {
-            const exists = products.some(p => String(p.id) === pId || (bNum && p.batch_number === bNum))
-            if (!exists) continue
-          }
 
           const dedupeKey = pId || bNum || k
           if (!seenBatchedProducts.has(dedupeKey)) {
@@ -629,27 +639,69 @@ export function ProcessorDashboard() {
         const mergedDeals = { ...localDeals, ...(cloud.deals || {}) }
         const mergedDeclined = { ...localDeclined, ...(cloud.declinedProducts || {}) }
 
-        setBatches(mergedBatches)
-        setReceipts(mergedReceipts)
-        setVerifications(mergedVerifications)
-        setInspections(mergedInspections)
-        setDecisions(mergedDecisions)
-        setAuditLogs(mergedLogs)
-        setInterests(mergedInterests)
-        setDeals(mergedDeals)
-        setDeclinedProducts(mergedDeclined)
+        // Only commit state changes when there is an actual difference to avoid fluctuating re-renders
+        const prevBatchesStr = localStorage.getItem("processor_batches") || "{}"
+        const newBatchesStr = JSON.stringify(mergedBatches)
+        if (prevBatchesStr !== newBatchesStr) {
+          setBatches(mergedBatches)
+          try { localStorage.setItem("processor_batches", newBatchesStr) } catch {}
+        }
 
-        try {
-          localStorage.setItem("processor_batches", JSON.stringify(mergedBatches))
-          localStorage.setItem("processor_receipts", JSON.stringify(mergedReceipts))
-          localStorage.setItem("processor_verifications", JSON.stringify(mergedVerifications))
-          localStorage.setItem("processor_inspections", JSON.stringify(mergedInspections))
-          localStorage.setItem("processor_decisions", JSON.stringify(mergedDecisions))
-          localStorage.setItem("processor_logs", JSON.stringify(mergedLogs))
-          localStorage.setItem("processor_interests", JSON.stringify(mergedInterests))
-          localStorage.setItem("farmer_deals", JSON.stringify(mergedDeals))
-          localStorage.setItem("processor_declined_products", JSON.stringify(mergedDeclined))
-        } catch {}
+        const prevReceiptsStr = localStorage.getItem("processor_receipts") || "{}"
+        const newReceiptsStr = JSON.stringify(mergedReceipts)
+        if (prevReceiptsStr !== newReceiptsStr) {
+          setReceipts(mergedReceipts)
+          try { localStorage.setItem("processor_receipts", newReceiptsStr) } catch {}
+        }
+
+        const prevVerifStr = localStorage.getItem("processor_verifications") || "{}"
+        const newVerifStr = JSON.stringify(mergedVerifications)
+        if (prevVerifStr !== newVerifStr) {
+          setVerifications(mergedVerifications)
+          try { localStorage.setItem("processor_verifications", newVerifStr) } catch {}
+        }
+
+        const prevInspStr = localStorage.getItem("processor_inspections") || "{}"
+        const newInspStr = JSON.stringify(mergedInspections)
+        if (prevInspStr !== newInspStr) {
+          setInspections(mergedInspections)
+          try { localStorage.setItem("processor_inspections", newInspStr) } catch {}
+        }
+
+        const prevDecStr = localStorage.getItem("processor_decisions") || "{}"
+        const newDecStr = JSON.stringify(mergedDecisions)
+        if (prevDecStr !== newDecStr) {
+          setDecisions(mergedDecisions)
+          try { localStorage.setItem("processor_decisions", newDecStr) } catch {}
+        }
+
+        const prevLogsStr = localStorage.getItem("processor_logs") || "[]"
+        const newLogsStr = JSON.stringify(mergedLogs)
+        if (prevLogsStr !== newLogsStr) {
+          setAuditLogs(mergedLogs)
+          try { localStorage.setItem("processor_logs", newLogsStr) } catch {}
+        }
+
+        const prevInterestsStr = localStorage.getItem("processor_interests") || "[]"
+        const newInterestsStr = JSON.stringify(mergedInterests)
+        if (prevInterestsStr !== newInterestsStr) {
+          setInterests(mergedInterests)
+          try { localStorage.setItem("processor_interests", newInterestsStr) } catch {}
+        }
+
+        const prevDealsStr = localStorage.getItem("farmer_deals") || "{}"
+        const newDealsStr = JSON.stringify(mergedDeals)
+        if (prevDealsStr !== newDealsStr) {
+          setDeals(mergedDeals)
+          try { localStorage.setItem("farmer_deals", newDealsStr) } catch {}
+        }
+
+        const prevDeclinedStr = localStorage.getItem("processor_declined_products") || "{}"
+        const newDeclinedStr = JSON.stringify(mergedDeclined)
+        if (prevDeclinedStr !== newDeclinedStr) {
+          setDeclinedProducts(mergedDeclined)
+          try { localStorage.setItem("processor_declined_products", newDeclinedStr) } catch {}
+        }
 
         if (Object.keys(localBatches).length > 0 && (!cloud.batches || Object.keys(cloud.batches).length < Object.keys(mergedBatches).length)) {
           axios.put(`${API}/processor/state`, {
@@ -727,15 +779,15 @@ export function ProcessorDashboard() {
     window.addEventListener("storage", loadDealsAndDeclined)
 
     const interval = setInterval(() => {
-      fetchProducts()
+      fetchProducts(true)
       syncDeliveryRequests()
       fetchDistributors(true)
       fetchProcessorCloudState()
-    }, 8000)
+    }, 15000)
 
     const handleFocus = () => {
       if (document.visibilityState === "visible") {
-        fetchProducts()
+        fetchProducts(true)
         syncDeliveryRequests()
         fetchProcessorCloudState()
       }
@@ -1455,6 +1507,7 @@ export function ProcessorDashboard() {
 
           if (hasChanges) {
             localStorage.setItem("processor_batches", JSON.stringify(nextBatches))
+            persistProcessorState({ batches: nextBatches })
             return nextBatches
           }
           return prevBatches

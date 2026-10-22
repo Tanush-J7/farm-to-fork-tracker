@@ -198,6 +198,9 @@ export function ProcessorInventory({
         (bNum && decisions[bNum]?.decision === "Accepted") ||
         Boolean(receipts[pId]) ||
         Boolean(receipts[bNum]) ||
+        Boolean(b.deliveryRequestStatus) ||
+        Boolean(b.trackingId) ||
+        b.stage === "Transferred" ||
         b.stageLogs?.some((l: any) => l.stage === "Accepted" || l.stage === "Processing Started" || l.stage === "Transferred")
 
       if (!isAccepted) return
