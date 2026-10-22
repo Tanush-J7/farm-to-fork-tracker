@@ -60,6 +60,7 @@ function App() {
 
           <Route path="/farmer" element={<DashboardLayout />}>
             <Route index element={<FarmerDashboard />} />
+            <Route path="supply-requests" element={<FarmerDashboard />} />
             <Route path="products" element={<MyProductsPage />} />
             <Route path="ai-services" element={<FarmerAIServices />} />
           </Route>

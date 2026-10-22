@@ -19,6 +19,7 @@ const roleNavMap: Record<string, { name: string; path: string; icon: React.Eleme
   ],
   farmer: [
     { name: "My Farm", path: "/farmer", icon: Leaf },
+    { name: "Supply Requests", path: "/farmer?tab=supply-requests", icon: ShoppingCart },
     { name: "My Products", path: "/farmer/products", icon: PackageSearch },
     { name: "AI Services", path: "/farmer/ai-services", icon: Wand2 },
     { name: "Track Product", path: "/track", icon: PackageSearch },
@@ -81,6 +82,37 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
   // Distributor live sidebar badges
   const [distributorPendingCount, setDistributorPendingCount] = useState(0)
   const [distributorFleetCount, setDistributorFleetCount] = useState(0)
+
+  // Farmer live supply requests badge
+  const [farmerSupplyRequestsCount, setFarmerSupplyRequestsCount] = useState(0)
+
+  useEffect(() => {
+    if (user?.role === "farmer" && token) {
+      const fetchFarmerCounts = async () => {
+        try {
+          const API_URL = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
+          const res = await axios.get(`${API_URL}/processor/farmer-sourcing`, { headers: { Authorization: `Bearer ${token}` } })
+          const sourcing = res.data?.data || []
+          let directDealsCount = 0
+          try {
+            const deals = JSON.parse(localStorage.getItem("farmer_deals") || "{}")
+            directDealsCount = Object.values(deals).filter(v => v === "requested").length
+          } catch {}
+          setFarmerSupplyRequestsCount(sourcing.length + directDealsCount)
+        } catch {}
+      }
+
+      fetchFarmerCounts()
+      const interval = setInterval(fetchFarmerCounts, 10000)
+      window.addEventListener("farmer_supply_requests_updated", fetchFarmerCounts)
+      window.addEventListener("farmer_deals_updated", fetchFarmerCounts)
+      return () => {
+        clearInterval(interval)
+        window.removeEventListener("farmer_supply_requests_updated", fetchFarmerCounts)
+        window.removeEventListener("farmer_deals_updated", fetchFarmerCounts)
+      }
+    }
+  }, [user?.role, token])
 
   useEffect(() => {
     if (user?.role === "distributor" && token) {
@@ -326,6 +358,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
                 const Icon = item.icon
                 const isDeliveryRequests = item.path.includes("tab=requests")
                 const isFleetRoutes = item.path.includes("tab=fleet")
+                const isSupplyRequests = item.path.includes("tab=supply-requests")
 
                 return (
                   <Link
@@ -351,6 +384,11 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
                     {isFleetRoutes && distributorFleetCount > 0 && (
                       <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white px-1.5 shadow-xs">
                         {distributorFleetCount}
+                      </span>
+                    )}
+                    {isSupplyRequests && farmerSupplyRequestsCount > 0 && (
+                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white px-1.5 shadow-xs animate-pulse">
+                        {farmerSupplyRequestsCount}
                       </span>
                     )}
                   </Link>
@@ -458,6 +496,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
 
                 const isDeliveryRequests = item.path.includes("tab=requests")
                 const isFleetRoutes = item.path.includes("tab=fleet")
+                const isSupplyRequests = item.path.includes("tab=supply-requests")
 
                 return (
                   <Link key={item.path} to={item.path} title={item.name}>
@@ -481,6 +520,12 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
                       {!collapsed && isFleetRoutes && distributorFleetCount > 0 && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shrink-0">
                           {distributorFleetCount}
+                        </span>
+                      )}
+
+                      {!collapsed && isSupplyRequests && farmerSupplyRequestsCount > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shrink-0 animate-pulse">
+                          {farmerSupplyRequestsCount}
                         </span>
                       )}
                     </div>

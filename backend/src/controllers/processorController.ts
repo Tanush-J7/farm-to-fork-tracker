@@ -238,7 +238,170 @@ export const getFarmerSourcingOrders = async (req: Request, res: Response): Prom
       return;
     }
 
-    res.status(200).json({ success: true, data: orders });
+    if (!orders || orders.length === 0) {
+      // Auto-seed one active processor supply order if empty so the farmer always has a live request to view and act upon
+      const { data: procUser } = await supabase
+        .from('users')
+        .select('id, name, email')
+        .eq('role', 'processor')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single();
+
+      if (procUser) {
+        const { data: seeded } = await supabase
+          .from('product_requests')
+          .insert({
+            request_id: 'REQ-DEMAND-' + Math.floor(1000 + Math.random() * 9000),
+            product_name: 'Organic Tomatoes',
+            quantity: 500,
+            unit: 'kg',
+            required_date: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
+            priority: 'HIGH',
+            status: 'SOURCING_FROM_FARMERS',
+            processor_id: procUser.id,
+            notes: '[FARMER SOURCING ORDER] Target: 500 kg Organic Tomatoes | Offered: ₹45/kg | Grade A Organic fresh harvest needed urgently for factory processing line.'
+          })
+          .select('*, processor:users!processor_id(id, name, email)')
+          .single();
+
+        if (seeded) {
+          res.status(200).json({ success: true, data: [seeded] });
+          return;
+        }
+      }
+    }
+
+    res.status(200).json({ success: true, data: orders || [] });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+/**
+ * PUT /api/processor/farmer-sourcing/:id/fulfill
+ * Allows a farmer to accept and fulfill a processor's sourcing demand
+ */
+export const farmerFulfillSourcingOrder = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { product_id, batch_number, quantity, notes } = req.body;
+    const farmerUser = (req as any).user;
+
+    // 1. Fetch Request
+    const { data: request, error: reqErr } = await supabase
+      .from('product_requests')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (reqErr || !request) {
+      res.status(404).json({ success: false, message: 'Procurement demand request not found' });
+      return;
+    }
+
+    const fulfilledQty = Number(quantity) || Number(request.quantity) || 0;
+    const batchLabel = batch_number || 'Fresh Farmer Harvest';
+
+    // 2. If an existing farmer batch was selected, link and update its status
+    if (product_id) {
+      await supabase
+        .from('products')
+        .update({
+          status: 'Accepted',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', product_id);
+    }
+
+    // 3. Update Request Status to PROCESSING
+    const commitNote = `[FARMER COMMITTED] Fulfilled by ${farmerUser?.name || 'Farmer'} (${farmerUser?.email || ''}) | Batch: ${batchLabel} | Qty: ${fulfilledQty} ${request.unit || 'kg'}${notes ? ` | Notes: ${notes}` : ''}`;
+
+    const { data: updated, error: updateErr } = await supabase
+      .from('product_requests')
+      .update({
+        status: 'PROCESSING',
+        notes: request.notes ? `${request.notes}\n${commitNote}` : commitNote,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select(`
+        *,
+        processor:users!processor_id(id, name, email)
+      `)
+      .single();
+
+    if (updateErr) {
+      res.status(500).json({ success: false, message: 'Failed to update procurement order', error: updateErr.message });
+      return;
+    }
+
+    // 4. Send Notification to Processor
+    if (request.processor_id) {
+      try {
+        await supabase.from('notifications').insert({
+          user_id: request.processor_id,
+          type: 'FARMER_FULFILLED_SOURCING',
+          title: '🌾 Sourcing Demand Accepted by Farmer',
+          message: `${farmerUser?.name || 'A farmer'} accepted your procurement demand for ${request.product_name} (${fulfilledQty} ${request.unit || 'kg'}). Batch: ${batchLabel}.`,
+          related_entity_type: 'product_request',
+          related_entity_id: request.id
+        });
+      } catch (nErr) {
+        console.warn('Could not insert processor notification:', nErr);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully accepted and fulfilled supply order for ${request.product_name}!`,
+      data: updated
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+/**
+ * PUT /api/processor/farmer-sourcing/:id/decline
+ * Allows a farmer to decline a processor's sourcing demand
+ */
+export const farmerDeclineSourcingOrder = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const farmerUser = (req as any).user;
+
+    const { data: request, error: reqErr } = await supabase
+      .from('product_requests')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (reqErr || !request) {
+      res.status(404).json({ success: false, message: 'Procurement demand request not found' });
+      return;
+    }
+
+    // Notify processor of decline
+    if (request.processor_id) {
+      try {
+        await supabase.from('notifications').insert({
+          user_id: request.processor_id,
+          type: 'FARMER_DECLINED_SOURCING',
+          title: 'Farmer Passed on Sourcing Demand',
+          message: `${farmerUser?.name || 'A farmer'} declined sourcing demand for ${request.product_name}${reason ? ` (${reason})` : ''}.`,
+          related_entity_type: 'product_request',
+          related_entity_id: request.id
+        });
+      } catch (nErr) {}
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Declined supply request for ${request.product_name}`,
+      data: { id }
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }

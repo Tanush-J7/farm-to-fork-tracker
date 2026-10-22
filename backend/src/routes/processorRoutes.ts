@@ -5,6 +5,8 @@ import {
   fulfillRequestFromStock,
   sourceFromFarmers,
   getFarmerSourcingOrders,
+  farmerFulfillSourcingOrder,
+  farmerDeclineSourcingOrder,
   getAvailableDistributors,
   assignDistributor,
   sendDeliveryRequest,
@@ -43,5 +45,7 @@ router.post('/delivery-requests/:id/confirm-dispatch', authorize('processor', 'a
 
 // Farmer-accessible procurement demand orders
 router.get('/farmer-sourcing', authorize('farmer', 'processor', 'admin'), getFarmerSourcingOrders);
+router.put('/farmer-sourcing/:id/fulfill', authorize('farmer', 'processor', 'admin'), farmerFulfillSourcingOrder);
+router.put('/farmer-sourcing/:id/decline', authorize('farmer', 'processor', 'admin'), farmerDeclineSourcingOrder);
 
 export default router;

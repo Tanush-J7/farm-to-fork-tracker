@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from "react"
+import { useSearchParams, useLocation, useNavigate } from "react-router-dom"
 import { Button } from "../components/ui/Button"
 import {
   Leaf, Plus, X, CheckCircle2, Clock, Truck, Factory,
   ShoppingBag, AlertCircle, RefreshCw, Wheat, Star, ImagePlus, CalendarDays, Wand2, Trash2, QrCode, Printer, Download,
-  Bell, PackageCheck, Check, Sparkles
+  Bell, PackageCheck, Check, ShoppingCart, ArrowRight
 } from "lucide-react"
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react"
 import axios from "axios"
 import { useAuth } from "../context/AuthContext"
+import { FarmerSupplyRequestsDesk } from "../components/farmer/FarmerSupplyRequestsDesk"
+import { cn } from "../utils"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
@@ -92,6 +95,13 @@ const normaliseProduct = (product: any): Product => ({
 
 export function FarmerDashboard() {
   const { token } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  const currentTab = location.pathname.includes("supply-requests") || searchParams.get("tab") === "supply-requests"
+    ? "supply-requests"
+    : searchParams.get("tab") || "farm"
 
   // Form state
   const [showForm, setShowForm] = useState(false)
@@ -525,6 +535,14 @@ export function FarmerDashboard() {
     }
   }
 
+  const pendingDirectDealsCount = products.filter(p => {
+    const d = deals[p._id] || deals[p.batchNumber]
+    return d === "requested"
+  }).length
+
+  const pendingDemandsCount = sourcingOrders.filter(o => o.status === "SOURCING_FROM_FARMERS").length
+  const totalPendingSupplyCount = pendingDemandsCount + pendingDirectDealsCount
+
   // Stats derived from products
   const stats = {
     total: products.length,
@@ -662,7 +680,107 @@ export function FarmerDashboard() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Primary Tab Navigation */}
+      <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+        <button
+          onClick={() => {
+            setSearchParams({})
+            if (location.pathname.includes("supply-requests")) navigate("/farmer")
+          }}
+          className={cn(
+            "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all cursor-pointer",
+            currentTab !== "supply-requests"
+              ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/30"
+              : "text-slate-400 hover:text-white hover:bg-white/5"
+          )}
+        >
+          <Leaf className="h-4 w-4" />
+          <span>My Farm & Batches</span>
+          <span className={cn(
+            "px-2 py-0.5 text-xs rounded-full font-bold",
+            currentTab !== "supply-requests" ? "bg-white/20 text-white" : "bg-white/10 text-slate-400"
+          )}>
+            {products.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => {
+            setSearchParams({ tab: "supply-requests" })
+          }}
+          className={cn(
+            "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all cursor-pointer relative",
+            currentTab === "supply-requests"
+              ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/30"
+              : "text-slate-400 hover:text-white hover:bg-white/5"
+          )}
+        >
+          <ShoppingCart className="h-4 w-4" />
+          <span>Processor Supply Requests</span>
+          {totalPendingSupplyCount > 0 && (
+            <span className="px-2 py-0.5 text-xs rounded-full bg-amber-500 text-white font-bold animate-pulse">
+              {totalPendingSupplyCount} New
+            </span>
+          )}
+        </button>
+      </div>
+
+      {currentTab === "supply-requests" ? (
+        <FarmerSupplyRequestsDesk
+          sourcingOrders={sourcingOrders}
+          products={products}
+          deals={deals}
+          notifications={notifications}
+          token={token}
+          onRefresh={() => {
+            fetchSourcingOrders()
+            fetchProducts()
+            fetchFarmerCloudState()
+          }}
+          onAcceptDeal={handleAcceptDeal}
+          onMarkReadyForDispatch={handleMarkReadyForDispatch}
+          onDeclineDeal={handleDeclineDeal}
+          onOpenRegisterFormWithPreFill={(prefill) => {
+            setForm({
+              name: prefill.name,
+              category: prefill.category || "Vegetables",
+              quantity: prefill.quantity,
+              batchNumber: generateBatchNumber(),
+              expiryDate: "",
+              organicStatus: true
+            })
+            setShowForm(true)
+          }}
+        />
+      ) : (
+        <div className="space-y-8">
+          {/* Active Supply Requests Highlight Callout */}
+          {totalPendingSupplyCount > 0 && (
+            <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-900 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400">
+                  <ShoppingCart className="h-6 w-6 animate-bounce" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    🌾 Processor Supply Requests Waiting ({totalPendingSupplyCount} Demands)
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Processing facilities have broadcasted crop procurement contracts. Review and commit your harvest.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => setSearchParams({ tab: "supply-requests" })}
+                className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shrink-0 rounded-xl cursor-pointer"
+              >
+                <span>View & Fulfill in Supply Desk</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
+
+          {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Total Batches", value: stats.total, icon: Wheat, color: "text-green-400" },
@@ -682,60 +800,6 @@ export function FarmerDashboard() {
         ))}
       </div>
 
-      {/* Active Processor Procurement Orders (Demanded by Retailers) */}
-      {sourcingOrders.length > 0 && (
-        <div className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-purple-400" />
-              <h3 className="font-bold text-foreground">
-                🌾 Active Processor Procurement Orders ({sourcingOrders.length})
-              </h3>
-            </div>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300">
-              Demand Sourcing
-            </span>
-          </div>
-          <p className="text-xs text-slate-300">
-            Processors are actively sourcing these harvests to fulfill retailer store requirements. Click "Fulfill Order" to register harvest directly for this contract.
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {sourcingOrders.map((order) => (
-              <div key={order.id} className="p-3.5 rounded-xl border border-purple-500/20 bg-card/60 flex items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-purple-400">{order.request_id}</span>
-                    <strong className="text-sm text-foreground">{order.product_name}</strong>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Required: <span className="text-foreground font-semibold">{order.quantity} {order.unit || "kg"}</span>
-                  </p>
-                  {order.notes && (
-                    <p className="text-[11px] text-purple-300 line-clamp-1">{order.notes}</p>
-                  )}
-                </div>
-                <Button
-                  size="sm"
-                  className="bg-purple-600 hover:bg-purple-700 text-white text-xs shrink-0"
-                  onClick={() => {
-                    setForm({
-                      name: order.product_name,
-                      category: "Vegetables",
-                      quantity: String(order.quantity),
-                      batchNumber: generateBatchNumber(),
-                      expiryDate: "",
-                      organicStatus: true
-                    })
-                    setShowForm(true)
-                  }}
-                >
-                  Fulfill Order
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Register Form Modal */}
       {showForm && (
@@ -1078,6 +1142,9 @@ export function FarmerDashboard() {
           </div>
         )}
       </div>
+
+        </div>
+      )}
 
       {/* QR Code Certificate Modal */}
       {selectedQrProduct && (
