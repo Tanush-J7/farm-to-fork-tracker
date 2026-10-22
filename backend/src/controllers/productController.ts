@@ -390,3 +390,93 @@ export const deleteProduct = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: 'Server Error', error });
   }
 };
+
+/**
+ * GET /api/products/farmer-state
+ * Cloud sync: fetch farmer deals, notifications, deleted products, and locations across devices
+ */
+export const getFarmerState = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const farmerId = (req as any).user?.id;
+    if (!farmerId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const { data: record, error } = await supabase
+      .from('traceability_events')
+      .select('*')
+      .eq('actor_id', farmerId)
+      .eq('event_type', 'FARMER_STATE')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      res.status(500).json({ success: false, message: 'Failed to fetch farmer state', error: error.message });
+      return;
+    }
+
+    const state = record?.metadata || {};
+    res.status(200).json({ success: true, data: state });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+/**
+ * PUT /api/products/farmer-state
+ * Cloud sync: persist farmer deals, notifications, deleted products, and locations across devices
+ */
+export const saveFarmerState = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const farmerId = (req as any).user?.id;
+    if (!farmerId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const incomingState = req.body || {};
+
+    const { data: existing } = await supabase
+      .from('traceability_events')
+      .select('id, metadata')
+      .eq('actor_id', farmerId)
+      .eq('event_type', 'FARMER_STATE')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      const mergedMetadata = {
+        ...(existing.metadata || {}),
+        ...incomingState,
+        synced_at: new Date().toISOString()
+      };
+      await supabase
+        .from('traceability_events')
+        .update({
+          metadata: mergedMetadata,
+          created_at: new Date().toISOString()
+        })
+        .eq('id', existing.id);
+    } else {
+      await supabase
+        .from('traceability_events')
+        .insert({
+          batch_number: 'FARMER_SYNC',
+          event_type: 'FARMER_STATE',
+          actor_id: farmerId,
+          location: 'Cloud Sync State',
+          metadata: {
+            ...incomingState,
+            synced_at: new Date().toISOString()
+          }
+        });
+    }
+
+    res.status(200).json({ success: true, message: 'Farmer state synchronized' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};

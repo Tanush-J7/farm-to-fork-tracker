@@ -1033,3 +1033,184 @@ export const confirmProcessorDispatch = async (req: Request, res: Response): Pro
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
+
+/**
+ * GET /api/processor/state
+ * Cloud sync: fetch processor activity state (batches, receipts, verifications, inspections, decisions, logs, interests)
+ */
+export const getProcessorState = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const processorId = (req as any).user?.id;
+    if (!processorId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const { data: record, error } = await supabase
+      .from('traceability_events')
+      .select('*')
+      .eq('actor_id', processorId)
+      .eq('event_type', 'PROCESSOR_STATE')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      res.status(500).json({ success: false, message: 'Failed to fetch state', error: error.message });
+      return;
+    }
+
+    const state = record?.metadata || {};
+    res.status(200).json({ success: true, data: state });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+/**
+ * PUT /api/processor/state
+ * Cloud sync: persist processor activity state so it stays synced across all devices
+ */
+export const saveProcessorState = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const processorId = (req as any).user?.id;
+    if (!processorId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const incomingState = req.body || {};
+
+    const { data: existing } = await supabase
+      .from('traceability_events')
+      .select('id, metadata')
+      .eq('actor_id', processorId)
+      .eq('event_type', 'PROCESSOR_STATE')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      const mergedMetadata = {
+        ...(existing.metadata || {}),
+        ...incomingState,
+        synced_at: new Date().toISOString()
+      };
+      await supabase
+        .from('traceability_events')
+        .update({
+          metadata: mergedMetadata,
+          created_at: new Date().toISOString()
+        })
+        .eq('id', existing.id);
+    } else {
+      await supabase
+        .from('traceability_events')
+        .insert({
+          batch_number: 'PROCESSOR_SYNC',
+          event_type: 'PROCESSOR_STATE',
+          actor_id: processorId,
+          location: 'Cloud Sync State',
+          metadata: {
+            ...incomingState,
+            synced_at: new Date().toISOString()
+          }
+        });
+    }
+
+    res.status(200).json({ success: true, message: 'Processor state synchronized' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+/**
+ * POST /api/processor/notify-farmer
+ * Notify farmer of processor intake decision and sync to farmer cloud state
+ */
+export const notifyFarmerIntake = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { farmer_id, product_id, batch_number, status, message, quantity, grade } = req.body;
+    const processorId = (req as any).user?.id;
+
+    let targetFarmerId = farmer_id;
+    if (!targetFarmerId && product_id) {
+      const { data: prod } = await supabase.from('products').select('farmer_id').eq('id', product_id).single();
+      if (prod?.farmer_id) {
+        targetFarmerId = prod.farmer_id;
+      }
+    }
+
+    if (targetFarmerId) {
+      // 1. Insert into notifications table
+      await supabase.from('notifications').insert({
+        user_id: targetFarmerId,
+        type: status === 'accepted' ? 'PROCESSOR_ACCEPTED' : 'PROCESSOR_REJECTED',
+        title: status === 'accepted' ? 'Produce Accepted by Processor' : 'Produce Rejected by Processor',
+        message: message || `Your batch has been ${status} by the processor.`,
+        metadata: { product_id, batch_number, status, quantity, grade, processor_id: processorId }
+      });
+
+      // 2. Also update farmer state in traceability_events
+      const { data: existingFarmerState } = await supabase
+        .from('traceability_events')
+        .select('id, metadata')
+        .eq('actor_id', targetFarmerId)
+        .eq('event_type', 'FARMER_STATE')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const newNotif = {
+        id: 'notif-' + Math.random().toString(36).substring(2, 9),
+        type: status === 'accepted' ? 'processor_accepted' : 'processor_rejected',
+        productId: String(product_id),
+        batchNumber: batch_number || '',
+        quantity: quantity || 0,
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toTimeString().split(' ')[0].slice(0, 5),
+        timestamp: Date.now(),
+        read: false,
+        message: message
+      };
+
+      if (existingFarmerState) {
+        const prevMeta = existingFarmerState.metadata || {};
+        const prevDeals = prevMeta.deals || {};
+        const prevNotifs = prevMeta.notifications || [];
+        const updatedDeals = { ...prevDeals, [product_id]: status, [batch_number]: status };
+        const updatedNotifs = [newNotif, ...prevNotifs];
+
+        await supabase
+          .from('traceability_events')
+          .update({
+            metadata: {
+              ...prevMeta,
+              deals: updatedDeals,
+              notifications: updatedNotifs,
+              synced_at: new Date().toISOString()
+            }
+          })
+          .eq('id', existingFarmerState.id);
+      } else {
+        await supabase
+          .from('traceability_events')
+          .insert({
+            batch_number: 'FARMER_SYNC',
+            event_type: 'FARMER_STATE',
+            actor_id: targetFarmerId,
+            location: 'Cloud Sync State',
+            metadata: {
+              deals: { [product_id]: status, [batch_number]: status },
+              notifications: [newNotif],
+              synced_at: new Date().toISOString()
+            }
+          });
+      }
+    }
+
+    res.status(200).json({ success: true, message: 'Farmer notified successfully' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: 'Error notifying farmer', error: err.message });
+  }
+};

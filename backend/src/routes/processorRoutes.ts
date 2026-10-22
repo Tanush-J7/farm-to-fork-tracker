@@ -10,13 +10,21 @@ import {
   sendDeliveryRequest,
   getProcessorDeliveryRequests,
   generatePickupQR,
-  confirmProcessorDispatch
+  confirmProcessorDispatch,
+  getProcessorState,
+  saveProcessorState,
+  notifyFarmerIntake
 } from '../controllers/processorController';
 
 const router = Router();
 
 // Protect all routes
 router.use(protect);
+
+// Cloud-synced processor state across mobile & desktop devices
+router.get('/state', authorize('processor', 'admin'), getProcessorState);
+router.put('/state', authorize('processor', 'admin'), saveProcessorState);
+router.post('/notify-farmer', authorize('processor', 'admin'), notifyFarmerIntake);
 
 // Processor Demand Desk routes
 router.get('/requests', authorize('processor', 'admin'), getRetailerRequests);

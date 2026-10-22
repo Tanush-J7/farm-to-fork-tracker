@@ -130,6 +130,115 @@ export function FarmerDashboard() {
     }
   }, [token])
 
+  // Cloud Sync for Farmer State across all devices (Mobile & Laptop)
+  const syncFarmerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const persistFarmerState = useCallback((patch: {
+    deals?: Record<string, "requested" | "accepted" | "dispatched" | "declined">
+    notifications?: FarmerNotification[]
+    decisions?: Record<string, any>
+    deletedProducts?: string[]
+    productLocations?: Record<string, string>
+  }) => {
+    if (patch.deals !== undefined) {
+      setDeals(patch.deals)
+      try { localStorage.setItem("farmer_deals", JSON.stringify(patch.deals)) } catch {}
+    }
+    if (patch.notifications !== undefined) {
+      setNotifications(patch.notifications)
+      try { localStorage.setItem("farmer_notifications", JSON.stringify(patch.notifications)) } catch {}
+    }
+    if (patch.decisions !== undefined) {
+      setDecisions(patch.decisions)
+      try { localStorage.setItem("processor_decisions", JSON.stringify(patch.decisions)) } catch {}
+    }
+    if (patch.deletedProducts !== undefined) {
+      try { localStorage.setItem("farmer_deleted_products", JSON.stringify(patch.deletedProducts)) } catch {}
+    }
+    if (patch.productLocations !== undefined) {
+      try { localStorage.setItem("product_farmer_locations", JSON.stringify(patch.productLocations)) } catch {}
+    }
+
+    if (syncFarmerTimeoutRef.current) {
+      clearTimeout(syncFarmerTimeoutRef.current)
+    }
+    syncFarmerTimeoutRef.current = setTimeout(async () => {
+      if (!token) return
+      try {
+        const d = patch.deals ?? JSON.parse(localStorage.getItem("farmer_deals") || "{}")
+        const n = patch.notifications ?? JSON.parse(localStorage.getItem("farmer_notifications") || "[]")
+        const dec = patch.decisions ?? JSON.parse(localStorage.getItem("processor_decisions") || "{}")
+        const del = patch.deletedProducts ?? JSON.parse(localStorage.getItem("farmer_deleted_products") || "[]")
+        const loc = patch.productLocations ?? JSON.parse(localStorage.getItem("product_farmer_locations") || "{}")
+
+        await axios.put(`${API}/products/farmer-state`, {
+          deals: d,
+          notifications: n,
+          decisions: dec,
+          deletedProducts: del,
+          productLocations: loc
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      } catch (err) {
+        console.warn("Could not sync farmer state to cloud", err)
+      }
+    }, 400)
+  }, [token])
+
+  const fetchFarmerCloudState = useCallback(async () => {
+    if (!token) return
+    try {
+      const res = await axios.get(`${API}/products/farmer-state`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.data?.success && res.data.data) {
+        const cloud = res.data.data
+        let localDeals = JSON.parse(localStorage.getItem("farmer_deals") || "{}")
+        let localNotifs = JSON.parse(localStorage.getItem("farmer_notifications") || "[]")
+        let localDecisions = JSON.parse(localStorage.getItem("processor_decisions") || "{}")
+        let localDeleted = JSON.parse(localStorage.getItem("farmer_deleted_products") || "[]")
+        let localLocations = JSON.parse(localStorage.getItem("product_farmer_locations") || "{}")
+
+        const mergedDeals = { ...(cloud.deals || {}), ...localDeals }
+        
+        const existingNotifIds = new Set(localNotifs.map((n: any) => n.id))
+        const newCloudNotifs = (cloud.notifications || []).filter((n: any) => !existingNotifIds.has(n.id))
+        const mergedNotifs = [...localNotifs, ...newCloudNotifs]
+        
+        const mergedDecisions = { ...(cloud.decisions || {}), ...localDecisions }
+        const mergedDeleted = Array.from(new Set([...(cloud.deletedProducts || []), ...localDeleted]))
+        const mergedLocations = { ...(cloud.productLocations || {}), ...localLocations }
+
+        setDeals(mergedDeals)
+        setNotifications(mergedNotifs)
+        setDecisions(mergedDecisions)
+
+        try {
+          localStorage.setItem("farmer_deals", JSON.stringify(mergedDeals))
+          localStorage.setItem("farmer_notifications", JSON.stringify(mergedNotifs))
+          localStorage.setItem("processor_decisions", JSON.stringify(mergedDecisions))
+          localStorage.setItem("farmer_deleted_products", JSON.stringify(mergedDeleted))
+          localStorage.setItem("product_farmer_locations", JSON.stringify(mergedLocations))
+        } catch {}
+
+        if (Object.keys(localDeals).length > 0 || localNotifs.length > 0) {
+          axios.put(`${API}/products/farmer-state`, {
+            deals: mergedDeals,
+            notifications: mergedNotifs,
+            decisions: mergedDecisions,
+            deletedProducts: mergedDeleted,
+            productLocations: mergedLocations
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
+          }).catch(() => {})
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch farmer cloud state", e)
+    }
+  }, [token])
+
   // Load Farmer Notifications from storage
   const loadNotifications = useCallback(() => {
     try {
@@ -165,36 +274,44 @@ export function FarmerDashboard() {
     loadDeals()
     loadDecisions()
     fetchSourcingOrders()
+    fetchFarmerCloudState()
+
     const handleUpdate = () => {
       loadNotifications()
       loadDeals()
       loadDecisions()
       fetchProducts()
       fetchSourcingOrders()
+      fetchFarmerCloudState()
     }
     window.addEventListener("farmer_notifications_updated", handleUpdate)
     window.addEventListener("farmer_deals_updated", handleUpdate)
     window.addEventListener("storage", handleUpdate)
+
+    const interval = setInterval(() => {
+      fetchFarmerCloudState()
+      fetchSourcingOrders()
+    }, 15000)
+
     return () => {
+      clearInterval(interval)
       window.removeEventListener("farmer_notifications_updated", handleUpdate)
       window.removeEventListener("farmer_deals_updated", handleUpdate)
       window.removeEventListener("storage", handleUpdate)
     }
-  }, [loadNotifications, loadDeals, loadDecisions, fetchSourcingOrders])
+  }, [loadNotifications, loadDeals, loadDecisions, fetchSourcingOrders, fetchFarmerCloudState])
 
   // Handlers for Farmer Deal Lifecycle
   const handleAcceptDeal = (productId: string, batchNumber: string) => {
     const updated = { ...deals, [productId]: "accepted", [batchNumber]: "accepted" }
-    setDeals(updated as any)
-    localStorage.setItem("farmer_deals", JSON.stringify(updated))
+    persistFarmerState({ deals: updated as any })
     window.dispatchEvent(new Event("farmer_deals_updated"))
     window.dispatchEvent(new Event("farmer_notifications_updated"))
   }
 
   const handleMarkReadyForDispatch = async (productId: string, batchNumber: string) => {
     const updated = { ...deals, [productId]: "dispatched", [batchNumber]: "dispatched" }
-    setDeals(updated as any)
-    localStorage.setItem("farmer_deals", JSON.stringify(updated))
+    persistFarmerState({ deals: updated as any })
     
     try {
       await axios.put(`${API}/products/${productId}/status`, { status: "In Transit" }, { headers })
@@ -211,8 +328,7 @@ export function FarmerDashboard() {
     if (!window.confirm("Decline this processor request? The produce will be returned to open market for other processors.")) return
 
     const updated = { ...deals, [productId]: "declined", [batchNumber]: "declined" }
-    setDeals(updated as any)
-    localStorage.setItem("farmer_deals", JSON.stringify(updated))
+    persistFarmerState({ deals: updated as any })
 
     // Record declined status in processor_declined_products map
     try {
@@ -238,19 +354,16 @@ export function FarmerDashboard() {
   // Notification Helpers
   const markAsRead = (id: string) => {
     const updated = notifications.map(n => (n.id === id ? { ...n, read: true } : n))
-    setNotifications(updated)
-    localStorage.setItem("farmer_notifications", JSON.stringify(updated))
+    persistFarmerState({ notifications: updated })
   }
 
   const markAllAsRead = () => {
     const updated = notifications.map(n => ({ ...n, read: true }))
-    setNotifications(updated)
-    localStorage.setItem("farmer_notifications", JSON.stringify(updated))
+    persistFarmerState({ notifications: updated })
   }
 
   const clearAllNotifications = () => {
-    setNotifications([])
-    localStorage.setItem("farmer_notifications", JSON.stringify([]))
+    persistFarmerState({ notifications: [] })
   }
 
   const unreadCount = notifications.filter(n => !n.read).length

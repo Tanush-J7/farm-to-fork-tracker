@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import axios from "axios"
 import { useAuth } from "../context/AuthContext"
 import { Button } from "../components/ui/Button"
@@ -369,6 +369,42 @@ export function ProcessorDashboard() {
         !isUnclaimedAndExpired(p)
       )
       setProducts(active)
+      // Auto-reconstruct active batches across devices (e.g. laptop) from database products
+      setBatches(prev => {
+        let changed = false
+        const next = { ...prev }
+        active.forEach(p => {
+          if (p.status === "Processing" || p.status === "In Transit" || p.status === "At Retailer") {
+            const hasBatch = Object.values(next).some(b => b.productId === p.id || b.batchId === p.batch_number)
+            if (!hasBatch) {
+              changed = true
+              const synthId = p.batch_number?.startsWith("PB-") ? p.batch_number : `PB-${p.batch_number || p.id.slice(0, 6)}`
+              next[synthId] = {
+                batchId: synthId,
+                productId: p.id,
+                originalProduct: p,
+                processorName: processorName,
+                facilityLocation: processorAddress,
+                stage: p.status === "Processing" ? "Processing In Progress" : "Processing Completed",
+                stageLogs: [{
+                  stage: p.status === "Processing" ? "Processing In Progress" : "Processing Completed",
+                  date: new Date(p.created_at || Date.now()).toLocaleDateString("en-GB"),
+                  time: "10:00 AM",
+                  remarks: `Active batch loaded from database (${p.status})`
+                }],
+                processedQuantity: p.quantity,
+                createdDate: new Date(p.created_at || Date.now()).toLocaleDateString("en-GB"),
+                createdTime: "10:00 AM"
+              }
+            }
+          }
+        })
+        if (changed) {
+          try { localStorage.setItem("processor_batches", JSON.stringify(next)) } catch {}
+          return next
+        }
+        return prev
+      })
     } catch (err) {
       console.error("Failed to load products", err)
     } finally {
@@ -376,11 +412,173 @@ export function ProcessorDashboard() {
     }
   }
 
-  // Load local storage keys
+  // Cloud-synced processor state across mobile & desktop devices
+  const syncProcessorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const persistProcessorState = useCallback((patch: {
+    batches?: Record<string, ProcessingBatch>
+    receipts?: Record<string, ReceiptDetails>
+    verifications?: Record<string, VerificationDetails>
+    inspections?: Record<string, InspectionDetails>
+    decisions?: Record<string, { decision: "Accepted" | "Rejected"; reason?: string; date: string; time: string }>
+    auditLogs?: AuditLog[]
+    interests?: string[]
+    deals?: Record<string, "requested" | "accepted" | "dispatched" | "declined">
+    declinedProducts?: Record<string, boolean>
+  }) => {
+    if (patch.batches !== undefined) {
+      setBatches(patch.batches)
+      try { localStorage.setItem("processor_batches", JSON.stringify(patch.batches)) } catch {}
+    }
+    if (patch.receipts !== undefined) {
+      setReceipts(patch.receipts)
+      try { localStorage.setItem("processor_receipts", JSON.stringify(patch.receipts)) } catch {}
+    }
+    if (patch.verifications !== undefined) {
+      setVerifications(patch.verifications)
+      try { localStorage.setItem("processor_verifications", JSON.stringify(patch.verifications)) } catch {}
+    }
+    if (patch.inspections !== undefined) {
+      setInspections(patch.inspections)
+      try { localStorage.setItem("processor_inspections", JSON.stringify(patch.inspections)) } catch {}
+    }
+    if (patch.decisions !== undefined) {
+      setDecisions(patch.decisions)
+      try { localStorage.setItem("processor_decisions", JSON.stringify(patch.decisions)) } catch {}
+    }
+    if (patch.auditLogs !== undefined) {
+      setAuditLogs(patch.auditLogs)
+      try { localStorage.setItem("processor_logs", JSON.stringify(patch.auditLogs)) } catch {}
+    }
+    if (patch.interests !== undefined) {
+      setInterests(patch.interests)
+      try { localStorage.setItem("processor_interests", JSON.stringify(patch.interests)) } catch {}
+    }
+    if (patch.deals !== undefined) {
+      setDeals(patch.deals)
+      try { localStorage.setItem("farmer_deals", JSON.stringify(patch.deals)) } catch {}
+    }
+    if (patch.declinedProducts !== undefined) {
+      setDeclinedProducts(patch.declinedProducts)
+      try { localStorage.setItem("processor_declined_products", JSON.stringify(patch.declinedProducts)) } catch {}
+    }
+
+    if (syncProcessorTimeoutRef.current) {
+      clearTimeout(syncProcessorTimeoutRef.current)
+    }
+    syncProcessorTimeoutRef.current = setTimeout(async () => {
+      if (!token) return
+      try {
+        const b = patch.batches ?? JSON.parse(localStorage.getItem("processor_batches") || "{}")
+        const r = patch.receipts ?? JSON.parse(localStorage.getItem("processor_receipts") || "{}")
+        const v = patch.verifications ?? JSON.parse(localStorage.getItem("processor_verifications") || "{}")
+        const ins = patch.inspections ?? JSON.parse(localStorage.getItem("processor_inspections") || "{}")
+        const d = patch.decisions ?? JSON.parse(localStorage.getItem("processor_decisions") || "{}")
+        const l = patch.auditLogs ?? JSON.parse(localStorage.getItem("processor_logs") || "[]")
+        const i = patch.interests ?? JSON.parse(localStorage.getItem("processor_interests") || "[]")
+        const de = patch.deals ?? JSON.parse(localStorage.getItem("farmer_deals") || "{}")
+        const dp = patch.declinedProducts ?? JSON.parse(localStorage.getItem("processor_declined_products") || "{}")
+
+        await axios.put(`${API}/processor/state`, {
+          batches: b,
+          receipts: r,
+          verifications: v,
+          inspections: ins,
+          decisions: d,
+          auditLogs: l,
+          interests: i,
+          deals: de,
+          declinedProducts: dp
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      } catch (err) {
+        console.warn("Could not sync processor state to cloud", err)
+      }
+    }, 400)
+  }, [token])
+
+  const fetchProcessorCloudState = useCallback(async () => {
+    if (!token) return
+    try {
+      const res = await axios.get(`${API}/processor/state`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.data?.success && res.data.data) {
+        const cloud = res.data.data
+        let localBatches = JSON.parse(localStorage.getItem("processor_batches") || "{}")
+        let localReceipts = JSON.parse(localStorage.getItem("processor_receipts") || "{}")
+        let localVerifications = JSON.parse(localStorage.getItem("processor_verifications") || "{}")
+        let localInspections = JSON.parse(localStorage.getItem("processor_inspections") || "{}")
+        let localDecisions = JSON.parse(localStorage.getItem("processor_decisions") || "{}")
+        let localLogs = JSON.parse(localStorage.getItem("processor_logs") || "[]")
+        let localInterests = JSON.parse(localStorage.getItem("processor_interests") || "[]")
+        let localDeals = JSON.parse(localStorage.getItem("farmer_deals") || "{}")
+        let localDeclined = JSON.parse(localStorage.getItem("processor_declined_products") || "{}")
+
+        const mergedBatches = { ...(cloud.batches || {}), ...localBatches }
+        const mergedReceipts = { ...(cloud.receipts || {}), ...localReceipts }
+        const mergedVerifications = { ...(cloud.verifications || {}), ...localVerifications }
+        const mergedInspections = { ...(cloud.inspections || {}), ...localInspections }
+        const mergedDecisions = { ...(cloud.decisions || {}), ...localDecisions }
+        
+        const existingLogIds = new Set(localLogs.map((l: any) => l.id))
+        const newCloudLogs = (cloud.auditLogs || []).filter((l: any) => !existingLogIds.has(l.id))
+        const mergedLogs = [...localLogs, ...newCloudLogs]
+
+        const mergedInterests = Array.from(new Set([...(cloud.interests || []), ...localInterests]))
+        const mergedDeals = { ...(cloud.deals || {}), ...localDeals }
+        const mergedDeclined = { ...(cloud.declinedProducts || {}), ...localDeclined }
+
+        setBatches(mergedBatches)
+        setReceipts(mergedReceipts)
+        setVerifications(mergedVerifications)
+        setInspections(mergedInspections)
+        setDecisions(mergedDecisions)
+        setAuditLogs(mergedLogs)
+        setInterests(mergedInterests)
+        setDeals(mergedDeals)
+        setDeclinedProducts(mergedDeclined)
+
+        try {
+          localStorage.setItem("processor_batches", JSON.stringify(mergedBatches))
+          localStorage.setItem("processor_receipts", JSON.stringify(mergedReceipts))
+          localStorage.setItem("processor_verifications", JSON.stringify(mergedVerifications))
+          localStorage.setItem("processor_inspections", JSON.stringify(mergedInspections))
+          localStorage.setItem("processor_decisions", JSON.stringify(mergedDecisions))
+          localStorage.setItem("processor_logs", JSON.stringify(mergedLogs))
+          localStorage.setItem("processor_interests", JSON.stringify(mergedInterests))
+          localStorage.setItem("farmer_deals", JSON.stringify(mergedDeals))
+          localStorage.setItem("processor_declined_products", JSON.stringify(mergedDeclined))
+        } catch {}
+
+        if (Object.keys(localBatches).length > 0 && (!cloud.batches || Object.keys(cloud.batches).length < Object.keys(mergedBatches).length)) {
+          axios.put(`${API}/processor/state`, {
+            batches: mergedBatches,
+            receipts: mergedReceipts,
+            verifications: mergedVerifications,
+            inspections: mergedInspections,
+            decisions: mergedDecisions,
+            auditLogs: mergedLogs,
+            interests: mergedInterests,
+            deals: mergedDeals,
+            declinedProducts: mergedDeclined
+          }, {
+            headers: { Authorization: `Bearer ${token}` }
+          }).catch(() => {})
+        }
+      }
+    } catch (err) {
+      console.warn("Could not fetch processor state from cloud", err)
+    }
+  }, [token])
+
+  // Load local storage keys & sync with cloud
   useEffect(() => {
     fetchProducts()
     fetchDistributors()
     syncDeliveryRequests()
+    fetchProcessorCloudState()
     
     // Interests
     const storedInterests = localStorage.getItem("processor_interests")
@@ -406,7 +604,7 @@ export function ProcessorDashboard() {
     const storedBatches = localStorage.getItem("processor_batches")
     if (storedBatches) setBatches(JSON.parse(storedBatches))
 
-  // Logs
+    // Logs
     const storedLogs = localStorage.getItem("processor_logs")
     if (storedLogs) setAuditLogs(JSON.parse(storedLogs))
 
@@ -432,6 +630,7 @@ export function ProcessorDashboard() {
     const interval = setInterval(() => {
       syncDeliveryRequests()
       fetchDistributors(true)
+      fetchProcessorCloudState()
     }, 12000)
 
     return () => {
@@ -439,7 +638,7 @@ export function ProcessorDashboard() {
       window.removeEventListener("farmer_deals_updated", loadDealsAndDeclined)
       window.removeEventListener("storage", loadDealsAndDeclined)
     }
-  }, [token])
+  }, [token, fetchProcessorCloudState])
 
   // Helper: Add log
   const addLog = (action: string, status: string, productId?: string, batchId?: string) => {
@@ -455,8 +654,7 @@ export function ProcessorDashboard() {
       batchId
     }
     const updated = [newLog, ...auditLogs]
-    setAuditLogs(updated)
-    localStorage.setItem("processor_logs", JSON.stringify(updated))
+    persistProcessorState({ auditLogs: updated })
   }
 
   // DB update helper
@@ -890,12 +1088,15 @@ export function ProcessorDashboard() {
         createdTime: formattedTime
       }
       const updatedBatches = { ...batches, [randomBatchId]: newBatch }
-      setBatches(updatedBatches)
-      localStorage.setItem("processor_batches", JSON.stringify(updatedBatches))
+      persistProcessorState({
+        receipts: updatedReceipts,
+        batches: updatedBatches,
+        decisions: updatedDecisions
+      })
 
       addLog(`Accepted product ${selectedProduct.name} (Batch: ${randomBatchId}) - Scale Weight: ${verifiedQty} kg, Quality: ${computedScore}% (Grade ${autoGrade})`, "Accepted - Ready for Processing", selectedProduct.id, randomBatchId)
 
-      // Notify Farmer of Acceptance
+      // Notify Farmer of Acceptance & sync across cloud
       try {
         const acceptNotif = {
           id: "notif-" + Math.random().toString(36).substring(2, 9),
@@ -914,6 +1115,17 @@ export function ProcessorDashboard() {
         const existingNotifs = JSON.parse(localStorage.getItem("farmer_notifications") || "[]")
         localStorage.setItem("farmer_notifications", JSON.stringify([acceptNotif, ...existingNotifs]))
         window.dispatchEvent(new Event("farmer_notifications_updated"))
+
+        const headers = token ? { Authorization: `Bearer ${token}` } : {}
+        axios.post(`${API}/processor/notify-farmer`, {
+          farmer_id: (selectedProduct as any).farmer_id || (selectedProduct.farmer as any)?._id || (selectedProduct as any).farmer?.id || "",
+          product_id: selectedProduct.id,
+          batch_number: selectedProduct.batch_number || (selectedProduct as any).batchNumber || "",
+          status: "accepted",
+          quantity: verifiedQty,
+          grade: autoGrade,
+          message: acceptNotif.message
+        }, { headers }).catch(() => {})
       } catch (e) {
         console.warn("Could not save farmer notification", e)
       }
@@ -1006,8 +1218,7 @@ export function ProcessorDashboard() {
     }
 
     const updatedBatches = { ...batches, [batchId]: updatedBatch }
-    setBatches(updatedBatches)
-    localStorage.setItem("processor_batches", JSON.stringify(updatedBatches))
+    persistProcessorState({ batches: updatedBatches })
 
     addLog(`Completed Processing for Batch ${batchId} (${processedQty} kg, Est. Shelf Life: ${formattedExpiry})`, "Processing Completed", batch.productId, batchId)
     await updateDbStatus(batch.productId, "In Transit")
@@ -1080,6 +1291,51 @@ export function ProcessorDashboard() {
               }
             }
           })
+          // Auto-reconstruct missing dispatched batches from server requests
+          serverRequests.forEach((req: any) => {
+            const batchNum = req.batch_number || `PB-${req.id?.slice(0, 6)}`
+            const alreadyExists = Object.values(nextBatches).some(
+              b => b.batchId === batchNum || b.trackingId === req.id || b.trackingId === req.tracking_id
+            )
+            if (!alreadyExists) {
+              hasChanges = true
+              nextBatches[batchNum] = {
+                batchId: batchNum,
+                productId: req.product_id || req.product?.id || `prod-${batchNum}`,
+                originalProduct: req.product || {
+                  id: req.product_id || `prod-${batchNum}`,
+                  name: req.product_name || "Agro Produce Batch",
+                  quantity: req.quantity || 100,
+                  batch_number: batchNum,
+                  category: "Processed",
+                  status: "In Transit"
+                } as any,
+                processorName: processorName,
+                facilityLocation: processorAddress,
+                stage: req.status === "DELIVERED" ? "Transferred" : "Transferred",
+                stageLogs: [{
+                  stage: "Dispatched",
+                  date: req.created_at ? new Date(req.created_at).toLocaleDateString("en-GB") : new Date().toLocaleDateString("en-GB"),
+                  time: "10:00 AM",
+                  remarks: `Dispatched to carrier ${req.distributor?.name || "Assigned Driver"}`
+                }],
+                processedQuantity: req.quantity,
+                deliveryRequestStatus: req.status,
+                distributorName: req.distributor?.name,
+                distributorId: req.distributor?.id,
+                trackingId: req.tracking_id || req.id,
+                distributorVehicle: req.vehicle_number || req.distributor?.vehicle_number,
+                blockchainTx: req.blockchain_hash,
+                driverName: req.driver_name,
+                driverPhone: req.driver_phone,
+                pickupQrToken: req.pickup_qr_token,
+                pickupQrData: req.pickup_qr_data,
+                createdDate: req.created_at ? new Date(req.created_at).toLocaleDateString("en-GB") : new Date().toLocaleDateString("en-GB"),
+                createdTime: "10:00 AM"
+              }
+            }
+          })
+
           if (hasChanges) {
             localStorage.setItem("processor_batches", JSON.stringify(nextBatches))
             return nextBatches
@@ -1261,8 +1517,7 @@ export function ProcessorDashboard() {
       }
 
       const updatedBatches = { ...batches, [dispatchModalBatch.batchId]: updatedBatch }
-      setBatches(updatedBatches)
-      localStorage.setItem("processor_batches", JSON.stringify(updatedBatches))
+      persistProcessorState({ batches: updatedBatches })
 
       addLog(
         `Dispatched Delivery Request for Batch ${dispatchModalBatch.batchId} to ${chosenDist?.name || 'Distributor'} (${targetStoreName})`,
