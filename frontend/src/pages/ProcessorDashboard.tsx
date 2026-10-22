@@ -628,15 +628,28 @@ export function ProcessorDashboard() {
     window.addEventListener("storage", loadDealsAndDeclined)
 
     const interval = setInterval(() => {
+      fetchProducts()
       syncDeliveryRequests()
       fetchDistributors(true)
       fetchProcessorCloudState()
-    }, 12000)
+    }, 8000)
+
+    const handleFocus = () => {
+      if (document.visibilityState === "visible") {
+        fetchProducts()
+        fetchProcessorCloudState()
+      }
+    }
+
+    window.addEventListener("focus", handleFocus)
+    window.addEventListener("visibilitychange", handleFocus)
 
     return () => {
       clearInterval(interval)
       window.removeEventListener("farmer_deals_updated", loadDealsAndDeclined)
       window.removeEventListener("storage", loadDealsAndDeclined)
+      window.removeEventListener("focus", handleFocus)
+      window.removeEventListener("visibilitychange", handleFocus)
     }
   }, [token, fetchProcessorCloudState])
 
@@ -690,6 +703,7 @@ export function ProcessorDashboard() {
     setInterests(updated)
     localStorage.setItem("processor_interests", JSON.stringify(updated))
     addLog(`Marked interest in ${product.name}`, "Interested", prodId)
+    persistProcessorState({ interests: updated })
 
     // Generate & save Farmer Notification and Deal State
     try {
@@ -1902,8 +1916,27 @@ export function ProcessorDashboard() {
                         (p.batch_number && declinedProducts[p.batch_number]) ||
                         ((p as any).batchNumber && declinedProducts[(p as any).batchNumber])
                       )
-                      const dealStatus = isDeclined ? "declined" : (deals[String(p.id)] || deals[p.batch_number || ""] || deals[p.id] || "requested")
-                      const isDispatched = dealStatus === "dispatched"
+                      const isDispatched = !isDeclined && (
+                        p.status === "In Transit" ||
+                        p.status === "Processing" ||
+                        deals[String(p.id)] === "dispatched" ||
+                        deals[p.batch_number || ""] === "dispatched" ||
+                        deals[p.id] === "dispatched"
+                      )
+                      const isAccepted = !isDeclined && (
+                        isDispatched ||
+                        p.status === "Accepted" ||
+                        deals[String(p.id)] === "accepted" ||
+                        deals[p.batch_number || ""] === "accepted" ||
+                        deals[p.id] === "accepted"
+                      )
+                      const dealStatus = isDeclined 
+                        ? "declined" 
+                        : isDispatched 
+                        ? "dispatched" 
+                        : isAccepted 
+                        ? "accepted" 
+                        : "requested"
 
                       if (isDeclined || dealStatus === "declined") {
                         return (

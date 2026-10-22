@@ -302,9 +302,17 @@ export function FarmerDashboard() {
   }, [loadNotifications, loadDeals, loadDecisions, fetchSourcingOrders, fetchFarmerCloudState])
 
   // Handlers for Farmer Deal Lifecycle
-  const handleAcceptDeal = (productId: string, batchNumber: string) => {
+  const handleAcceptDeal = async (productId: string, batchNumber: string) => {
     const updated = { ...deals, [productId]: "accepted", [batchNumber]: "accepted" }
     persistFarmerState({ deals: updated as any })
+    
+    try {
+      await axios.put(`${API}/products/${productId}/status`, { status: "Accepted" }, { headers })
+      setProducts(prev => prev.map(p => (p._id === productId || p.batchNumber === batchNumber) ? { ...p, status: "Accepted" } : p))
+    } catch (e) {
+      console.warn("Could not sync accepted status", e)
+    }
+
     window.dispatchEvent(new Event("farmer_deals_updated"))
     window.dispatchEvent(new Event("farmer_notifications_updated"))
   }

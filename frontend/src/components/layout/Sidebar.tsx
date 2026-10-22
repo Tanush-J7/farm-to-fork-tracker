@@ -24,8 +24,11 @@ const roleNavMap: Record<string, { name: string; path: string; icon: React.Eleme
     { name: "Track Product", path: "/track", icon: PackageSearch },
   ],
   processor: [
-    { name: "Processing", path: "/processor", icon: Factory },
+    { name: "Dashboard", path: "/processor?tab=browse", icon: LayoutDashboard },
+    { name: "Processing", path: "/processor?tab=pipeline", icon: Factory },
+    { name: "Retailer Demands", path: "/processor?tab=demands", icon: Store },
     { name: "Facility Profile", path: "/processor?tab=profile", icon: ShieldCheck },
+    { name: "Operational History", path: "/processor?tab=history", icon: Clock },
     { name: "Track Product", path: "/track", icon: PackageSearch },
   ],
   distributor: [
@@ -344,6 +347,20 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
                   </Link>
                 )
               })}
+
+              {/* Mobile Settings Button for Farmer & Processor */}
+              {(role === "farmer" || role === "processor") && (
+                <button
+                  onClick={() => {
+                    onMobileClose?.()
+                    handleOpenModal()
+                  }}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-left transition-all duration-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-950 text-sm font-semibold cursor-pointer"
+                >
+                  <Edit3 className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <span>Settings</span>
+                </button>
+              )}
             </nav>
 
             {/* Mobile Footer with Logout */}
@@ -535,6 +552,20 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
               >
                 <Clock className="h-5 w-5 shrink-0" />
                 {!collapsed && <span>History</span>}
+              </Link>
+
+              {/* Track Product */}
+              <Link
+                to="/track"
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 cursor-pointer text-sm font-medium",
+                  location.pathname === "/track"
+                    ? "bg-emerald-100 text-primary"
+                    : "text-muted-foreground hover:bg-emerald-50 hover:text-primary"
+                )}
+              >
+                <PackageSearch className="h-5 w-5 shrink-0" />
+                {!collapsed && <span>Track Product</span>}
               </Link>
 
               {/* Settings */}
