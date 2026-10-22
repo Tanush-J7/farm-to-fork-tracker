@@ -26,15 +26,15 @@ export function ProductRequests() {
   // Details Modal
   const [selectedRequest, setSelectedRequest] = useState<any>(null)
 
-  const fetchRequests = async () => {
+  const fetchRequests = async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
       const res = await axios.get(`${API_URL}/retailer/requests`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setRequests(res.data.data || [])
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to load requests")
+      if (!silent) setError(err.response?.data?.message || "Failed to load requests")
     } finally {
       setLoading(false)
     }
@@ -42,12 +42,12 @@ export function ProductRequests() {
 
   useEffect(() => {
     if (!token) return
-    fetchRequests()
-    const interval = setInterval(() => fetchRequests(), 10000)
+    fetchRequests(false)
+    const interval = setInterval(() => fetchRequests(true), 15000)
 
     const handleFocus = () => {
       if (document.visibilityState === "visible") {
-        fetchRequests()
+        fetchRequests(true)
       }
     }
 

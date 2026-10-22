@@ -42,17 +42,20 @@ export function Inventory() {
     setTimeout(() => setCopiedLink(false), 2500)
   }
 
-  const fetchInventory = async (isManual = false) => {
+  const fetchInventory = async (silent = false) => {
     try {
-      if (isManual) setRefreshing(true)
-      else setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      } else {
+        setRefreshing(true)
+      }
       setError("")
       const res = await axios.get(`${API_URL}/retailer/inventory`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setInventory(res.data.data || [])
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to load inventory")
+      if (!silent) setError(err.response?.data?.message || "Failed to load inventory")
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -61,12 +64,12 @@ export function Inventory() {
 
   useEffect(() => {
     if (!token) return
-    fetchInventory()
-    const interval = setInterval(() => fetchInventory(false), 10000)
+    fetchInventory(false)
+    const interval = setInterval(() => fetchInventory(true), 15000)
 
     const handleFocus = () => {
       if (document.visibilityState === "visible") {
-        fetchInventory(false)
+        fetchInventory(true)
       }
     }
 
@@ -159,12 +162,12 @@ export function Inventory() {
           </div>
         </div>
 
-        {loading ? (
+        {loading && inventory.length === 0 ? (
           <div className="p-12 text-center text-slate-500">
             <RefreshCw className="h-8 w-8 text-emerald-600 animate-spin mx-auto mb-3" />
             <p className="font-medium">Loading store inventory...</p>
           </div>
-        ) : error ? (
+        ) : error && inventory.length === 0 ? (
           <div className="p-12 text-center text-rose-500">
             <AlertCircle className="h-8 w-8 text-rose-500 mx-auto mb-2" />
             <p>{error}</p>
