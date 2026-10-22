@@ -229,15 +229,41 @@ export function DistributorDashboard() {
     setPickupCameraError("")
     setIsPickupCameraActive(true)
     try {
-      if (pickupQrScannerRef.current && pickupQrScannerRef.current.isScanning) {
-        await pickupQrScannerRef.current.stop()
+      if (pickupQrScannerRef.current) {
+        try {
+          if (pickupQrScannerRef.current.isScanning) {
+            await pickupQrScannerRef.current.stop()
+          }
+          pickupQrScannerRef.current.clear()
+        } catch {}
+        pickupQrScannerRef.current = null
       }
-      // Give React DOM cycle a moment to ensure element is rendered
-      await new Promise((r) => setTimeout(r, 100))
+
+      // Pre-check for mediaDevices support
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Camera API is not supported by your browser in this environment. Please ensure HTTPS or upload an image.")
+      }
+
+      // Request browser permission explicitly to produce clear error message if denied
+      let testStream: MediaStream | null = null
+      try {
+        testStream = await navigator.mediaDevices.getUserMedia({ video: true })
+        testStream.getTracks().forEach((t) => t.stop())
+      } catch (pErr: any) {
+        if (pErr.name === "NotAllowedError" || pErr.name === "PermissionDeniedError") {
+          throw new Error("Camera permission was denied. Please allow camera access in your browser settings / address bar.")
+        }
+        if (pErr.name === "NotFoundError" || pErr.name === "DevicesNotFoundError") {
+          throw new Error("No physical camera device was detected on your system. Please upload a QR image.")
+        }
+      }
+
+      // Give React DOM cycle a tick to hide the overlay
+      await new Promise((r) => setTimeout(r, 60))
 
       const element = document.getElementById("pickup-modal-qr-reader")
       if (!element) {
-        throw new Error("Scanner viewfinder initialization delayed. Please try again.")
+        throw new Error("Viewfinder element not ready. Please try again.")
       }
 
       const html5Qr = new Html5Qrcode("pickup-modal-qr-reader")
@@ -248,33 +274,27 @@ export function DistributorDashboard() {
         handleVerifyScannedToken(decodedText)
       }
 
-      // 3-Tier fallback: rear camera -> front webcam -> any available camera device
+      const qrConfig = {
+        fps: 15,
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+          const minDim = Math.min(viewfinderWidth, viewfinderHeight)
+          const edge = Math.max(Math.floor(minDim * 0.75), 140)
+          return { width: edge, height: edge }
+        }
+      }
+
+      // 3-Tier Camera Start: rear camera -> front webcam -> any available camera ID
       try {
-        await html5Qr.start(
-          { facingMode: { ideal: "environment" } },
-          { fps: 10, qrbox: { width: 220, height: 220 } },
-          onScanSuccess,
-          () => {}
-        )
+        await html5Qr.start({ facingMode: { ideal: "environment" } }, qrConfig, onScanSuccess, () => {})
       } catch (err1) {
         try {
-          await html5Qr.start(
-            { facingMode: "user" },
-            { fps: 10, qrbox: { width: 220, height: 220 } },
-            onScanSuccess,
-            () => {}
-          )
+          await html5Qr.start({ facingMode: "user" }, qrConfig, onScanSuccess, () => {})
         } catch (err2) {
-          const cameras = await Html5Qrcode.getCameras()
+          const cameras = await Html5Qrcode.getCameras().catch(() => [])
           if (cameras && cameras.length > 0) {
-            await html5Qr.start(
-              cameras[0].id,
-              { fps: 10, qrbox: { width: 220, height: 220 } },
-              onScanSuccess,
-              () => {}
-            )
+            await html5Qr.start(cameras[0].id, qrConfig, onScanSuccess, () => {})
           } else {
-            throw err2
+            throw new Error("Unable to establish camera video stream on this device. Please upload a QR image.")
           }
         }
       }
@@ -2733,39 +2753,43 @@ export function DistributorDashboard() {
                   </Button>
                 </div>
 
-                {/* Optical Viewfinder Box - ALWAYS preserved in DOM */}
-                <div className={`relative overflow-hidden rounded-2xl border-2 border-emerald-500 bg-black aspect-video max-h-60 flex flex-col items-center justify-center shadow-lg ${isPickupCameraActive ? "block" : "hidden"}`}>
+                {/* Optical Viewfinder Box - ALWAYS visible with real dimensions, overlay when idle */}
+                <div className="relative overflow-hidden rounded-2xl border-2 border-emerald-500 bg-slate-950 aspect-video w-full min-h-[220px] max-h-64 flex flex-col items-center justify-center shadow-lg">
                   <div id="pickup-modal-qr-reader" className="w-full h-full" />
-                  {/* Targeting reticle overlay */}
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div className="w-44 h-44 border-2 border-emerald-400/70 rounded-2xl relative shadow-[0_0_15px_rgba(16,185,129,0.3)]">
-                      <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl -mt-1 -ml-1"></div>
-                      <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr -mt-1 -mr-1"></div>
-                      <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl -mb-1 -ml-1"></div>
-                      <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-400 rounded-br -mb-1 -mr-1"></div>
-                      <div className="w-full h-0.5 bg-emerald-400/90 shadow-[0_0_8px_#10b981] absolute top-1/2 -translate-y-1/2 animate-pulse"></div>
-                    </div>
-                  </div>
-                  <div className="absolute bottom-2.5 left-0 right-0 text-center pointer-events-none">
-                    <span className="text-[11px] font-semibold bg-black/75 text-emerald-300 px-3 py-1 rounded-full backdrop-blur-sm">
-                      Align Processor's Pickup QR inside the box
-                    </span>
-                  </div>
-                </div>
 
-                {!isPickupCameraActive && (
-                  <div className="p-4 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 text-center space-y-2">
-                    <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
-                      <QrCode className="h-5 w-5" />
+                  {isPickupCameraActive ? (
+                    <>
+                      {/* Targeting reticle overlay */}
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <div className="w-44 h-44 border-2 border-emerald-400/70 rounded-2xl relative shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                          <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-400 rounded-tl -mt-1 -ml-1"></div>
+                          <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-400 rounded-tr -mt-1 -mr-1"></div>
+                          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-400 rounded-bl -mb-1 -ml-1"></div>
+                          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-400 rounded-br -mb-1 -mr-1"></div>
+                          <div className="w-full h-0.5 bg-emerald-400/90 shadow-[0_0_8px_#10b981] absolute top-1/2 -translate-y-1/2 animate-pulse"></div>
+                        </div>
+                      </div>
+                      <div className="absolute bottom-2.5 left-0 right-0 text-center pointer-events-none z-20">
+                        <span className="text-[11px] font-semibold bg-black/75 text-emerald-300 px-3 py-1 rounded-full backdrop-blur-sm">
+                          Align Processor's Pickup QR inside the box
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    /* Placeholder Overlay when camera is idle */
+                    <div className="absolute inset-0 bg-emerald-50/95 flex flex-col items-center justify-center p-6 text-center space-y-2 z-10 border-2 border-dashed border-emerald-200 rounded-2xl">
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+                        <QrCode className="h-5 w-5" />
+                      </div>
+                      <div className="text-xs font-semibold text-emerald-950">
+                        Live Optical Camera & File Scanner Ready
+                      </div>
+                      <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+                        Click "Open Live Camera Scanner" above or upload a QR image. The system validates token authenticity and verifies that the QR belongs to Batch #{pickupVerifyModal.req?.batch_number}.
+                      </p>
                     </div>
-                    <div className="text-xs font-semibold text-emerald-950">
-                      Live Optical Camera & File Scanner Ready
-                    </div>
-                    <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
-                      Scan the QR code shown on the Processor's screen. The system validates token authenticity and verifies that the QR belongs to Batch #{pickupVerifyModal.req?.batch_number}.
-                    </p>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Camera / Decoding Error */}
                 {pickupCameraError && (
