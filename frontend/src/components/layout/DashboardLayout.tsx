@@ -17,7 +17,7 @@ export function DashboardLayout() {
       case "distributor":
         return { label: "Distributor", color: "bg-amber-100 text-amber-800 border-amber-300", icon: Truck }
       case "retailer":
-        return { label: "Retailer", color: "bg-purple-100 text-purple-800 border-purple-300", icon: Store }
+        return { label: "Retailer", color: "bg-emerald-100 text-emerald-800 border-emerald-300", icon: Store }
       case "admin":
         return { label: "Admin", color: "bg-rose-100 text-rose-800 border-rose-300", icon: ShieldCheck }
       default:

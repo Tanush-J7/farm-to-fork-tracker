@@ -509,7 +509,7 @@ export const getAvailableDistributors = async (req: Request, res: Response): Pro
         fleet_name: `${d.name || d.email.split('@')[0]} Transport Fleet`,
         vehicle_type: 'Heavy Freight Cargo Truck',
         vehicle_number: vehicleNum,
-        temperature_control: '2°C to 6°C (Precision Chilled)',
+        temperature_control: '2°C to 6°C (Monitored Fresh Temp)',
         payload_capacity: '3,000 kg',
         current_status: currentStatus,
         status_reason: statusReason,
@@ -732,7 +732,7 @@ export const sendDeliveryRequest = async (req: Request, res: Response): Promise<
       ? `${retailerProfile.business_name}, ${retailerProfile.address}`
       : (destination_store || "Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru, Karnataka 560034");
 
-    const tempSla = temperature_sla || '2°C to 6°C Precision Chilled';
+    const tempSla = temperature_sla || '2°C to 6°C Monitored Fresh Temp';
     const notes = dispatch_notes || 'Delivery SLA verified. Quality certified batch ready for cargo transfer.';
 
     // 2. Create shipment with status 'REQUESTED'
@@ -975,7 +975,7 @@ export const getProcessorDeliveryRequests = async (req: Request, res: Response):
           destination_store: destinationStoreName,
           destination_store_address: destinationStoreAddress,
           pickup_location: pickupAddress,
-          temperature_sla: meta.temperature_sla || '2°C to 6°C Precision Chilled',
+          temperature_sla: meta.temperature_sla || '2°C to 6°C Monitored Fresh Temp',
           dispatch_notes: meta.dispatch_notes,
           decline_reason: declineEvent?.metadata?.decline_reason || null,
           dispute_details: disputeEvent?.metadata || null
@@ -1100,7 +1100,7 @@ export const generatePickupQR = async (req: Request, res: Response): Promise<voi
       logistics: {
         pickup_address: procProfile.address,
         delivery_address: retProfile?.address,
-        temperature_sla: '2°C to 6°C Precision Chilled',
+        temperature_sla: '2°C to 6°C Monitored Fresh Temp',
         approved_dispatch_quantity: shipment.quantity
       }
     };

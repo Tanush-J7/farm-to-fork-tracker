@@ -2903,7 +2903,7 @@ export function DistributorDashboard() {
               const presetRemarks = [
                 "✓ Crates & tamper seals intact",
                 "⚠️ Scale weight variance noted at dock",
-                "❄️ Pre-cooling SLA compliant (chilled)",
+                "🌱 Freshness SLA compliant (Optimal Temp)",
                 "📦 Certified crate count matched",
                 "📝 Dock tare weight accounted for"
               ]
@@ -2972,7 +2972,7 @@ export function DistributorDashboard() {
                       <div className="p-2.5 rounded-xl bg-white border border-slate-200">
                         <div className="text-[10px] text-slate-500 uppercase font-semibold">Delivery SLA</div>
                         <div className="font-bold text-slate-900">2°C – 6°C</div>
-                        <div className="text-[10px] text-slate-500">Precision Chilled</div>
+                        <div className="text-[10px] text-slate-500">Monitored Temp</div>
                       </div>
                     </div>
                   </div>
@@ -3145,7 +3145,7 @@ export function DistributorDashboard() {
                           }
                           className="rounded text-emerald-600 focus:ring-emerald-500"
                         />
-                        <span className="font-medium text-slate-800">Pre-cooling temperature meets SLA (Chilled)</span>
+                        <span className="font-medium text-slate-800">Storage temperature meets Freshness SLA</span>
                       </label>
                     </div>
                   </div>

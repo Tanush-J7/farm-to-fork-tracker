@@ -4,7 +4,6 @@ import axios from "axios"
 import { useAuth } from "../../context/AuthContext"
 import {
   LayoutDashboard,
-  AlertTriangle,
   ShieldAlert,
   ShieldCheck,
   Store,
@@ -121,41 +120,43 @@ export function Dashboard() {
 
   return (
     <div className="space-y-8 pb-12">
-      {/* HERO STORE HEADER CARD */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-white p-6 sm:p-8 shadow-2xl border border-emerald-900/40">
-        {/* Ambient Decorative Lighting */}
-        <div className="absolute -right-20 -top-20 w-80 h-80 rounded-full bg-emerald-500/15 blur-3xl pointer-events-none" />
-        <div className="absolute left-1/3 -bottom-24 w-72 h-72 rounded-full bg-teal-500/10 blur-3xl pointer-events-none" />
+      {/* HERO STORE HEADER CARD - WHITE AND EMERALD GREEN AESTHETIC */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-50/90 via-white to-emerald-50/40 p-6 sm:p-8 shadow-xs border border-emerald-200/90 text-slate-900">
+        {/* Soft Ambient Decorative Lighting */}
+        <div className="absolute -right-20 -top-20 w-80 h-80 rounded-full bg-emerald-400/10 blur-3xl pointer-events-none" />
+        <div className="absolute left-1/3 -bottom-24 w-72 h-72 rounded-full bg-teal-400/10 blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="space-y-3 max-w-2xl">
-            {/* Top Tag & Security Badge */}
+            {/* Top Tag & Security Badges */}
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 backdrop-blur-md">
-                <Store className="h-3.5 w-3.5 text-emerald-400" />
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase bg-emerald-100 text-emerald-800 border border-emerald-300/80 shadow-2xs">
+                <Store className="h-3.5 w-3.5 text-emerald-700" />
                 Verified Retail Hub • Node #04
               </span>
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold bg-white/10 text-slate-200 border border-white/10">
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white text-slate-700 border border-emerald-200 shadow-2xs">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
                 FSSAI Trade Certified
               </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-950/80 text-emerald-300 border border-emerald-500/40">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
                 Live Sync Active
               </span>
             </div>
 
             {/* Store Name & Heading */}
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white flex items-center gap-3">
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 flex items-center gap-3">
               {user?.name || "John's Metro Fresh Supermarket"}
             </h1>
 
             {/* Subtitle & Location */}
-            <p className="text-sm text-slate-300 leading-relaxed flex items-center gap-1.5 flex-wrap">
-              <MapPin className="h-4 w-4 text-emerald-400 shrink-0" />
-              <span>Koramangala 4th Block Terminal, Bengaluru</span>
-              <span className="text-slate-500">•</span>
-              <span className="text-slate-400">Dock Intake Bay #1 Open</span>
+            <p className="text-sm text-slate-600 leading-relaxed flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                <MapPin className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>Koramangala 4th Block Terminal, Bengaluru</span>
+              </span>
+              <span className="text-slate-300">•</span>
+              <span className="text-slate-500 font-medium">Dock Intake Bay #1 Open • Monitored Fresh Intake</span>
             </p>
           </div>
 
@@ -164,54 +165,54 @@ export function Dashboard() {
             <button
               onClick={() => fetchAllData(true)}
               disabled={loading || refreshing}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold border border-white/10 transition-all cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-900 text-xs font-bold border border-emerald-200 shadow-2xs transition-all cursor-pointer disabled:opacity-50"
               title="Refresh all metrics"
             >
-              <RefreshCw className={cn("h-4 w-4 text-emerald-400", refreshing && "animate-spin")} />
+              <RefreshCw className={cn("h-4 w-4 text-emerald-600", refreshing && "animate-spin")} />
               <span>{refreshing ? "Syncing..." : "Sync"}</span>
             </button>
 
             <Link
               to="/retailer/receive"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-xs font-extrabold shadow-lg shadow-emerald-900/30 transition-all transform hover:-translate-y-0.5 cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-md shadow-emerald-600/20 transition-all transform hover:-translate-y-0.5 cursor-pointer"
             >
-              <QrCode className="h-4 w-4 text-slate-950" />
+              <QrCode className="h-4 w-4" />
               <span>Scan Cargo Delivery</span>
             </Link>
 
             <Link
               to="/retailer/requests"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/15 hover:bg-white/20 text-white text-xs font-bold border border-white/10 transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white hover:bg-emerald-50 text-slate-800 hover:text-emerald-900 text-xs font-bold border border-emerald-200 shadow-2xs transition-all cursor-pointer"
             >
-              <ShoppingCart className="h-4 w-4 text-emerald-400" />
+              <ShoppingCart className="h-4 w-4 text-emerald-600" />
               <span>Order Stock</span>
             </Link>
           </div>
         </div>
 
         {/* Live Operational Metrics Ribbon inside Hero */}
-        <div className="mt-6 pt-5 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-          <div>
+        <div className="mt-6 pt-5 border-t border-emerald-100 grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
+          <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-2xl border border-emerald-100 shadow-2xs">
             <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Receiving Gate</span>
-            <span className="font-semibold text-emerald-400 flex items-center gap-1.5 mt-0.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Gate 1 Active (Chilled Dock)
+            <span className="font-bold text-emerald-700 flex items-center gap-1.5 mt-0.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Gate 1 Active (Intake Dock)
             </span>
           </div>
-          <div>
+          <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-2xl border border-emerald-100 shadow-2xs">
             <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Inbound Transits</span>
-            <span className="font-semibold text-white mt-0.5 block font-mono">
+            <span className="font-bold text-slate-900 mt-0.5 block font-mono">
               {activeShipments.length} Cargo Shipment{activeShipments.length === 1 ? "" : "s"}
             </span>
           </div>
-          <div>
+          <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-2xl border border-emerald-100 shadow-2xs">
             <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Blockchain Gateway</span>
-            <span className="font-semibold text-teal-300 mt-0.5 block font-mono">
+            <span className="font-bold text-emerald-800 mt-0.5 block font-mono">
               Sepolia Testnet #11155111
             </span>
           </div>
-          <div>
+          <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-2xl border border-emerald-100 shadow-2xs">
             <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Inventory Health</span>
-            <span className="font-semibold text-emerald-400 mt-0.5 block">
+            <span className="font-bold text-emerald-700 mt-0.5 block">
               {data?.expired_alerts > 0 ? `${data.expired_alerts} Batch Alerts` : "100% Quality Certified"}
             </span>
           </div>
@@ -219,15 +220,15 @@ export function Dashboard() {
       </div>
 
       {/* TAB NAVIGATION CONTROLS */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-        <div className="flex items-center gap-2 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-100 pb-3">
+        <div className="flex items-center gap-2 overflow-x-auto">
           <button
             onClick={() => handleTabChange("overview")}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer",
+              "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap",
               activeTab === "overview"
-                ? "bg-white text-emerald-800 shadow-sm border border-slate-200/80"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-700/20"
+                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
             )}
           >
             <LayoutDashboard className="h-4 w-4" />
@@ -236,16 +237,19 @@ export function Dashboard() {
           <button
             onClick={() => handleTabChange("shipments")}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer",
+              "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap",
               activeTab === "shipments"
-                ? "bg-white text-emerald-800 shadow-sm border border-slate-200/80"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-700/20"
+                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
             )}
           >
             <Truck className="h-4 w-4" />
             Incoming Dispatches
             {activeShipments.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-extrabold bg-emerald-100 text-emerald-800">
+              <span className={cn(
+                "px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold",
+                activeTab === "shipments" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
+              )}>
                 {activeShipments.length}
               </span>
             )}
@@ -253,25 +257,25 @@ export function Dashboard() {
           <button
             onClick={() => handleTabChange("profile")}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer",
+              "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap",
               activeTab === "profile"
-                ? "bg-white text-emerald-800 shadow-sm border border-slate-200/80"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-700/20"
+                : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
             )}
           >
-            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            <ShieldCheck className="h-4 w-4" />
             Store Profile & Compliance
           </button>
         </div>
 
         <Link
           to="/retailer/alerts"
-          className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm transition-colors"
+          className="text-xs font-bold text-slate-700 hover:text-emerald-800 flex items-center gap-2 bg-white border border-emerald-200 px-3.5 py-2 rounded-2xl shadow-2xs hover:bg-emerald-50 transition-colors shrink-0"
         >
-          <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+          <AlertCircle className="h-4 w-4 text-amber-500" />
           <span>Alert Center</span>
           {(data?.low_stock_alerts || 0) + (data?.expired_alerts || 0) > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">
               {(data?.low_stock_alerts || 0) + (data?.expired_alerts || 0)}
             </span>
           )}
@@ -309,14 +313,14 @@ export function Dashboard() {
       {/* TAB CONTENT: SHIPMENTS */}
       {activeTab === "shipments" && (
         <div className="space-y-4 animate-in fade-in duration-200">
-          <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="flex justify-between items-center bg-white p-5 rounded-3xl border border-emerald-100 shadow-xs">
             <div>
               <h3 className="text-base font-bold text-slate-900">Inbound Fleet & Dispatches</h3>
               <p className="text-xs text-slate-500">Live monitoring of transporter dispatches headed to your store receiving dock.</p>
             </div>
             <Link
               to="/retailer/shipments"
-              className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
+              className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-2 rounded-xl transition-colors"
             >
               <span>Full Shipments Console</span>
               <ArrowRight className="h-3.5 w-3.5" />
@@ -324,15 +328,17 @@ export function Dashboard() {
           </div>
 
           {shipments.length === 0 ? (
-            <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col items-center">
-              <Truck className="h-12 w-12 text-slate-300 mb-3" />
+            <div className="p-12 text-center bg-white rounded-3xl border border-emerald-100 shadow-xs flex flex-col items-center">
+              <div className="h-16 w-16 rounded-3xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
+                <Truck className="h-8 w-8" />
+              </div>
               <h4 className="text-base font-bold text-slate-800">No active shipments found</h4>
               <p className="text-xs text-slate-500 mt-1 max-w-sm">
                 When suppliers or processors assign transport carriers to fulfill your stock requests, they will appear here.
               </p>
               <Link
                 to="/retailer/requests"
-                className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-colors"
+                className="mt-4 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm transition-colors"
               >
                 Create Stock Request
               </Link>
@@ -342,7 +348,7 @@ export function Dashboard() {
               {shipments.map((s) => (
                 <div
                   key={s.id}
-                  className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+                  className="bg-white rounded-2xl border border-emerald-100 hover:border-emerald-300 p-5 shadow-xs hover:shadow-md transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
                 >
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
@@ -364,7 +370,7 @@ export function Dashboard() {
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => navigate(`/retailer/receive?shipment=${s.id}`)}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
                     >
                       <QrCode className="h-3.5 w-3.5" />
                       <span>Intake & Scan QR</span>
@@ -382,10 +388,10 @@ export function Dashboard() {
         <div className="space-y-8 animate-in fade-in duration-200">
           {/* URGENT DOCK INTAKE SPOTLIGHT (IF CARGO HAS ARRIVED) */}
           {urgentArrival && (
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/5 border-2 border-emerald-400/80 p-6 sm:p-7 shadow-lg">
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-50 via-white to-emerald-50/60 border border-emerald-300 p-6 sm:p-7 shadow-sm">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
                 <div className="space-y-2">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-emerald-600 text-white shadow-sm">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-emerald-600 text-white shadow-xs">
                     <Truck className="h-3.5 w-3.5 animate-bounce" />
                     <span>Inbound Vehicle Arrived at Dock</span>
                   </div>
@@ -393,17 +399,17 @@ export function Dashboard() {
                     {urgentArrival.product_name || urgentArrival.product?.name || "Cargo Produce"} — {urgentArrival.quantity} {urgentArrival.unit || "kg"}
                   </h3>
                   <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1.5">
                       <span className="font-semibold text-slate-900">Vehicle:</span>
-                      <span className="font-mono font-bold bg-white px-2 py-0.5 rounded border border-slate-200 text-emerald-800">
+                      <span className="font-mono font-bold bg-white px-2 py-0.5 rounded border border-emerald-200 text-emerald-800">
                         {urgentArrival.distributor?.vehicle_number || urgentArrival.vehicle_number || "KA-04-E-2941"}
                       </span>
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Thermometer className="h-3.5 w-3.5 text-blue-600" />
-                      <span className="font-bold text-slate-800">3.8°C Precision Chilled</span>
+                    <span className="flex items-center gap-1.5">
+                      <Thermometer className="h-3.5 w-3.5 text-emerald-600" />
+                      <span className="font-bold text-slate-800">Optimal Fresh Storage</span>
                     </span>
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1.5">
                       <span className="font-semibold text-slate-900">Batch:</span>
                       <span className="font-mono text-slate-700">{urgentArrival.batch_number}</span>
                     </span>
@@ -413,7 +419,7 @@ export function Dashboard() {
                 <div className="shrink-0 flex items-center gap-3">
                   <button
                     onClick={() => navigate(`/retailer/receive?shipment=${urgentArrival.id}`)}
-                    className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm px-6 py-3.5 rounded-2xl shadow-xl shadow-emerald-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer"
+                    className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm px-6 py-3.5 rounded-2xl shadow-lg shadow-emerald-600/20 transition-all transform hover:-translate-y-0.5 cursor-pointer"
                   >
                     <QrCode className="h-5 w-5" />
                     <span>Open Camera & Complete Intake</span>
@@ -423,76 +429,76 @@ export function Dashboard() {
             </div>
           )}
 
-          {/* TOP 4 AESTHETIC METRIC CARDS */}
+          {/* TOP 4 AESTHETIC METRIC CARDS - CLEAN WHITE & EMERALD */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {/* 1. Active Inventory Items */}
-            <div className="group relative overflow-hidden rounded-3xl bg-white border border-slate-200/80 p-6 shadow-sm hover:shadow-md transition-all duration-300">
+            <div className="group relative overflow-hidden rounded-3xl bg-white border border-emerald-100 hover:border-emerald-300 p-6 shadow-xs hover:shadow-md transition-all duration-300">
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Inventory</p>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Inventory</p>
                   <h3 className="text-3xl font-black text-slate-900">
                     {data?.total_inventory_items ?? inventory.length}
                   </h3>
-                  <p className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                  <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3" />
                     <span>Batches In Storage</span>
                   </p>
                 </div>
-                <div className="h-12 w-12 rounded-2xl bg-emerald-50 group-hover:bg-emerald-100 text-emerald-600 flex items-center justify-center transition-colors shadow-inner">
+                <div className="h-12 w-12 rounded-2xl bg-emerald-50 group-hover:bg-emerald-100 text-emerald-700 flex items-center justify-center transition-colors shadow-inner">
                   <Boxes className="h-6 w-6" />
                 </div>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+              <div className="mt-4 pt-3 border-t border-emerald-50 flex items-center justify-between text-[11px] text-slate-500">
                 <span>Total warehouse items</span>
-                <Link to="/retailer/inventory" className="font-bold text-emerald-700 hover:underline flex items-center gap-0.5">
+                <Link to="/retailer/inventory" className="font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-0.5">
                   View <ChevronRight className="h-3 w-3" />
                 </Link>
               </div>
             </div>
 
             {/* 2. Total POS Sales Revenue */}
-            <div className="group relative overflow-hidden rounded-3xl bg-white border border-slate-200/80 p-6 shadow-sm hover:shadow-md transition-all duration-300">
+            <div className="group relative overflow-hidden rounded-3xl bg-white border border-emerald-100 hover:border-emerald-300 p-6 shadow-xs hover:shadow-md transition-all duration-300">
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">POS Total Revenue</p>
-                  <h3 className="text-3xl font-black text-emerald-600 font-mono">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">POS Total Revenue</p>
+                  <h3 className="text-3xl font-black text-emerald-700 font-mono">
                     ${Number(data?.total_revenue || 0).toFixed(2)}
                   </h3>
-                  <p className="text-[11px] font-semibold text-slate-500">
+                  <p className="text-[11px] font-semibold text-slate-600">
                     Across {data?.total_sales || 0} customer orders
                   </p>
                 </div>
-                <div className="h-12 w-12 rounded-2xl bg-indigo-50 group-hover:bg-indigo-100 text-indigo-600 flex items-center justify-center transition-colors shadow-inner">
+                <div className="h-12 w-12 rounded-2xl bg-emerald-50 group-hover:bg-emerald-100 text-emerald-700 flex items-center justify-center transition-colors shadow-inner">
                   <DollarSign className="h-6 w-6" />
                 </div>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+              <div className="mt-4 pt-3 border-t border-emerald-50 flex items-center justify-between text-[11px] text-slate-500">
                 <span>Point of Sale Terminal</span>
-                <Link to="/retailer/sales" className="font-bold text-indigo-600 hover:underline flex items-center gap-0.5">
+                <Link to="/retailer/sales" className="font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-0.5">
                   Register Sale <ChevronRight className="h-3 w-3" />
                 </Link>
               </div>
             </div>
 
             {/* 3. Inbound Transporter Dispatches */}
-            <div className="group relative overflow-hidden rounded-3xl bg-white border border-slate-200/80 p-6 shadow-sm hover:shadow-md transition-all duration-300">
+            <div className="group relative overflow-hidden rounded-3xl bg-white border border-emerald-100 hover:border-emerald-300 p-6 shadow-xs hover:shadow-md transition-all duration-300">
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Inbound Shipments</p>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Inbound Shipments</p>
                   <h3 className="text-3xl font-black text-slate-900">
                     {activeShipments.length}
                   </h3>
-                  <p className="text-[11px] font-semibold text-purple-600">
+                  <p className="text-[11px] font-semibold text-teal-700">
                     {dockReadyShipments.length} At Dock Ready
                   </p>
                 </div>
-                <div className="h-12 w-12 rounded-full bg-purple-50 group-hover:bg-purple-100 text-purple-600 flex items-center justify-center transition-colors shadow-inner">
+                <div className="h-12 w-12 rounded-2xl bg-teal-50 group-hover:bg-teal-100 text-teal-700 flex items-center justify-center transition-colors shadow-inner">
                   <Truck className="h-6 w-6" />
                 </div>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+              <div className="mt-4 pt-3 border-t border-emerald-50 flex items-center justify-between text-[11px] text-slate-500">
                 <span>Transport carrier fleet</span>
-                <Link to="/retailer/shipments" className="font-bold text-purple-700 hover:underline flex items-center gap-0.5">
+                <Link to="/retailer/shipments" className="font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-0.5">
                   Track Fleet <ChevronRight className="h-3 w-3" />
                 </Link>
               </div>
@@ -500,45 +506,47 @@ export function Dashboard() {
 
             {/* 4. FEFO Quality & Expiry Status */}
             <div className={cn(
-              "group relative overflow-hidden rounded-3xl border p-6 shadow-sm hover:shadow-md transition-all duration-300",
+              "group relative overflow-hidden rounded-3xl border p-6 shadow-xs hover:shadow-md transition-all duration-300",
               (data?.expired_alerts || 0) > 0
                 ? "bg-rose-50/50 border-rose-200"
-                : "bg-white border-slate-200/80"
+                : "bg-white border-emerald-100 hover:border-emerald-300"
             )}>
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Expiry & Low Stock</p>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Expiry & Stock Status</p>
                   <h3 className={cn(
                     "text-3xl font-black",
-                    (data?.expired_alerts || 0) > 0 ? "text-rose-600" : "text-amber-600"
+                    (data?.expired_alerts || 0) > 0 ? "text-rose-600" : "text-emerald-700"
                   )}>
                     {(data?.low_stock_alerts || 0) + (data?.expired_alerts || 0)}
                   </h3>
                   <p className="text-[11px] font-medium text-slate-600">
-                    {data?.expired_alerts || 0} Expired • {data?.low_stock_alerts || 0} Low Stock
+                    {(data?.expired_alerts || 0) > 0
+                      ? `${data?.expired_alerts || 0} Expired • ${data?.low_stock_alerts || 0} Low Stock`
+                      : "Fresh Inventory • 0 Urgencies"}
                   </p>
                 </div>
                 <div className={cn(
                   "h-12 w-12 rounded-2xl flex items-center justify-center transition-colors shadow-inner",
-                  (data?.expired_alerts || 0) > 0 ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"
+                  (data?.expired_alerts || 0) > 0 ? "bg-rose-100 text-rose-600" : "bg-emerald-50 group-hover:bg-emerald-100 text-emerald-700"
                 )}>
                   {(data?.expired_alerts || 0) > 0 ? (
                     <ShieldAlert className="h-6 w-6" />
                   ) : (
-                    <AlertTriangle className="h-6 w-6" />
+                    <ShieldCheck className="h-6 w-6" />
                   )}
                 </div>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
+              <div className="mt-4 pt-3 border-t border-emerald-50 flex items-center justify-between text-[11px] text-slate-500">
                 <span>Shelf life tracking</span>
-                <Link to="/retailer/expiry" className="font-bold text-amber-700 hover:underline flex items-center gap-0.5">
+                <Link to="/retailer/expiry" className="font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-0.5">
                   Manage <ChevronRight className="h-3 w-3" />
                 </Link>
               </div>
             </div>
           </div>
 
-          {/* 6-CARD OPERATIONAL HUBS */}
+          {/* 6-CARD OPERATIONAL COMMAND HUB - WHITE & EMERALD AESTHETIC */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -551,10 +559,10 @@ export function Dashboard() {
               {/* Hub 1: Dual-QR Receiving */}
               <Link
                 to="/retailer/receive"
-                className="group relative overflow-hidden rounded-3xl bg-white border border-slate-200 p-6 shadow-sm hover:shadow-xl hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between"
+                className="group relative overflow-hidden rounded-3xl bg-white border border-emerald-100 p-6 shadow-xs hover:shadow-lg hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between"
               >
                 <div className="space-y-3">
-                  <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
+                  <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center shadow-inner group-hover:scale-105 group-hover:bg-emerald-100 transition-all">
                     <QrCode className="h-6 w-6" />
                   </div>
                   <div>
@@ -566,7 +574,7 @@ export function Dashboard() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-emerald-600">
+                <div className="mt-5 pt-3.5 border-t border-emerald-50 flex items-center justify-between text-xs font-bold text-emerald-700">
                   <span>Open Scanner Bay</span>
                   <ArrowRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
                 </div>
@@ -575,22 +583,22 @@ export function Dashboard() {
               {/* Hub 2: Incoming Shipments */}
               <Link
                 to="/retailer/shipments"
-                className="group relative overflow-hidden rounded-3xl bg-white border border-slate-200 p-6 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 flex flex-col justify-between"
+                className="group relative overflow-hidden rounded-3xl bg-white border border-emerald-100 p-6 shadow-xs hover:shadow-lg hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between"
               >
                 <div className="space-y-3">
-                  <div className="h-12 w-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
+                  <div className="h-12 w-12 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center shadow-inner group-hover:scale-105 group-hover:bg-teal-100 transition-all">
                     <Truck className="h-6 w-6" />
                   </div>
                   <div>
-                    <h4 className="text-base font-bold text-slate-900 group-hover:text-blue-700 transition-colors">
+                    <h4 className="text-base font-bold text-slate-900 group-hover:text-teal-700 transition-colors">
                       Incoming Cargo Shipments
                     </h4>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      Monitor authorized carrier dispatches, registered vehicle numbers, temperature SLAs, and estimated arrival windows.
+                      Monitor authorized carrier dispatches, registered vehicle numbers, transit status, and estimated arrival windows.
                     </p>
                   </div>
                 </div>
-                <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-blue-600">
+                <div className="mt-5 pt-3.5 border-t border-emerald-50 flex items-center justify-between text-xs font-bold text-teal-700">
                   <span>Track Inbound Cargo</span>
                   <ArrowRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
                 </div>
@@ -599,14 +607,14 @@ export function Dashboard() {
               {/* Hub 3: Live Store Inventory */}
               <Link
                 to="/retailer/inventory"
-                className="group relative overflow-hidden rounded-3xl bg-white border border-slate-200 p-6 shadow-sm hover:shadow-xl hover:border-teal-300 transition-all duration-300 flex flex-col justify-between"
+                className="group relative overflow-hidden rounded-3xl bg-white border border-emerald-100 p-6 shadow-xs hover:shadow-lg hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between"
               >
                 <div className="space-y-3">
-                  <div className="h-12 w-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
+                  <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center shadow-inner group-hover:scale-105 group-hover:bg-emerald-100 transition-all">
                     <Boxes className="h-6 w-6" />
                   </div>
                   <div>
-                    <h4 className="text-base font-bold text-slate-900 group-hover:text-teal-700 transition-colors">
+                    <h4 className="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">
                       Warehouse & Store Inventory
                     </h4>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
@@ -614,7 +622,7 @@ export function Dashboard() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-teal-600">
+                <div className="mt-5 pt-3.5 border-t border-emerald-50 flex items-center justify-between text-xs font-bold text-emerald-700">
                   <span>Browse Current Stock</span>
                   <ArrowRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
                 </div>
@@ -623,10 +631,10 @@ export function Dashboard() {
               {/* Hub 4: Point of Sale Terminal */}
               <Link
                 to="/retailer/sales"
-                className="group relative overflow-hidden rounded-3xl bg-white border border-slate-200 p-6 shadow-sm hover:shadow-xl hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between"
+                className="group relative overflow-hidden rounded-3xl bg-white border border-emerald-100 p-6 shadow-xs hover:shadow-lg hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between"
               >
                 <div className="space-y-3">
-                  <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
+                  <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center shadow-inner group-hover:scale-105 group-hover:bg-emerald-100 transition-all">
                     <DollarSign className="h-6 w-6" />
                   </div>
                   <div>
@@ -638,7 +646,7 @@ export function Dashboard() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-emerald-600">
+                <div className="mt-5 pt-3.5 border-t border-emerald-50 flex items-center justify-between text-xs font-bold text-emerald-700">
                   <span>Open Checkout Desk</span>
                   <ArrowRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
                 </div>
@@ -647,14 +655,14 @@ export function Dashboard() {
               {/* Hub 5: Order Stock from Processors */}
               <Link
                 to="/retailer/requests"
-                className="group relative overflow-hidden rounded-3xl bg-white border border-slate-200 p-6 shadow-sm hover:shadow-xl hover:border-amber-300 transition-all duration-300 flex flex-col justify-between"
+                className="group relative overflow-hidden rounded-3xl bg-white border border-emerald-100 p-6 shadow-xs hover:shadow-lg hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between"
               >
                 <div className="space-y-3">
-                  <div className="h-12 w-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
+                  <div className="h-12 w-12 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center shadow-inner group-hover:scale-105 group-hover:bg-teal-100 transition-all">
                     <ShoppingCart className="h-6 w-6" />
                   </div>
                   <div>
-                    <h4 className="text-base font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
+                    <h4 className="text-base font-bold text-slate-900 group-hover:text-teal-700 transition-colors">
                       Order Stock & Processor Demands
                     </h4>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
@@ -662,7 +670,7 @@ export function Dashboard() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-amber-600">
+                <div className="mt-5 pt-3.5 border-t border-emerald-50 flex items-center justify-between text-xs font-bold text-teal-700">
                   <span>Place New Stock Order</span>
                   <ArrowRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
                 </div>
@@ -671,14 +679,14 @@ export function Dashboard() {
               {/* Hub 6: FEFO Shelf-Life Expiry Watch */}
               <Link
                 to="/retailer/expiry"
-                className="group relative overflow-hidden rounded-3xl bg-white border border-slate-200 p-6 shadow-sm hover:shadow-xl hover:border-rose-300 transition-all duration-300 flex flex-col justify-between"
+                className="group relative overflow-hidden rounded-3xl bg-white border border-emerald-100 p-6 shadow-xs hover:shadow-lg hover:border-emerald-300 transition-all duration-300 flex flex-col justify-between"
               >
                 <div className="space-y-3">
-                  <div className="h-12 w-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
+                  <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center shadow-inner group-hover:scale-105 group-hover:bg-emerald-100 transition-all">
                     <Clock className="h-6 w-6" />
                   </div>
                   <div>
-                    <h4 className="text-base font-bold text-slate-900 group-hover:text-rose-700 transition-colors">
+                    <h4 className="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">
                       FEFO Expiry & Markdown Radar
                     </h4>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
@@ -686,7 +694,7 @@ export function Dashboard() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-rose-600">
+                <div className="mt-5 pt-3.5 border-t border-emerald-50 flex items-center justify-between text-xs font-bold text-emerald-700">
                   <span>View Shelf-Life Radar</span>
                   <ArrowRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
                 </div>
@@ -695,7 +703,7 @@ export function Dashboard() {
           </div>
 
           {/* STORE INVENTORY RECENT SNAPSHOT TABLE */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+          <div className="bg-white rounded-3xl border border-emerald-100 p-6 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Current Store Inventory Highlights</h3>
@@ -703,7 +711,7 @@ export function Dashboard() {
               </div>
               <Link
                 to="/retailer/inventory"
-                className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
+                className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-colors"
               >
                 <span>Full Inventory ({inventory.length} Batches)</span>
                 <ChevronRight className="h-3.5 w-3.5" />
@@ -711,14 +719,14 @@ export function Dashboard() {
             </div>
 
             {inventory.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="p-8 text-center text-xs text-slate-500 bg-emerald-50/40 rounded-2xl border border-emerald-100">
                 No inventory batches currently in store. When you accept deliveries at the receiving dock, they will appear here.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                    <tr className="border-b border-emerald-100 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                       <th className="pb-3">Produce Item</th>
                       <th className="pb-3">Batch Number</th>
                       <th className="pb-3">Quantity</th>
@@ -727,12 +735,12 @@ export function Dashboard() {
                       <th className="pb-3 text-right">Quick Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-emerald-50">
                     {inventory.slice(0, 5).map((item) => {
                       const pName = item.product?.name || item.product_name || "Fresh Produce"
                       const isLow = (item.quantity || 0) < 10
                       return (
-                        <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                        <tr key={item.id} className="hover:bg-emerald-50/40 transition-colors">
                           <td className="py-3.5 font-bold text-slate-900 capitalize">
                             {pName}
                           </td>
@@ -761,7 +769,7 @@ export function Dashboard() {
                           <td className="py-3.5 text-right">
                             <Link
                               to="/retailer/sales"
-                              className="inline-flex items-center gap-1 px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold transition-colors"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-bold shadow-2xs transition-colors"
                             >
                               <DollarSign className="h-3 w-3" /> Sell
                             </Link>

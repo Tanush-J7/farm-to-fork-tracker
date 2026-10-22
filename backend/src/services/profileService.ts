@@ -66,7 +66,7 @@ export const getDefaultProfile = (user: { id: string; name: string; email?: stri
       contact_person_name: user.name,
       contact_email: user.email || 'processor@farmchain.io',
       coordinates: { lat: 13.0285, lng: 77.5456 },
-      storage_capacity: '500 Metric Tons Chilled & Precision Controlled',
+      storage_capacity: '500 Metric Tons Precision Controlled',
       is_verified: true,
       verified_at: '2026-09-01T00:00:00.000Z',
       verified_by: 'FarmChain Admin'

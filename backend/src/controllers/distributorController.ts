@@ -173,8 +173,8 @@ export const getDistributorDeliveryRequests = async (req: Request, res: Response
             source_label: `${procProfile.business_name} (${procProfile.city || 'Depot'})`,
             destination_label: `${targetStoreName} (${retProfile?.city || 'Store'})`
           },
-          cold_chain_sla: {
-            temperature_control: metadata.temperature_sla || '2°C to 6°C Precision Chilled',
+          freshness_sla: {
+            temperature_control: metadata.temperature_sla || '2°C to 6°C Monitored Fresh Temp',
             storage_temp: metadata.temperature_sla || '2°C to 6°C'
           },
           // Pickup & Delivery Tokens / Manifests
@@ -713,7 +713,7 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
     const cleanVehicleNumber = vehicle_number.trim().toUpperCase();
     const cleanDriverName = driver_name.trim();
     const cleanDriverPhone = (driver_phone || distProfile?.phone || (distUser.data as any)?.phone || '+91 98451 22334').trim();
-    const cleanDepartureTemp = departure_temperature || '3.8°C Precision Chilled';
+    const cleanDepartureTemp = departure_temperature || '3.8°C Monitored Fresh Temp';
     const nowIso = new Date().toISOString();
 
     // 3. Update shipment status to IN_TRANSIT and save verified quantity

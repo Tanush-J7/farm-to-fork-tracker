@@ -1688,7 +1688,7 @@ export function ProcessorDashboard() {
             destination_store: targetStoreWithAddress,
             pickup_location: processorPickupLocation || processorAddress,
             required_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-            temperature_sla: "2°C to 6°C Precision Chilled",
+            temperature_sla: "2°C to 6°C Monitored Fresh Temp",
             dispatch_notes: dispatchNotesInput,
             quantity: dispatchModalBatch.processedQuantity || dispatchModalBatch.originalProduct.quantity
           },
