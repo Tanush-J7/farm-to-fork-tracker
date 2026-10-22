@@ -47,20 +47,21 @@ const createProductForm = () => ({
 
 // Status config
 const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: React.ElementType; label: string }> = {
-  Harvested:          { color: "text-green-400",  bg: "bg-green-400/10 border-green-400/30",   icon: Leaf,        label: "Harvested"   },
-  Processing:         { color: "text-blue-400",   bg: "bg-blue-400/10 border-blue-400/30",     icon: Factory,     label: "Processing"  },
-  "In Transit":       { color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/30", icon: Truck,       label: "In Transit"  },
-  Delivered:          { color: "text-purple-400", bg: "bg-purple-400/10 border-purple-400/30", icon: ShoppingBag, label: "Delivered"   },
-  Sold:               { color: "text-pink-400",   bg: "bg-pink-400/10 border-pink-400/30",     icon: CheckCircle2, label: "Sold"       },
-  "Pending Approval": { color: "text-slate-400",  bg: "bg-slate-400/10 border-slate-400/30",   icon: Clock,       label: "Pending Approval" },
+  Harvested:          { color: "text-emerald-700",  bg: "bg-emerald-50 border-emerald-200",    icon: Leaf,        label: "Harvested"   },
+  Accepted:           { color: "text-emerald-800",  bg: "bg-emerald-100/70 border-emerald-300", icon: CheckCircle2, label: "Accepted"   },
+  Processing:         { color: "text-blue-700",     bg: "bg-blue-50 border-blue-200",          icon: Factory,     label: "Processing"  },
+  "In Transit":       { color: "text-amber-700",    bg: "bg-amber-50 border-amber-200",        icon: Truck,       label: "In Transit"  },
+  Delivered:          { color: "text-purple-700",   bg: "bg-purple-50 border-purple-200",      icon: ShoppingBag, label: "Delivered"   },
+  Sold:               { color: "text-pink-700",     bg: "bg-pink-50 border-pink-200",          icon: CheckCircle2, label: "Sold"       },
+  "Pending Approval": { color: "text-slate-700",    bg: "bg-slate-100 border-slate-200",        icon: Clock,       label: "Pending Approval" },
 }
 
 const QUALITY_COLOR: Record<string, string> = {
-  Excellent: "text-green-400",
-  Good:      "text-lime-400",
-  Average:   "text-yellow-400",
-  Poor:      "text-red-400",
-  Unknown:   "text-slate-400",
+  Excellent: "text-emerald-600 font-bold",
+  Good:      "text-emerald-700 font-semibold",
+  Average:   "text-amber-600 font-semibold",
+  Poor:      "text-rose-600 font-semibold",
+  Unknown:   "text-slate-500",
 }
 
 interface Product {
@@ -558,8 +559,8 @@ export function FarmerDashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Farmer Portal</h1>
-          <p className="text-slate-400 mt-1">Manage your harvest, track processor interests, and monitor your produce through the supply chain.</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Farmer Portal</h1>
+          <p className="text-slate-600 mt-1">Manage your harvest, track processor interests, and monitor your produce through the supply chain.</p>
         </div>
 
         <div className="flex items-center gap-3 relative">
@@ -567,13 +568,13 @@ export function FarmerDashboard() {
           <div className="relative">
             <button
               onClick={() => setShowNotifications(prev => !prev)}
-              className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-foreground transition-all hover:border-green-500/40 focus:outline-none"
+              className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-200 bg-white hover:bg-emerald-50 text-slate-700 transition-all hover:border-emerald-400 focus:outline-none shadow-xs cursor-pointer"
               title="Notifications"
               aria-label="Toggle notifications"
             >
-              <Bell className="h-5 w-5 text-slate-300" />
+              <Bell className="h-5 w-5 text-emerald-800" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold text-white shadow-lg animate-pulse ring-2 ring-slate-900">
+                <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1.5 text-[11px] font-bold text-white shadow-md animate-pulse ring-2 ring-white">
                   {unreadCount}
                 </span>
               )}
@@ -581,13 +582,15 @@ export function FarmerDashboard() {
 
             {/* Notification Dropdown Panel */}
             {showNotifications && (
-              <div className="absolute right-0 mt-3 w-[calc(100vw-2.5rem)] max-w-sm sm:w-96 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl p-4 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3">
+              <div className="absolute right-0 mt-3 w-[calc(100vw-2.5rem)] max-w-sm sm:w-96 rounded-3xl border border-emerald-100 bg-white p-5 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200 text-slate-800">
+                <div className="flex items-center justify-between border-b border-emerald-100 pb-3 mb-3">
                   <div className="flex items-center gap-2">
-                    <Bell className="h-4 w-4 text-emerald-400" />
-                    <h3 className="font-semibold text-sm text-foreground">Notifications</h3>
+                    <div className="p-1.5 rounded-xl bg-emerald-100 text-emerald-800">
+                      <Bell className="h-4 w-4" />
+                    </div>
+                    <h3 className="font-bold text-sm text-slate-900">Notifications</h3>
                     {unreadCount > 0 && (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium">
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold">
                         {unreadCount} new
                       </span>
                     )}
@@ -596,14 +599,14 @@ export function FarmerDashboard() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={markAllAsRead}
-                        className="text-[11px] text-slate-400 hover:text-emerald-400 transition-colors"
+                        className="text-[11px] text-slate-500 hover:text-emerald-700 font-medium transition-colors cursor-pointer"
                       >
                         Mark all read
                       </button>
-                      <span className="text-slate-600">·</span>
+                      <span className="text-slate-300">·</span>
                       <button
                         onClick={clearAllNotifications}
-                        className="text-[11px] text-slate-400 hover:text-red-400 transition-colors"
+                        className="text-[11px] text-slate-500 hover:text-rose-600 font-medium transition-colors cursor-pointer"
                       >
                         Clear
                       </button>
@@ -611,10 +614,10 @@ export function FarmerDashboard() {
                   )}
                 </div>
 
-                <div className="max-h-80 overflow-y-auto space-y-2.5 pr-1">
+                <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
                   {notifications.length === 0 ? (
-                    <div className="py-8 text-center text-slate-400 text-xs">
-                      <Wheat className="h-8 w-8 mx-auto mb-2 text-slate-500/40" />
+                    <div className="py-8 text-center text-slate-500 text-xs">
+                      <Wheat className="h-8 w-8 mx-auto mb-2 text-slate-400" />
                       No notifications yet.<br />You will be notified when a processor marks interest.
                     </div>
                   ) : (
@@ -622,19 +625,19 @@ export function FarmerDashboard() {
                       <div
                         key={n.id}
                         onClick={() => markAsRead(n.id)}
-                        className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                        className={`p-3 rounded-2xl border transition-all cursor-pointer ${
                           n.read
-                            ? "bg-white/[0.02] border-white/5 opacity-75"
-                            : "bg-emerald-500/10 border-emerald-500/30 shadow-sm"
+                            ? "bg-slate-50/60 border-slate-100 opacity-75 hover:bg-emerald-50/40"
+                            : "bg-emerald-50/90 border-emerald-200 shadow-2xs hover:bg-emerald-50"
                         }`}
                       >
                         <div className="flex items-start gap-3">
-                          <div className={`p-2 rounded-lg shrink-0 mt-0.5 ${
+                          <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
                             n.type === "processor_accepted" 
-                              ? "bg-green-500/20 text-green-400" 
+                              ? "bg-emerald-100 text-emerald-800" 
                               : n.type === "processor_rejected" 
-                              ? "bg-red-500/20 text-red-400" 
-                              : "bg-blue-500/20 text-blue-400"
+                              ? "bg-rose-100 text-rose-800" 
+                              : "bg-blue-100 text-blue-800"
                           }`}>
                             {n.type === "processor_accepted" ? (
                               <CheckCircle2 className="h-4 w-4" />
@@ -646,7 +649,7 @@ export function FarmerDashboard() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1">
-                              <p className="text-xs font-semibold text-foreground truncate">
+                              <p className="text-xs font-bold text-slate-900 truncate">
                                 {n.type === "processor_interest"
                                   ? "🏢 Processor Expressed Interest"
                                   : n.type === "processor_accepted"
@@ -654,13 +657,13 @@ export function FarmerDashboard() {
                                   : "❌ Produce Rejected at Intake"}
                               </p>
                               {!n.read && (
-                                <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+                                <span className="h-2 w-2 rounded-full bg-emerald-600 shrink-0" />
                               )}
                             </div>
-                            <p className="text-xs text-slate-300 mt-1 line-clamp-2 leading-relaxed">
+                            <p className="text-xs text-slate-600 mt-1 line-clamp-2 leading-relaxed">
                               {n.message}
                             </p>
-                            <p className="text-[10px] text-slate-500 mt-1.5 flex items-center gap-1">
+                            <p className="text-[10px] text-slate-400 mt-1.5 flex items-center gap-1 font-medium">
                               <Clock className="h-3 w-3" /> {n.date} at {n.time}
                             </p>
                           </div>
@@ -673,7 +676,7 @@ export function FarmerDashboard() {
             )}
           </div>
 
-          <Button onClick={openRegistrationForm} className="gap-2">
+          <Button onClick={openRegistrationForm} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-sm hover:shadow-emerald-600/20 font-semibold px-4 py-2.5 cursor-pointer">
             <Plus className="h-4 w-4" />
             Register New Harvest
           </Button>
@@ -681,24 +684,24 @@ export function FarmerDashboard() {
       </div>
 
       {/* Primary Tab Navigation */}
-      <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+      <div className="flex items-center gap-2 border-b border-emerald-100 pb-3">
         <button
           onClick={() => {
             setSearchParams({})
             if (location.pathname.includes("supply-requests")) navigate("/farmer")
           }}
           className={cn(
-            "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all cursor-pointer",
+            "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all cursor-pointer",
             currentTab !== "supply-requests"
-              ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/30"
-              : "text-slate-400 hover:text-white hover:bg-white/5"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-700/20"
+              : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
           )}
         >
           <Leaf className="h-4 w-4" />
           <span>My Farm & Batches</span>
           <span className={cn(
             "px-2 py-0.5 text-xs rounded-full font-bold",
-            currentTab !== "supply-requests" ? "bg-white/20 text-white" : "bg-white/10 text-slate-400"
+            currentTab !== "supply-requests" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
           )}>
             {products.length}
           </span>
@@ -709,10 +712,10 @@ export function FarmerDashboard() {
             setSearchParams({ tab: "supply-requests" })
           }}
           className={cn(
-            "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all cursor-pointer relative",
+            "flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all cursor-pointer relative",
             currentTab === "supply-requests"
-              ? "bg-emerald-600 text-white shadow-lg shadow-emerald-950/30"
-              : "text-slate-400 hover:text-white hover:bg-white/5"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-700/20"
+              : "bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border border-emerald-200"
           )}
         >
           <ShoppingCart className="h-4 w-4" />
@@ -756,23 +759,23 @@ export function FarmerDashboard() {
         <div className="space-y-8">
           {/* Active Supply Requests Highlight Callout */}
           {totalPendingSupplyCount > 0 && (
-            <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-900 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400">
+            <div className="rounded-3xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-emerald-50/60 p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-center gap-3.5">
+                <div className="p-3.5 rounded-2xl bg-emerald-100 text-emerald-700 shadow-2xs">
                   <ShoppingCart className="h-6 w-6 animate-bounce" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 flex items-center gap-2">
                     🌾 Processor Supply Requests Waiting ({totalPendingSupplyCount} Demands)
                   </h3>
-                  <p className="text-xs text-slate-300 mt-0.5">
+                  <p className="text-xs text-slate-600 mt-0.5">
                     Processing facilities have broadcasted crop procurement contracts. Review and commit your harvest.
                   </p>
                 </div>
               </div>
               <Button
                 onClick={() => setSearchParams({ tab: "supply-requests" })}
-                className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shrink-0 rounded-xl cursor-pointer"
+                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shrink-0 rounded-2xl shadow-sm px-4 py-2.5 cursor-pointer"
               >
                 <span>View & Fulfill in Supply Desk</span>
                 <ArrowRight className="h-3.5 w-3.5" />
@@ -781,42 +784,272 @@ export function FarmerDashboard() {
           )}
 
           {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: "Total Batches", value: stats.total, icon: Wheat, color: "text-green-400" },
-          { label: "Harvested", value: stats.harvested, icon: Leaf, color: "text-lime-400" },
-          { label: "In Transit", value: stats.inTransit, icon: Truck, color: "text-yellow-400" },
-          { label: "Avg Quality", value: `${stats.avgQuality}%`, icon: Star, color: "text-purple-400" },
-        ].map(s => (
-          <div key={s.label} className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md p-5 flex items-center gap-4">
-            <div className={`p-3 rounded-xl bg-white/5 ${s.color}`}>
-              <s.icon className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-foreground">{s.value}</p>
-              <p className="text-xs text-slate-400">{s.label}</p>
-            </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: "Total Batches", value: stats.total, icon: Wheat, color: "text-emerald-700", bg: "bg-emerald-50" },
+              { label: "Harvested", value: stats.harvested, icon: Leaf, color: "text-emerald-700", bg: "bg-emerald-50" },
+              { label: "In Transit", value: stats.inTransit, icon: Truck, color: "text-amber-700", bg: "bg-amber-50" },
+              { label: "Avg Quality", value: `${stats.avgQuality}%`, icon: Star, color: "text-purple-700", bg: "bg-purple-50" },
+            ].map(s => (
+              <div key={s.label} className="rounded-3xl border border-emerald-100 bg-white p-5 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all flex items-center gap-4">
+                <div className={`p-3.5 rounded-2xl ${s.bg} ${s.color}`}>
+                  <s.icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-2xl font-black text-slate-900">{s.value}</p>
+                  <p className="text-xs font-semibold text-slate-500">{s.label}</p>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
+          {/* My Products */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-extrabold text-slate-900">My Registered Produce</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Harvest batches authenticated with on-chain cryptographic signatures.</p>
+              </div>
+              <button
+                onClick={fetchProducts}
+                className="flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-emerald-700 bg-white border border-emerald-200 px-3.5 py-2 rounded-2xl shadow-2xs hover:bg-emerald-50 transition-colors cursor-pointer"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Refresh
+              </button>
+            </div>
+
+            {loadingProducts ? (
+              <div className="flex items-center justify-center py-16">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
+              </div>
+            ) : productError ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3 text-center rounded-3xl border border-rose-200 bg-rose-50/50 p-6">
+                <AlertCircle className="h-8 w-8 text-rose-600" />
+                <p className="text-rose-700 text-sm font-semibold">{productError}</p>
+                <Button variant="outline" onClick={fetchProducts} className="mt-1 text-xs border-rose-300 text-rose-800 hover:bg-rose-100 rounded-xl">Retry</Button>
+              </div>
+            ) : products.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-4 rounded-3xl border border-emerald-100 bg-white shadow-xs">
+                <div className="p-4 rounded-3xl bg-emerald-50 text-emerald-600">
+                  <Leaf className="h-8 w-8" />
+                </div>
+                <div className="text-center">
+                  <p className="text-slate-900 font-bold text-base">No produce batches registered yet</p>
+                  <p className="text-slate-500 text-xs mt-1">Register your first harvest to get started.</p>
+                </div>
+                <Button onClick={openRegistrationForm} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-sm font-semibold">
+                  <Plus className="h-4 w-4" /> Register Now
+                </Button>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {products.map(p => {
+                  const sc = STATUS_CONFIG[p.status] || STATUS_CONFIG["Harvested"]
+                  const StatusIcon = sc.icon
+                  const qColor = QUALITY_COLOR[p.aiQualityLabel] || QUALITY_COLOR["Unknown"]
+                  const date = new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+
+                  return (
+                    <div key={p._id} className="rounded-3xl border border-emerald-100 bg-white p-5 space-y-4 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all duration-200 group">
+                      {/* Top row */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="font-bold text-slate-900 text-base truncate group-hover:text-emerald-700 transition-colors">{p.name}</h3>
+                          <p className="text-xs text-slate-500 mt-0.5">{p.category} · {p.batchNumber}</p>
+                        </div>
+                        {p.organicStatus && (
+                          <span className="shrink-0 text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
+                            Organic
+                          </span>
+                        )}
+                      </div>
+
+                      {p.productImageUrl && <img src={p.productImageUrl} alt={p.name} className="h-28 w-full rounded-2xl border border-emerald-100 object-cover" />}
+
+                      {/* Status */}
+                      <div className={`inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border font-bold ${sc.bg} ${sc.color}`}>
+                        <StatusIcon className="h-3.5 w-3.5" />
+                        {sc.label}
+                      </div>
+
+                      {/* Interactive Processor Deal Handshake & Intake Outcome */}
+                      {(() => {
+                        const decisionRecord = decisions[p._id] || decisions[p.batchNumber] || (p.status === "Rejected by Processor" ? { decision: "Rejected" as const, reason: "Rejected by Processor" } : null)
+                        const notif = notifications.find(n => (n.productId === p._id || n.batchNumber === p.batchNumber) && n.type === "processor_interest")
+                        const processorName = notif?.processorName || "Processing Facility"
+
+                        // Stage 4: Final Intake Outcomes
+                        if (decisionRecord?.decision === "Accepted") {
+                          return (
+                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900 flex items-start gap-2.5 shadow-2xs">
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-emerald-950">✅ Verified & Accepted on Blockchain</p>
+                                <p className="text-[11px] text-emerald-800 mt-0.5">{processorName} verified QR certificate and scale weight. Produce has entered the processing line.</p>
+                              </div>
+                            </div>
+                          )
+                        }
+
+                        if (decisionRecord?.decision === "Rejected" || p.status === "Rejected by Processor") {
+                          return (
+                            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900 flex items-start gap-2.5 shadow-2xs">
+                              <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-rose-950">❌ Rejected at Gate Intake by {processorName}</p>
+                                <p className="text-[11px] text-rose-800 mt-0.5 leading-relaxed">
+                                  Reason: {decisionRecord?.reason || "Intake scale weight or quality verification failed."}. Intake verification failed.
+                                </p>
+                              </div>
+                            </div>
+                          )
+                        }
+
+                        const isInterested = p.status === "Processing" || p.status === "In Transit" || Boolean(notif)
+                        const currentDealState = deals[p._id] || deals[p.batchNumber] || (isInterested ? "requested" : null)
+
+                        if (!isInterested || currentDealState === "declined" || !currentDealState) return null
+
+                        return (
+                          <div className="space-y-2 pt-1">
+                            {/* Stage 1: Requested -> Needs Farmer Acceptance */}
+                            {currentDealState === "requested" && (
+                              <div className="space-y-2.5 rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-950 shadow-2xs">
+                                <div className="flex items-start gap-2">
+                                  <Factory className="h-4 w-4 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-amber-950">{processorName} expressed interest</p>
+                                    <p className="text-[11px] text-amber-800 mt-0.5">Wants to procure this harvest batch ({p.quantity} kg). Confirm to accept deal.</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 pt-1">
+                                  <Button
+                                    size="sm"
+                                    className="flex-1 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs h-8.5 font-bold cursor-pointer"
+                                    onClick={() => handleAcceptDeal(p._id, p.batchNumber)}
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                    Accept Offer
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-xs gap-1 border-rose-200 bg-white text-rose-700 hover:bg-rose-50 rounded-xl h-8.5 font-semibold cursor-pointer"
+                                    onClick={() => handleDeclineDeal(p._id, p.batchNumber)}
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                    Decline
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Stage 2: Accepted -> Ready for Dispatch */}
+                            {currentDealState === "accepted" && (
+                              <div className="space-y-2.5 rounded-2xl border border-blue-200 bg-blue-50 p-3.5 text-xs text-blue-950 shadow-2xs">
+                                <div className="flex items-start gap-2">
+                                  <CheckCircle2 className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-blue-950">Deal Accepted with {processorName}</p>
+                                    <p className="text-[11px] text-blue-800 mt-0.5">Pack and crate harvest, then click below to confirm dispatch readiness.</p>
+                                  </div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  className="w-full text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xs h-8.5 font-bold cursor-pointer"
+                                  onClick={() => handleMarkReadyForDispatch(p._id, p.batchNumber)}
+                                >
+                                  <PackageCheck className="h-4 w-4" />
+                                  📦 Ready for Dispatch
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Stage 3: Dispatched & In Transit */}
+                            {currentDealState === "dispatched" && (
+                              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950 flex items-center gap-2.5 shadow-2xs">
+                                <Truck className="h-4 w-4 text-emerald-600 shrink-0 animate-bounce" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-emerald-950">🚚 Dispatched to {processorName}</p>
+                                  <p className="text-[11px] text-emerald-800 truncate">In transit to processing facility. Gate scale intake authorized.</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
+
+                      {/* AI Quality */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                        <div>
+                          <p className="text-xs text-slate-500">AI Quality</p>
+                          <p className={`text-sm font-semibold ${qColor}`}>
+                            {p.aiQualityLabel}
+                            {p.aiQualityScore > 0 && (
+                              <span className="text-xs font-normal text-slate-500 ml-1">
+                                ({(p.aiQualityScore * 100).toFixed(0)}%)
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-slate-500">Quantity</p>
+                          <p className="text-sm font-black text-slate-900">{p.quantity} kg</p>
+                        </div>
+                      </div>
+
+                      {/* Date */}
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <Clock className="h-3.5 w-3.5" />
+                        Registered on {date}
+                      </div>
+                      {p.expiryDate && (
+                        <div className="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold">
+                          <CalendarDays className="h-3.5 w-3.5" />
+                          Expires {new Date(`${p.expiryDate}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                        </div>
+                      )}
+
+                      {/* Card Actions: QR Code Certificate */}
+                      <div className="pt-2 border-t border-slate-100 flex items-center">
+                        {p.status !== "Pending Approval" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-xs gap-1.5 rounded-2xl border-emerald-200 bg-emerald-50/50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 font-bold h-9 cursor-pointer"
+                            onClick={() => setSelectedQrProduct(p)}
+                          >
+                            <QrCode className="h-3.5 w-3.5" />
+                            View QR Certificate
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Register Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-6">
-          <div className="w-full max-w-2xl max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain scroll-smooth rounded-2xl border border-white/10 bg-slate-900 p-5 sm:p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-3 sm:p-6 animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain scroll-smooth rounded-3xl border border-emerald-100 bg-white p-6 sm:p-8 shadow-2xl text-slate-900">
             <div className="mb-5 flex items-center justify-between border-b border-emerald-100 pb-4 sm:mb-6">
               <div>
-                <h2 className="text-xl font-bold text-foreground">Register New Harvest</h2>
-                <p className="text-sm text-slate-400 mt-0.5">AI analysis will run automatically on submission.</p>
+                <h2 className="text-2xl font-black text-slate-900">Register New Harvest</h2>
+                <p className="text-xs text-slate-500 mt-1">AI analysis will run automatically on submission to verify quality grade.</p>
               </div>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-primary transition-colors">
+              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-700 transition-colors p-1 cursor-pointer">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleRegister} className="space-y-3 sm:space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <form onSubmit={handleRegister} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
                   { label: "Product Name", name: "name", placeholder: "e.g. Organic Tomatoes" },
                   { label: "Category", name: "category", placeholder: "e.g. Vegetables" },
@@ -825,7 +1058,7 @@ export function FarmerDashboard() {
                   { label: "Batch Number", name: "batchNumber", placeholder: "", readOnly: true },
                 ].map(f => (
                   <div key={f.name} className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-300">{f.label}</label>
+                    <label className="text-xs font-bold text-slate-700">{f.label}</label>
                     <input
                       type={f.type || "text"}
                       name={f.name}
@@ -836,32 +1069,32 @@ export function FarmerDashboard() {
                       onChange={handleFormChange}
                       placeholder={f.placeholder}
                       readOnly={f.readOnly}
-                      className="flex h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                      className="flex h-11 w-full rounded-2xl border border-emerald-200 bg-white px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     />
                   </div>
                 ))}
               </div>
 
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3 sm:p-4">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
                 <div className="flex items-center justify-between gap-3 mb-3">
                   <div>
-                    <label htmlFor="productPhoto" className="text-sm font-medium text-foreground">Product Photo</label>
-                    <p className="text-xs text-slate-400 mt-0.5">JPEG, PNG, or WebP up to 5 MB.</p>
+                    <label htmlFor="productPhoto" className="text-xs font-bold text-slate-800">Product Photo</label>
+                    <p className="text-xs text-slate-500 mt-0.5">Upload a clear photo for computer-vision quality scoring.</p>
                   </div>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs text-primary border border-emerald-100">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs text-emerald-700 border border-emerald-200 font-bold">
                     <Wand2 className="h-3 w-3" /> AI ready
                   </span>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3 items-start">
-                  <label htmlFor="productPhoto" className="flex min-h-20 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-emerald-300 bg-white px-4 py-4 text-sm font-medium text-primary hover:bg-emerald-50 transition-colors">
+                  <label htmlFor="productPhoto" className="flex min-h-20 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-emerald-300 bg-white px-4 py-4 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors">
                     <ImagePlus className="h-5 w-5" />
                     {imagePreview ? "Choose another photo" : "Upload product photo"}
                   </label>
                   <input ref={photoInputRef} id="productPhoto" type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoChange} className="sr-only" />
                   {imagePreview && (
                     <div className="relative h-20 w-full sm:w-28 shrink-0">
-                      <img src={imagePreview} alt="Product preview" className="h-20 w-full rounded-xl border border-emerald-100 object-cover" />
-                      <button type="button" onClick={removePhoto} className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-emerald-100 bg-white text-red-500 shadow-sm hover:bg-red-50" aria-label="Remove uploaded photo">
+                      <img src={imagePreview} alt="Product preview" className="h-20 w-full rounded-2xl border border-emerald-200 object-cover" />
+                      <button type="button" onClick={removePhoto} className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border border-emerald-200 bg-white text-rose-500 shadow-sm hover:bg-rose-50 cursor-pointer" aria-label="Remove uploaded photo">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -869,46 +1102,46 @@ export function FarmerDashboard() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-white px-3 py-2 text-xs text-primary">
-                <CalendarDays className="h-4 w-4" />
-                Expiry date is required for shelf-life tracking.
+              <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-3.5 py-2.5 text-xs text-emerald-800 font-medium">
+                <CalendarDays className="h-4 w-4 shrink-0 text-emerald-600" />
+                Expiry date is required for smart shelf-life and freshness monitoring.
               </div>
 
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
+              <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-200">
                 <input
                   type="checkbox"
                   id="organicStatus"
                   name="organicStatus"
                   checked={form.organicStatus}
                   onChange={handleFormChange}
-                  className="h-4 w-4 accent-green-500"
+                  className="h-4 w-4 accent-emerald-600 cursor-pointer"
                 />
-                <label htmlFor="organicStatus" className="text-sm text-slate-300">
-                  Certified Organic Product
+                <label htmlFor="organicStatus" className="text-sm font-medium text-slate-800 cursor-pointer">
+                  Certified Organic Produce (Pesticide-Free)
                 </label>
               </div>
 
               {formMsg && (
-                <div className={`flex items-center gap-2 p-3 rounded-xl text-sm border ${
+                <div className={`flex items-center gap-2 p-3.5 rounded-2xl text-sm border ${
                   formMsg.type === "success"
-                    ? "bg-green-500/10 border-green-500/30 text-green-400"
-                    : "bg-red-500/10 border-red-500/30 text-red-400"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                    : "bg-rose-50 border-rose-200 text-rose-800"
                 }`}>
-                  {formMsg.type === "success" ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
+                  {formMsg.type === "success" ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />}
                   {formMsg.text}
                 </div>
               )}
 
-              <p className="text-xs text-green-400 flex items-center gap-1">
-                <Wand2 className="h-3.5 w-3.5" />
+              <p className="text-xs text-emerald-700 flex items-center gap-1 font-medium">
+                <Wand2 className="h-3.5 w-3.5 text-emerald-600" />
                 Wallet-less registration: The system will automatically secure this product on the blockchain for you!
               </p>
 
               <div className="flex gap-3 pt-2">
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setShowForm(false)}>
+                <Button type="button" variant="outline" className="flex-1 rounded-2xl border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer" onClick={() => setShowForm(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" className="flex-1" disabled={submitting}>
+                <Button type="submit" className="flex-1 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm cursor-pointer" disabled={submitting}>
                   {submitting ? "Processing..." : "Run AI & Register"}
                 </Button>
               </div>
@@ -917,247 +1150,18 @@ export function FarmerDashboard() {
         </div>
       )}
 
-      {/* My Products */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-foreground">My Products</h2>
-          <button
-            onClick={fetchProducts}
-            className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-primary transition-colors"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Refresh
-          </button>
-        </div>
-
-        {loadingProducts ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500" />
-          </div>
-        ) : productError ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3 text-center rounded-2xl border border-red-500/20 bg-red-500/5">
-            <AlertCircle className="h-8 w-8 text-red-400" />
-            <p className="text-red-400 text-sm">{productError}</p>
-            <Button variant="outline" onClick={fetchProducts} className="mt-1 text-sm">Retry</Button>
-          </div>
-        ) : products.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-4 rounded-2xl border border-white/10 bg-white/5">
-            <div className="p-4 rounded-2xl bg-green-500/10">
-              <Leaf className="h-8 w-8 text-green-400" />
-            </div>
-            <div className="text-center">
-              <p className="text-foreground font-medium">No products yet</p>
-              <p className="text-slate-400 text-sm mt-1">Register your first harvest to get started.</p>
-            </div>
-            <Button onClick={openRegistrationForm} className="gap-2">
-              <Plus className="h-4 w-4" /> Register Now
-            </Button>
-          </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {products.map(p => {
-              const sc = STATUS_CONFIG[p.status] || STATUS_CONFIG["Harvested"]
-              const StatusIcon = sc.icon
-              const qColor = QUALITY_COLOR[p.aiQualityLabel] || QUALITY_COLOR["Unknown"]
-              const date = new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-
-              return (
-                <div key={p._id} className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md p-5 space-y-4 hover:border-green-500/30 transition-all duration-200 group">
-                  {/* Top row */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">{p.name}</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">{p.category} · {p.batchNumber}</p>
-                    </div>
-                    {p.organicStatus && (
-                      <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/20 font-medium">
-                        Organic
-                      </span>
-                    )}
-                  </div>
-
-                  {p.productImageUrl && <img src={p.productImageUrl} alt={p.name} className="h-28 w-full rounded-xl border border-emerald-100 object-cover" />}
-
-                  {/* Status */}
-                  <div className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium ${sc.bg} ${sc.color}`}>
-                    <StatusIcon className="h-3.5 w-3.5" />
-                    {sc.label}
-                  </div>
-
-                  {/* Interactive Processor Deal Handshake & Intake Outcome */}
-                  {(() => {
-                    const decisionRecord = decisions[p._id] || decisions[p.batchNumber] || (p.status === "Rejected by Processor" ? { decision: "Rejected" as const, reason: "Rejected by Processor" } : null)
-                    const notif = notifications.find(n => (n.productId === p._id || n.batchNumber === p.batchNumber) && n.type === "processor_interest")
-                    const processorName = notif?.processorName || "Processing Facility"
-
-                    // Stage 4: Final Intake Outcomes
-                    if (decisionRecord?.decision === "Accepted") {
-                      return (
-                        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-200 flex items-start gap-2.5 shadow-sm">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-emerald-100">✅ Verified & Accepted on Blockchain</p>
-                            <p className="text-[11px] text-emerald-300/80 mt-0.5">{processorName} verified QR certificate and scale weight. Produce has entered the processing line.</p>
-                          </div>
-                        </div>
-                      )
-                    }
-
-                    if (decisionRecord?.decision === "Rejected" || p.status === "Rejected by Processor") {
-                      return (
-                        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-200 flex items-start gap-2.5 shadow-sm">
-                          <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-red-100">❌ Rejected at Gate Intake by {processorName}</p>
-                            <p className="text-[11px] text-red-300/80 mt-0.5 leading-relaxed">
-                              Reason: {decisionRecord?.reason || "Intake scale weight or quality verification failed."}. Intake verification failed.
-                            </p>
-                          </div>
-                        </div>
-                      )
-                    }
-
-                    const isInterested = p.status === "Processing" || p.status === "In Transit" || Boolean(notif)
-                    const currentDealState = deals[p._id] || deals[p.batchNumber] || (isInterested ? "requested" : null)
-
-                    if (!isInterested || currentDealState === "declined" || !currentDealState) return null
-
-                    return (
-                      <div className="space-y-2 pt-1">
-                        {/* Stage 1: Requested -> Needs Farmer Acceptance */}
-                        {currentDealState === "requested" && (
-                          <div className="space-y-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 shadow-sm">
-                            <div className="flex items-start gap-2">
-                              <Factory className="h-4 w-4 text-amber-400 shrink-0 mt-0.5 animate-pulse" />
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-amber-100">{processorName} expressed interest</p>
-                                <p className="text-[11px] text-amber-300/80 mt-0.5">Wants to procure this harvest batch ({p.quantity} kg). Confirm to accept deal.</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 pt-1">
-                              <Button
-                                size="sm"
-                                className="flex-1 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-sm h-8 font-medium"
-                                onClick={() => handleAcceptDeal(p._id, p.batchNumber)}
-                              >
-                                <Check className="h-3.5 w-3.5" />
-                                Accept Processor Request
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-xs gap-1 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500 rounded-xl h-8 font-medium"
-                                onClick={() => handleDeclineDeal(p._id, p.batchNumber)}
-                              >
-                                <X className="h-3.5 w-3.5" />
-                                Decline
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Stage 2: Accepted -> Ready for Dispatch */}
-                        {currentDealState === "accepted" && (
-                          <div className="space-y-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-200 shadow-sm">
-                            <div className="flex items-start gap-2">
-                              <CheckCircle2 className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-blue-100">Deal Accepted with {processorName}</p>
-                                <p className="text-[11px] text-blue-300/80 mt-0.5">Pack and crate harvest, then click below to confirm dispatch readiness.</p>
-                              </div>
-                            </div>
-                            <Button
-                              size="sm"
-                              className="w-full text-xs gap-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-sm h-8 font-medium"
-                              onClick={() => handleMarkReadyForDispatch(p._id, p.batchNumber)}
-                            >
-                              <PackageCheck className="h-4 w-4" />
-                              📦 Ready for Dispatch
-                            </Button>
-                          </div>
-                        )}
-
-                        {/* Stage 3: Dispatched & In Transit */}
-                        {currentDealState === "dispatched" && (
-                          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-200 flex items-center gap-2.5 shadow-sm">
-                            <Truck className="h-4 w-4 text-emerald-400 shrink-0 animate-bounce" />
-                            <div className="flex-1 min-w-0">
-                              <p className="font-bold text-emerald-100">🚚 Dispatched to {processorName}</p>
-                              <p className="text-[11px] text-emerald-300/80 truncate">In transit to processing facility. Gate scale intake authorized.</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })()}
-
-                  {/* AI Quality */}
-                  <div className="flex items-center justify-between pt-1 border-t border-white/5">
-                    <div>
-                      <p className="text-xs text-slate-500">AI Quality</p>
-                      <p className={`text-sm font-semibold ${qColor}`}>
-                        {p.aiQualityLabel}
-                        {p.aiQualityScore > 0 && (
-                          <span className="text-xs font-normal text-slate-400 ml-1">
-                            ({(p.aiQualityScore * 100).toFixed(0)}%)
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-500">Quantity</p>
-                      <p className="text-sm font-semibold text-foreground">{p.quantity} kg</p>
-                    </div>
-                  </div>
-
-                  {/* Date */}
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                    <Clock className="h-3 w-3" />
-                    Registered on {date}
-                  </div>
-                  {p.expiryDate && (
-                    <div className="flex items-center gap-1.5 text-xs text-primary">
-                      <CalendarDays className="h-3 w-3" />
-                      Expires {new Date(`${p.expiryDate}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                    </div>
-                  )}
-
-                  {/* Card Actions: QR Code Certificate */}
-                  <div className="pt-3 border-t border-white/10 flex items-center">
-                    {p.status !== "Pending Approval" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full text-xs gap-1.5 rounded-xl border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500"
-                        onClick={() => setSelectedQrProduct(p)}
-                      >
-                        <QrCode className="h-3.5 w-3.5" />
-                        View QR Certificate
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-        </div>
-      )}
-
       {/* QR Code Certificate Modal */}
       {selectedQrProduct && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-sm w-full space-y-5 text-center shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center border-b border-white/10 pb-3">
-              <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
-                <QrCode className="h-5 w-5 text-primary" />
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-emerald-100 rounded-3xl p-6 sm:p-7 max-w-sm w-full space-y-5 text-center shadow-2xl text-slate-900">
+            <div className="flex justify-between items-center border-b border-emerald-100 pb-3">
+              <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
+                <QrCode className="h-5 w-5 text-emerald-600" />
                 Product QR Certificate
               </h3>
               <button
                 onClick={() => setSelectedQrProduct(null)}
-                className="text-slate-400 hover:text-white p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1177,7 +1181,7 @@ export function FarmerDashboard() {
               />
             </div>
 
-            <div className="p-4 bg-white rounded-2xl flex flex-col items-center justify-center shadow-inner mx-auto w-fit">
+            <div className="p-4 bg-emerald-50/50 rounded-3xl border border-emerald-100 flex flex-col items-center justify-center shadow-inner mx-auto w-fit">
               <QRCodeSVG
                 value={`${window.location.origin}/tracker?id=${selectedQrProduct._id}`}
                 size={180}
@@ -1187,17 +1191,17 @@ export function FarmerDashboard() {
             </div>
 
             <div className="space-y-1 text-xs">
-              <p className="font-bold text-base text-foreground">{selectedQrProduct.name}</p>
-              <p className="text-slate-400 font-mono">Batch: {selectedQrProduct.batchNumber}</p>
-              <p className="text-slate-400">Qty: {selectedQrProduct.quantity} kg • {selectedQrProduct.category}</p>
-              <p className="text-emerald-400 font-semibold pt-1">
+              <p className="font-black text-base text-slate-900">{selectedQrProduct.name}</p>
+              <p className="text-slate-500 font-mono">Batch: {selectedQrProduct.batchNumber}</p>
+              <p className="text-slate-600 font-medium">Qty: {selectedQrProduct.quantity} kg • {selectedQrProduct.category}</p>
+              <p className="text-emerald-700 font-semibold pt-1">
                 Scan with camera or upload image to trace on blockchain
               </p>
             </div>
 
             <div className="flex flex-col gap-2 pt-2">
               <Button
-                className="w-full rounded-xl text-xs gap-1.5 bg-primary hover:bg-primary/95 text-white font-semibold"
+                className="w-full rounded-2xl text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm cursor-pointer"
                 onClick={() => {
                   const canvas = document.getElementById("farmer-qr-canvas") as HTMLCanvasElement
                   if (!canvas) return
@@ -1215,14 +1219,14 @@ export function FarmerDashboard() {
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  className="flex-1 rounded-xl text-xs gap-1.5"
+                  className="flex-1 rounded-2xl border-emerald-200 text-emerald-800 hover:bg-emerald-50 text-xs font-semibold cursor-pointer"
                   onClick={() => window.print()}
                 >
                   <Printer className="h-3.5 w-3.5" /> Print
                 </Button>
                 <Button
                   variant="ghost"
-                  className="flex-1 rounded-xl text-xs text-slate-400 hover:text-white"
+                  className="flex-1 rounded-2xl text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
                   onClick={() => setSelectedQrProduct(null)}
                 >
                   Close
