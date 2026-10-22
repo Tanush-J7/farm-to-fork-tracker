@@ -92,7 +92,7 @@ export const requestProfileUpdate = async (req: Request, res: Response): Promise
       city: city || 'Bengaluru',
       state: state || 'Karnataka',
       pincode: pincode || '560001',
-      facility_type: facility_type || (effectiveUser.role === 'retailer' ? 'Retail Supermarket' : effectiveUser.role === 'distributor' ? 'GPS Fleet Depot & Cold-Chain Hub' : 'Agro-Processing Facility'),
+      facility_type: facility_type || (effectiveUser.role === 'retailer' ? 'Retail Supermarket' : effectiveUser.role === 'distributor' ? 'GPS Fleet Depot & Logistics Hub' : 'Agro-Processing Facility'),
       operating_hours: operating_hours || '06:00 AM - 10:00 PM',
       contact_person_name: contact_person_name || effectiveUser.name,
       contact_email: contact_email || effectiveUser.email,

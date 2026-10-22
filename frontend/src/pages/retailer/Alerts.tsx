@@ -135,7 +135,7 @@ export function Alerts() {
             type: "DOCK_ARRIVAL",
             severity: "warning",
             title: `Cargo Arrived at Receiving Dock: ${pName}`,
-            description: `Transporter ${s.distributor?.name || "Carrier"} (${s.vehicle_number || s.distributor?.vehicle_number || "KA-04-E-2941"}) is at the receiving bay with ${s.quantity} ${s.unit || "kg"}. Scan Delivery QR to verify cold-chain manifest and take custody.`,
+            description: `Transporter ${s.distributor?.name || "Carrier"} (${s.vehicle_number || s.distributor?.vehicle_number || "KA-04-E-2941"}) is at the receiving bay with ${s.quantity} ${s.unit || "kg"}. Scan Delivery QR to verify delivery manifest and take custody.`,
             timestamp: s.updated_at || s.created_at,
             actionLabel: "Scan Delivery QR & Intake",
             actionLink: `/retailer/receive?shipment=${s.id}`,
@@ -213,7 +213,7 @@ export function Alerts() {
             )}
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Real-time notifications for cold-chain excursions, expiring produce batches, receiving dock arrivals, and inventory replenishment.
+            Real-time notifications for delivery discrepancies, expiring produce batches, receiving dock arrivals, and inventory replenishment.
           </p>
         </div>
 

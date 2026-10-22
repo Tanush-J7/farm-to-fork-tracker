@@ -52,7 +52,7 @@ export function LandingPage() {
               Scan & Verify Your Food&apos;s Journey
             </h2>
             <p className="text-muted-foreground text-base md:text-lg">
-              Scan the retail product QR code or enter the batch code to instantly verify authenticity, harvest dates, cold-chain temperature logs, farmer profile, and expiration date on the blockchain.
+              Scan the retail product QR code or enter the batch code to instantly verify authenticity, harvest dates, transit logistics logs, farmer profile, and expiration date on the blockchain.
             </p>
           </div>
 

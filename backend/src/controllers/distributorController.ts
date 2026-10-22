@@ -189,7 +189,7 @@ export const getDistributorDeliveryRequests = async (req: Request, res: Response
           delivery_token: deliveryToken,
           delivery_qr_payload: deliveryQrPayload,
           delivery_verified_at: retailerAcceptedEvent?.created_at || null,
-          processor_notes: metadata.dispatch_notes || 'Cold-chain SLA verified. Packaged produce ready for cargo intake.',
+          processor_notes: metadata.dispatch_notes || 'Delivery SLA verified. Packaged produce ready for cargo intake.',
           decline_reason: declineEvent?.metadata?.decline_reason || null,
           dispute_details: disputeEvent?.metadata || null
         };
@@ -708,7 +708,7 @@ export const confirmPickupAndTakeCustody = async (req: Request, res: Response): 
     const product = prodRes.data;
     const procName = procProfile.business_name || 'Processor Logistics Facility';
     const storeName = retProfile?.business_name || 'Retail Supermarket';
-    const carrierName = distProfile?.business_name || distUser.data?.name || 'Cold-Chain Carrier';
+    const carrierName = distProfile?.business_name || distUser.data?.name || 'Logistics Carrier';
 
     const cleanVehicleNumber = vehicle_number.trim().toUpperCase();
     const cleanDriverName = driver_name.trim();

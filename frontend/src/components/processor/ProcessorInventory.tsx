@@ -177,7 +177,7 @@ export function ProcessorInventory({
     }
   }
 
-  // Fetch active cold chain distributors
+  // Fetch active freight distributors
   const fetchDistributors = async () => {
     try {
       const res = await axios.get(`${api}/processor/distributors`, { headers })
@@ -289,7 +289,7 @@ export function ProcessorInventory({
       }
 
       const defaultZone = b.originalProduct.category === "Vegetables"
-        ? "Cold Storage Bay #1 (4°C)"
+        ? "Warehouse Storage Bay #1"
         : b.originalProduct.category === "Fruits"
         ? "Reefer Chamber #2 (8°C)"
         : "Ambient Warehouse Bay #4"
@@ -358,7 +358,7 @@ export function ProcessorInventory({
       }
 
       const defaultZone = p.category === "Vegetables"
-        ? "Cold Storage Bay #1 (4°C)"
+        ? "Warehouse Storage Bay #1"
         : p.category === "Fruits"
         ? "Reefer Chamber #2 (8°C)"
         : "Ambient Warehouse Bay #4"
@@ -1259,7 +1259,7 @@ export function ProcessorInventory({
                                 <Clock className="h-3 w-3 text-slate-400" />
                                 {item.daysUntilExpiry !== undefined ? `${item.daysUntilExpiry} Days Left` : "Certified Fresh"}
                               </span>
-                              <p className="text-[10px] text-slate-400">{item.expiryDate || "Cold Chain Preserved"}</p>
+                              <p className="text-[10px] text-slate-400">{item.expiryDate || "Freshness Preserved"}</p>
                             </div>
                           </td>
 
@@ -1560,13 +1560,13 @@ export function ProcessorInventory({
                 className="w-full px-4 py-2.5 rounded-2xl border border-emerald-200 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
               <p className="text-[11px] text-slate-500">
-                This quantity will be deducted from your warehouse stock and scheduled for cold-chain carrier dispatch.
+                This quantity will be deducted from your warehouse stock and scheduled for logistics carrier dispatch.
               </p>
             </div>
 
             {/* Select Carrier */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700">Cold Chain Carrier / Distributor</label>
+              <label className="text-xs font-bold text-slate-700">Logistics Carrier / Distributor</label>
               <select
                 value={selectedDistributorId}
                 onChange={(e) => setSelectedDistributorId(e.target.value)}

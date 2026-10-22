@@ -135,7 +135,7 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                 ? "Direct Retail Supermarket"
                 : isFarmer
                 ? "Certified Organic Farm & Harvest Logistics Base"
-                : "Chilled Cold-Storage Depot")
+                : "Warehouse Storage Depot")
           )
           setOperatingHours(
             active_profile.operating_hours ||
@@ -150,11 +150,11 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
           setStorageCapacity(
             active_profile.storage_capacity ||
               (isDistributor
-                ? "20 Reefer Trucks & 400 MT Cold Bay"
+                ? "20 Commercial Trucks & 400 MT Storage Bay"
                 : isRetailer
                 ? "120 Metric Tons Retail Shelf"
                 : isFarmer
-                ? "50 Metric Tons Farm Cold Shed & Silo"
+                ? "50 Metric Tons Farm Storage Shed & Silo"
                 : "500 Metric Tons Chilled")
           )
           if (active_profile.coordinates) {
@@ -582,7 +582,7 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                 onChange={(e) => setBusinessName(e.target.value)}
                 placeholder={
                   isDistributor
-                    ? "e.g. Karnataka Cold-Haul Logistics & Dispatch Depot"
+                    ? "e.g. Karnataka Freight Logistics & Dispatch Depot"
                     : isFarmer
                     ? "e.g. Green Valley Organic Farms"
                     : isProcessor
@@ -665,13 +665,13 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                     <option value="Refrigerated Fleet Depot & Transit Logistics Hub">Refrigerated Fleet Depot & Transit Logistics Hub</option>
                     <option value="Interstate Multi-Temperature Reefer Fleet">Interstate Multi-Temperature Reefer Fleet</option>
                     <option value="Last-Mile Retail Fast-Fulfillment Center">Last-Mile Retail Fast-Fulfillment Center</option>
-                    <option value="Agricultural Cold-Chain Freight Depot">Agricultural Cold-Chain Freight Depot</option>
+                    <option value="Agricultural Freight Logistics Depot">Agricultural Freight Logistics Depot</option>
                   </>
                 ) : isProcessor ? (
                   <>
-                    <option value="Chilled Cold-Storage & Agro-Processing Warehouse">Chilled Cold-Storage & Agro-Processing Warehouse</option>
+                    <option value="Produce Storage & Agro-Processing Warehouse">Produce Storage & Agro-Processing Warehouse</option>
                     <option value="Grain Milling & Secondary Processing Unit">Grain Milling & Secondary Processing Unit</option>
-                    <option value="Precision Cold-Chain Packing House">Precision Cold-Chain Packing House</option>
+                    <option value="Precision Produce Packing House">Precision Produce Packing House</option>
                     <option value="Perishables Sorting & Value Addition Depot">Perishables Sorting & Value Addition Depot</option>
                   </>
                 ) : isFarmer ? (
@@ -684,7 +684,7 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                   </>
                 ) : (
                   <>
-                    <option value="Direct Retail Supermarket & Cold Dock">Direct Retail Supermarket & Cold Dock</option>
+                    <option value="Direct Retail Supermarket & Receiving Dock">Direct Retail Supermarket & Receiving Dock</option>
                     <option value="Hypermarket Commercial Receiving Bay">Hypermarket Commercial Receiving Bay</option>
                     <option value="Organic Specialty Grocer & Retail Shelf">Organic Specialty Grocer & Retail Shelf</option>
                     <option value="Neighborhood Fresh Produce Mart">Neighborhood Fresh Produce Mart</option>
@@ -838,9 +838,9 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                 onChange={(e) => setStorageCapacity(e.target.value)}
                 placeholder={
                   isDistributor
-                    ? "e.g. 20 Reefer Trucks (10T each), 400 MT Cold Bay"
+                    ? "e.g. 20 Reefer Trucks (10T each), 400 MT Storage Bay"
                     : isFarmer
-                    ? "e.g. 50 Metric Tons Farm Cold Shed & Silo"
+                    ? "e.g. 50 Metric Tons Farm Storage Shed & Silo"
                     : isRetailer
                     ? "e.g. 120 Metric Tons Retail Shelf"
                     : "e.g. 500 Metric Tons Chilled"

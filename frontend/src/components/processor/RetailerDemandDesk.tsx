@@ -498,7 +498,7 @@ export function RetailerDemandDesk({ api, token, products, onRefreshProducts }: 
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1.5">
                     <Truck className="h-3.5 w-3.5 text-emerald-600" />
-                    Assign Delivery Distributor (Cold-Chain Logistics)
+                    Assign Delivery Distributor (Freight Logistics)
                   </label>
                   <select
                     value={selectedDistributorId}

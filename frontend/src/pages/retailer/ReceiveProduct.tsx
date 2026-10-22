@@ -1126,7 +1126,7 @@ export function ReceiveProduct() {
                   <option value="VEHICLE_MISMATCH">Vehicle Number Mismatch</option>
                   <option value="QUANTITY_MISMATCH">Crate Quantity Shortfall</option>
                   <option value="DAMAGED_PRODUCE">Damaged / Bruised Produce</option>
-                  <option value="TEMPERATURE_EXCURSION">Cold-Chain Temperature Excursion</option>
+                  <option value="TRANSIT_EXCURSION">Transit Delivery Excursion</option>
                   <option value="EXPIRED_BATCH">Shelf-Life Expiry Date Invalid</option>
                   <option value="OTHER">Other Discrepancy</option>
                 </select>

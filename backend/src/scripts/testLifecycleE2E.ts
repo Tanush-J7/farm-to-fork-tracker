@@ -131,9 +131,9 @@ async function runEndToEndLifecycleTest() {
     .eq('id', newProduct.id);
 
   // Step 4: Distributor Transit Custody
-  console.log(`🚚 Step 4: Distributor Cold-Chain Transit Custody`);
+  console.log(`🚚 Step 4: Distributor Freight Transit Custody`);
   const transitStatus = 'In Transit';
-  const transitInfo = 'Custody transferred to XYZ Cold Logistics (Truck #KA-04-E-5678, Temp 3.8°C)';
+  const transitInfo = 'Custody transferred to XYZ Freight Logistics (Truck #KA-04-E-5678, Temp 3.8°C)';
   console.log(`   Relayer calling FarmChain.updateStage() on Sepolia -> "${transitStatus}"...`);
 
   const distRes = await blockchainRelayer.updateStage(

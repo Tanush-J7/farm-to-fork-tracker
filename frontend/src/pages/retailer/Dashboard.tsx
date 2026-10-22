@@ -328,7 +328,7 @@ export function Dashboard() {
               <Truck className="h-12 w-12 text-slate-300 mb-3" />
               <h4 className="text-base font-bold text-slate-800">No active shipments found</h4>
               <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                When suppliers or processors assign cold-chain carriers to fulfill your stock requests, they will appear here.
+                When suppliers or processors assign transport carriers to fulfill your stock requests, they will appear here.
               </p>
               <Link
                 to="/retailer/requests"
@@ -491,7 +491,7 @@ export function Dashboard() {
                 </div>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                <span>Cold-chain carrier fleet</span>
+                <span>Transport carrier fleet</span>
                 <Link to="/retailer/shipments" className="font-bold text-purple-700 hover:underline flex items-center gap-0.5">
                   Track Fleet <ChevronRight className="h-3 w-3" />
                 </Link>

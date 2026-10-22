@@ -407,7 +407,7 @@ export function Inventory() {
                 </div>
 
                 <p className="text-[11px] text-slate-500 italic">
-                  Consumers scan this code with their smartphone camera in-store to view the verified harvest date, farmer profile, cold-chain temperature logs, and expiry.
+                  Consumers scan this code with their smartphone camera in-store to view the verified harvest date, farmer profile, transit logistics logs, and expiry.
                 </p>
               </div>
 

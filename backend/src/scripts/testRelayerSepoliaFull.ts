@@ -66,12 +66,12 @@ async function testFullSepoliaLifecycle() {
   console.log(`   🔗 Etherscan Link: https://sepolia.etherscan.io/tx/${procRes.txHash}\n`);
 
   // -------------------------------------------------------------------------
-  // STAGE 3: Cold-Chain Logistics & Distribution
+  // STAGE 3: Transport Logistics & Distribution
   // -------------------------------------------------------------------------
   console.log('------------------------------------------------------------------------');
-  console.log('🚚 MILESTONE 3: Cold-Chain Transit & Custody Transfer');
+  console.log('🚚 MILESTONE 3: Transport Transit & Custody Transfer');
   const transitStatus = 'In Transit';
-  const transitInfo = 'XYZ Cold Logistics: Reefer Truck #KA-04-E-5678, GPS Active, Temp 3.8°C';
+  const transitInfo = 'XYZ Transport Logistics: Commercial Truck #KA-04-E-5678, GPS Active, Temp 3.8°C';
   console.log(`   Updating status to "${transitStatus}" on Sepolia...`);
 
   const distRes = await blockchainRelayer.updateStage(productId, transitStatus, transitInfo);
@@ -87,7 +87,7 @@ async function testFullSepoliaLifecycle() {
   console.log('------------------------------------------------------------------------');
   console.log('🏪 MILESTONE 4: Retail Store Receipt & Stocking');
   const retailStatus = 'At Retailer';
-  const retailInfo = 'Metro Fresh Mart (Koramangala Store #104): Checked into cold rack A-12';
+  const retailInfo = 'Metro Fresh Mart (Koramangala Store #104): Checked into store shelf A-12';
   console.log(`   Updating status to "${retailStatus}" on Sepolia...`);
 
   const retRes = await blockchainRelayer.updateStage(productId, retailStatus, retailInfo);

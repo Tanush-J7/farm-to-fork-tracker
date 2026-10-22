@@ -849,7 +849,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
                   type="text"
                   value={newCapacity}
                   onChange={(e) => setNewCapacity(e.target.value)}
-                  placeholder={user?.role === "farmer" ? "e.g. 50 Metric Tons Farm Cold Shed" : "e.g. 500 Metric Tons Chilled"}
+                  placeholder={user?.role === "farmer" ? "e.g. 50 Metric Tons Farm Storage Shed" : "e.g. 500 Metric Tons Chilled"}
                   className="flex h-9 w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
                 />
               </div>

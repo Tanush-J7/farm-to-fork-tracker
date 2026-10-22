@@ -2970,7 +2970,7 @@ export function DistributorDashboard() {
                         </div>
                       </div>
                       <div className="p-2.5 rounded-xl bg-white border border-slate-200">
-                        <div className="text-[10px] text-slate-500 uppercase font-semibold">Cold Chain SLA</div>
+                        <div className="text-[10px] text-slate-500 uppercase font-semibold">Delivery SLA</div>
                         <div className="font-bold text-slate-900">2°C – 6°C</div>
                         <div className="text-[10px] text-slate-500">Precision Chilled</div>
                       </div>

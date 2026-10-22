@@ -131,8 +131,8 @@ export function Tracker() {
       ? `${distributorEvent.metadata.vehicle_number} (${distributorEvent.metadata.vehicle_type || "Reefer Van"})`
       : "KA-04-E-2941 (Refrigerated Reefer Van)"
     const tempLog = distributorEvent?.metadata?.departure_temperature
-      ? `${distributorEvent.metadata.departure_temperature} Continuous Cold-Chain`
-      : "3.8°C Continuous Cold-Chain"
+      ? `${distributorEvent.metadata.departure_temperature} Monitored Transit Logistics`
+      : "3.8°C Monitored Transit Logistics"
 
     const retailerName =
       retailerEvent?.actor?.name ||

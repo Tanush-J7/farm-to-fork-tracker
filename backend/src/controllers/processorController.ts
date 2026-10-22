@@ -435,10 +435,10 @@ export const getAvailableDistributors = async (req: Request, res: Response): Pro
     const inTransitProducts = prodRes.data || [];
 
     const hubs = [
-      'Kolar Cold Hub & Logistics Park',
+      'Kolar Freight Hub & Logistics Park',
       'Yeshwanthpur Agro-Terminal Hub',
       'Whitefield Refrigerated Depot',
-      'Azadpur Mandi Cold Distribution Center',
+      'Azadpur Mandi Distribution Center',
       'APMC Electronic City Terminal'
     ];
 
@@ -506,8 +506,8 @@ export const getAvailableDistributors = async (req: Request, res: Response): Pro
         name: d.name || `Distributor (${d.email.split('@')[0]})`,
         email: d.email,
         wallet_address: d.wallet_address,
-        fleet_name: `${d.name || d.email.split('@')[0]} Cold Fleet`,
-        vehicle_type: 'Heavy Reefer Truck (Cold-Chain)',
+        fleet_name: `${d.name || d.email.split('@')[0]} Transport Fleet`,
+        vehicle_type: 'Heavy Freight Cargo Truck',
         vehicle_number: vehicleNum,
         temperature_control: '2°C to 6°C (Precision Chilled)',
         payload_capacity: '3,000 kg',
@@ -638,7 +638,7 @@ export const assignDistributor = async (req: Request, res: Response): Promise<vo
     let txHash: string | null = null;
     if (product.product_id && Number(product.product_id) > 0 && blockchainRelayer.isConfigured()) {
       try {
-        const extra = `Handed over to ${distributor.name || 'Distributor'} for delivery to ${targetStore}. ${dispatch_notes || 'Cold-chain SLA verified.'}`;
+        const extra = `Handed over to ${distributor.name || 'Distributor'} for delivery to ${targetStore}. ${dispatch_notes || 'Delivery SLA verified.'}`;
         const relayRes = await blockchainRelayer.updateStage(
           Number(product.product_id),
           'In Transit',
@@ -733,7 +733,7 @@ export const sendDeliveryRequest = async (req: Request, res: Response): Promise<
       : (destination_store || "Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru, Karnataka 560034");
 
     const tempSla = temperature_sla || '2°C to 6°C Precision Chilled';
-    const notes = dispatch_notes || 'Cold-chain SLA verified. Quality certified batch ready for cargo transfer.';
+    const notes = dispatch_notes || 'Delivery SLA verified. Quality certified batch ready for cargo transfer.';
 
     // 2. Create shipment with status 'REQUESTED'
     let finalRetailerId = retailer_id;

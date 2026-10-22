@@ -1624,7 +1624,7 @@ export function ProcessorDashboard() {
   const openDispatchModal = (batch: ProcessingBatch) => {
     setDispatchModalBatch(batch)
     setDispatchSuccessResult(null)
-    setDispatchNotesInput(`Cold-chain handover verified. Batch ${batch.batchId} certified produce.`)
+    setDispatchNotesInput(`Delivery handover verified. Batch ${batch.batchId} certified produce.`)
     fetchDistributors()
     if (availableDistributors.length > 0) {
       const avail = availableDistributors.find(d => d.current_status === "AVAILABLE") || availableDistributors[0]
@@ -2630,7 +2630,7 @@ export function ProcessorDashboard() {
                             </div>
                           </div>
 
-                          {/* Cold-Chain Logistics Carrier & Destination Delivery Manifest */}
+                          {/* Logistics Carrier & Destination Delivery Manifest */}
                           <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-3">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200 pb-2.5">
                               <div className="flex items-center gap-2">
@@ -2842,7 +2842,7 @@ export function ProcessorDashboard() {
                                     🚚 Accepted Carrier
                                   </span>
                                   <p className="font-bold text-slate-900 text-sm">{b.distributorName}</p>
-                                  <p className="font-mono text-[11px] text-emerald-700 font-bold">{b.distributorVehicle || "KA-04-E2941"} (Cold-Chain Reefer)</p>
+                                  <p className="font-mono text-[11px] text-emerald-700 font-bold">{b.distributorVehicle || "KA-04-E2941"} (Commercial Transport)</p>
                                 </div>
                                 <div className="space-y-0.5">
                                   <span className="text-[10px] text-slate-500 uppercase font-bold flex items-center gap-1">
@@ -2948,7 +2948,7 @@ export function ProcessorDashboard() {
                 <p className="text-slate-600 text-sm">
                   {historySubTab === "audit" 
                     ? "Immutable operations trace recording Date, Time, User, Action and status updates."
-                    : "Listing of all finalized agricultural batches transferred to cold chain distributors."}
+                    : "Listing of all finalized agricultural batches transferred to authorized distributors."}
                 </p>
               </div>
               <div className="flex gap-1.5 bg-emerald-50 border border-emerald-200 p-1 rounded-xl w-fit">
@@ -4064,7 +4064,7 @@ export function ProcessorDashboard() {
                   <CardTitle className="text-xl font-black text-emerald-950">Send Delivery Request to Distributor</CardTitle>
                 </div>
                 <CardDescription className="text-slate-600 text-xs mt-1">
-                  Send complete crop manifest, cold-chain temperature SLA, and destination retailer store to the distributor. The distributor will review and decide whether to accept or decline the delivery.
+                  Send complete crop manifest, delivery SLA, and destination retailer store to the distributor. The distributor will review and decide whether to accept or decline the delivery.
                 </CardDescription>
               </div>
               <button
@@ -4314,7 +4314,7 @@ export function ProcessorDashboard() {
                   </p>
                 </div>
 
-                {/* Section 4: Dispatch & Cold-Chain SLA Notes */}
+                {/* Section 4: Dispatch & Delivery SLA Notes */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
                     4. Dispatch Handover Notes & Handling SLA

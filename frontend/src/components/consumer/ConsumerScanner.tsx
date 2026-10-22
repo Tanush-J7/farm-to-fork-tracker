@@ -373,13 +373,13 @@ export const ConsumerScanner: React.FC = () => {
       const processorName = processorEvent?.actor?.name || processorEvent?.metadata?.processor_name || "Agro-Processing & Packing Depot"
       const processorLoc = processorEvent?.location || processorEvent?.metadata?.pickup_location || "Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru"
 
-      const carrierName = distributorEvent?.actor?.name || distributorEvent?.metadata?.driver_name || "Karnataka Cold-Haul Logistics Fleet"
+      const carrierName = distributorEvent?.actor?.name || distributorEvent?.metadata?.driver_name || "Karnataka Freight Logistics Fleet"
       const carrierVehicle = distributorEvent?.metadata?.vehicle_number 
         ? `${distributorEvent.metadata.vehicle_number} (${distributorEvent.metadata.vehicle_type || 'Reefer Van'})`
         : "KA-04-E-2941 (Refrigerated Reefer Van)"
       const tempLog = distributorEvent?.metadata?.departure_temperature 
-        ? `${distributorEvent.metadata.departure_temperature} Continuous Cold-Chain` 
-        : "3.8°C Continuous Cold-Chain"
+        ? `${distributorEvent.metadata.departure_temperature} Monitored Transit Logistics` 
+        : "3.8°C Monitored Transit Logistics"
 
       const retailerName = retailerEvent?.actor?.name || productData.retailer_inventory?.retailer?.name || "John's Metro Fresh Supermarket"
       const retailerLoc = retailerEvent?.location || "Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru"
@@ -795,7 +795,7 @@ export const ConsumerScanner: React.FC = () => {
                     </span>
                     <h4 className="text-sm font-bold text-slate-900">100% Tamper-Proof Provenance</h4>
                     <p className="text-xs text-slate-600 mt-0.5">
-                      Audited through cold-chain transit logs and signed with Ethereum smart contracts.
+                      Audited through verified transport transit logs and signed with Ethereum smart contracts.
                     </p>
                   </div>
                 </div>
@@ -891,7 +891,7 @@ export const ConsumerScanner: React.FC = () => {
                   </div>
 
                   <p className="text-xs text-slate-700 leading-relaxed">
-                    Verified and processed at <strong>{scannedProduct.processor_info?.name}</strong>. Scale weight checked, sanitized, and sealed under cold packing conditions.
+                    Verified and processed at <strong>{scannedProduct.processor_info?.name}</strong>. Scale weight checked, sanitized, and sealed under certified packing conditions.
                   </p>
                   <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
                     📍 Processing Depot: {scannedProduct.processor_info?.address}
@@ -911,7 +911,7 @@ export const ConsumerScanner: React.FC = () => {
                 <div className="w-full rounded-2xl border border-amber-200 bg-amber-50/30 p-4 space-y-2">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900 text-sm">3. Cold-Chain Logistics & Safe Transit</span>
+                      <span className="font-bold text-slate-900 text-sm">3. Distribution Logistics & Safe Transit</span>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900">
                         Reefer Transit
                       </span>

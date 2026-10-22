@@ -259,7 +259,7 @@ export const ProductProvenanceReport: React.FC<Props> = ({ product, onScanAnothe
                 </span>
                 <h4 className="text-sm font-bold text-slate-900">100% Tamper-Proof Provenance</h4>
                 <p className="text-xs text-slate-600 mt-0.5">
-                  Audited through cold-chain transit logs and signed with Ethereum smart contracts.
+                  Audited through verified transport transit logs and signed with Ethereum smart contracts.
                 </p>
               </div>
             </div>
@@ -355,7 +355,7 @@ export const ProductProvenanceReport: React.FC<Props> = ({ product, onScanAnothe
               </div>
 
               <p className="text-xs text-slate-700 leading-relaxed">
-                Verified and processed at <strong>{product.processor_info?.name}</strong>. Scale weight checked, sanitized, and sealed under cold packing conditions.
+                Verified and processed at <strong>{product.processor_info?.name}</strong>. Scale weight checked, sanitized, and sealed under certified packing conditions.
               </p>
               <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
                 📍 Processing Depot: {product.processor_info?.address}
@@ -382,7 +382,7 @@ export const ProductProvenanceReport: React.FC<Props> = ({ product, onScanAnothe
             <div className="w-full rounded-2xl border border-amber-200 bg-amber-50/30 p-4 space-y-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-900 text-sm">3. Cold-Chain Logistics & Safe Transit</span>
+                  <span className="font-bold text-slate-900 text-sm">3. Distribution Logistics & Safe Transit</span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900">
                     Reefer Transit
                   </span>

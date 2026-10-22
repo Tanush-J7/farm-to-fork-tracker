@@ -49,7 +49,7 @@ async function runTest() {
     city: 'Bengaluru',
     state: 'Karnataka',
     pincode: '560100',
-    facility_type: 'Chilled Cold-Storage & Agro-Processing Warehouse',
+    facility_type: 'Produce Storage & Agro-Processing Warehouse',
     operating_hours: '05:30 AM - 11:00 PM',
     coordinates: { lat: 12.8399, lng: 77.6770 }
   });

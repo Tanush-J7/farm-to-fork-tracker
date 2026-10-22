@@ -183,7 +183,7 @@ export function Shipments() {
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Real-time multi-party cold-chain monitoring, authorized vehicle registrations & digital-physical intake verification.
+            Real-time multi-party transport monitoring, authorized vehicle registrations & digital-physical intake verification.
           </p>
         </div>
 
@@ -500,7 +500,7 @@ export function Shipments() {
                       <div>
                         <div className="flex items-center justify-between">
                           <h5 className="font-bold text-slate-900 text-sm">
-                            {shipment.distributor?.name || "Cold-Chain Carrier"}
+                            {shipment.distributor?.name || "Logistics Carrier"}
                           </h5>
                           <span className="font-mono text-xs font-extrabold bg-slate-900 text-white px-2 py-0.5 rounded-lg border border-slate-700 shadow-inner">
                             {shipment.vehicle_number || shipment.distributor?.vehicle_number || "KA-04-E-2941"}
