@@ -415,22 +415,40 @@ export function ProcessorDashboard() {
       }
       const deletedBatchesSet = new Set(deletedBatchesList.map(String))
 
+      let latestDecisions: Record<string, any> = {}
+      try {
+        latestDecisions = JSON.parse(localStorage.getItem("processor_decisions") || "{}")
+      } catch {}
+
+      let latestReceipts: Record<string, any> = {}
+      try {
+        latestReceipts = JSON.parse(localStorage.getItem("processor_receipts") || "{}")
+      } catch {}
+
       setBatches(prev => {
         let changed = false
         const next = { ...prev }
         active.forEach(p => {
           const pId = String(p.id)
+          const pNumId = String(p.product_id || "")
           const bNum = String(p.batch_number || "")
-          if (deletedBatchesSet.has(pId) || (bNum && deletedBatchesSet.has(bNum))) return
+          if (deletedBatchesSet.has(pId) || (pNumId && deletedBatchesSet.has(pNumId)) || (bNum && deletedBatchesSet.has(bNum))) return
           const isAcceptedByMe =
-            decisions[pId]?.decision === "Accepted" ||
-            (bNum && decisions[bNum]?.decision === "Accepted") ||
-            Boolean(receipts[pId]) ||
-            (bNum && Boolean(receipts[bNum]))
+            latestDecisions[pId]?.decision === "Accepted" ||
+            (pNumId && latestDecisions[pNumId]?.decision === "Accepted") ||
+            (bNum && latestDecisions[bNum]?.decision === "Accepted") ||
+            Boolean(latestReceipts[pId]) ||
+            (pNumId && Boolean(latestReceipts[pNumId])) ||
+            (bNum && Boolean(latestReceipts[bNum])) ||
+            p.status === "Processing"
 
           // Only reconstruct batches for products that this processor has actually received & accepted
           if (isAcceptedByMe && (p.status === "Processing" || p.status === "In Transit" || p.status === "At Retailer")) {
-            const hasBatch = Object.values(next).some(b => b.productId === p.id || b.batchId === p.batch_number)
+            const hasBatch = Object.values(next).some(b => 
+              String(b.productId) === pId || 
+              (pNumId && String(b.productId) === pNumId) ||
+              (bNum && (String(b.batchId) === bNum || String(b.originalProduct?.batch_number) === bNum))
+            )
             if (!hasBatch) {
               changed = true
               const synthId = p.batch_number || p.id
@@ -451,32 +469,6 @@ export function ProcessorDashboard() {
                 createdDate: new Date(p.created_at || Date.now()).toLocaleDateString("en-GB"),
                 createdTime: "10:00 AM"
               }
-            }
-          }
-        })
-
-        // Clean out only unaccepted synthetic batches that have zero operational history
-        Object.keys(next).forEach(k => {
-          const b = next[k]
-          if (b && b.batchId) {
-            const pId = String(b.productId || b.originalProduct?.id)
-            const bNum = String(b.batchId || b.originalProduct?.batch_number)
-            const hasIntakeRecord =
-              decisions[pId]?.decision === "Accepted" ||
-              (bNum && decisions[bNum]?.decision === "Accepted") ||
-              Boolean(receipts[pId]) ||
-              (bNum && Boolean(receipts[bNum]))
-            const hasOperationalActivity =
-              Boolean(b.deliveryRequestStatus) ||
-              Boolean(b.trackingId) ||
-              Boolean(b.pickupQrToken) ||
-              b.stage === "Transferred" ||
-              b.stage === "Processing Completed" ||
-              (b.stageLogs && b.stageLogs.length > 1)
-
-            if (!hasIntakeRecord && !hasOperationalActivity) {
-              delete next[k]
-              changed = true
             }
           }
         })
@@ -1880,14 +1872,37 @@ export function ProcessorDashboard() {
     })
 
   // Strict Active DB Product Validation & Deduplication across pipeline & history
-  const validProductIds = new Set(products.map(p => String(p.id)))
-  const validBatchNumbers = new Set(products.map(p => String(p.batch_number || "")).filter(Boolean))
-
   const isValidBatch = (b: ProcessingBatch) => {
     if (!b || !b.originalProduct) return false
     const pId = String(b.productId || b.originalProduct?.id || "")
-    const bNum = String(b.originalProduct?.batch_number || (b.originalProduct as any)?.batchNumber || "")
-    return validProductIds.has(pId) || (bNum && validBatchNumbers.has(bNum))
+    const pNumId = String(b.originalProduct?.product_id || "")
+    const bNum = String(b.batchId || b.originalProduct?.batch_number || (b.originalProduct as any)?.batchNumber || "")
+
+    // Filter out if explicitly deleted by user
+    let deletedBatchesList: string[] = []
+    try {
+      deletedBatchesList = JSON.parse(localStorage.getItem("processor_deleted_batches") || "[]")
+    } catch {
+      deletedBatchesList = []
+    }
+    const deletedBatchesSet = new Set(deletedBatchesList.map(String))
+    if (deletedBatchesSet.has(pId) || (pNumId && deletedBatchesSet.has(pNumId)) || (bNum && deletedBatchesSet.has(bNum)) || deletedBatchesSet.has(String(b.batchId))) {
+      return false
+    }
+
+    // Filter out if permanently deleted by farmer
+    let farmerDeletedIds: string[] = []
+    try {
+      farmerDeletedIds = JSON.parse(localStorage.getItem("farmer_deleted_products") || "[]")
+    } catch {
+      farmerDeletedIds = []
+    }
+    const farmerDeletedSet = new Set(farmerDeletedIds.map(String))
+    if (farmerDeletedSet.has(pId) || (pNumId && farmerDeletedSet.has(pNumId)) || (bNum && farmerDeletedSet.has(bNum))) {
+      return false
+    }
+
+    return true
   }
 
   const deduplicateBatches = (batchList: ProcessingBatch[]) => {
@@ -1899,7 +1914,17 @@ export function ProcessorDashboard() {
         map.set(key, b)
       } else {
         const existing = map.get(key)!
-        const stageWeight = (s: string) => s === "Transferred" ? 3 : s === "Processing Completed" ? 2 : 1
+        const stageWeight = (s: string) => {
+          switch (s) {
+            case "Transferred": return 6
+            case "Processing Completed": return 5
+            case "Quality Check": return 4
+            case "Processing In Progress": return 3
+            case "Processing Started": return 2
+            case "Accepted": return 1
+            default: return 0
+          }
+        }
         if (stageWeight(b.stage) >= stageWeight(existing.stage)) {
           map.set(key, b)
         }
@@ -2216,10 +2241,22 @@ export function ProcessorDashboard() {
 
         const isProductDecidedOrBatched = (p: Product) => {
           const pId = String(p.id)
+          const pNumId = String(p.product_id || "")
           const bNum = String(p.batch_number || "")
-          const hasDecision = Boolean(decisions[pId] || (bNum && decisions[bNum]))
+          const hasDecision = Boolean(
+            decisions[pId] ||
+            (pNumId && decisions[pNumId]) ||
+            (bNum && decisions[bNum])
+          )
           const hasBatch = Object.values(batches).some(b => 
-            isValidBatch(b) && (String(b.productId) === pId || String(b.originalProduct?.id) === pId || (bNum && String(b.originalProduct?.batch_number) === bNum))
+            isValidBatch(b) && (
+              String(b.productId) === pId ||
+              (pNumId && String(b.productId) === pNumId) ||
+              String(b.originalProduct?.id) === pId ||
+              (pNumId && String(b.originalProduct?.product_id) === pNumId) ||
+              (bNum && String(b.originalProduct?.batch_number) === bNum) ||
+              (bNum && String(b.batchId) === bNum)
+            )
           )
           return hasDecision || hasBatch
         }
