@@ -587,6 +587,30 @@ export const ConsumerScanner: React.FC = () => {
     }
   }, [activeTab])
 
+  // Listen for 'Scan Product QR' trigger from Hero or Navbar
+  useEffect(() => {
+    const handleTrigger = () => {
+      setActiveTab("camera")
+      startCamera(facingMode)
+      const el = document.getElementById("consumer-scanner")
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" })
+      }
+    }
+
+    if (window.sessionStorage.getItem("auto-start-scanner") === "true") {
+      window.sessionStorage.removeItem("auto-start-scanner")
+      setTimeout(() => {
+        handleTrigger()
+      }, 350)
+    }
+
+    window.addEventListener("start-consumer-scanner", handleTrigger)
+    return () => {
+      window.removeEventListener("start-consumer-scanner", handleTrigger)
+    }
+  }, [facingMode])
+
   // Expiry calculation helper
   const getExpiryDetails = (expDateStr?: string) => {
     if (!expDateStr) {
@@ -647,7 +671,6 @@ export const ConsumerScanner: React.FC = () => {
               type="button"
               onClick={() => {
                 setActiveTab("camera")
-                startCamera(facingMode)
               }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "camera"
@@ -735,29 +758,29 @@ export const ConsumerScanner: React.FC = () => {
               {!cameraActive && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-white bg-slate-950/95 space-y-3 z-20">
                   <div className="h-16 w-16 rounded-3xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                    <Camera className="h-8 w-8" />
+                    <QrCode className="h-8 w-8" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm text-white">Live Camera QR Scanner</h4>
-                    <p className="text-xs text-slate-400 mt-1 max-w-[220px]">
-                      Tap below to activate your camera and scan any retail produce QR tag.
+                    <h4 className="font-bold text-sm text-white">Live Food QR Scanner</h4>
+                    <p className="text-xs text-slate-400 mt-1 max-w-[240px]">
+                      Click below to turn on camera and scan any product QR tag.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => startCamera(facingMode)}
                     disabled={cameraStarting}
-                    className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center gap-2"
+                    className="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center gap-2"
                   >
                     {cameraStarting ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Connecting Camera...</span>
+                        <span>Turning on Camera...</span>
                       </>
                     ) : (
                       <>
                         <Camera className="h-4 w-4" />
-                        <span>Activate Camera</span>
+                        <span>Scan Product QR</span>
                       </>
                     )}
                   </button>

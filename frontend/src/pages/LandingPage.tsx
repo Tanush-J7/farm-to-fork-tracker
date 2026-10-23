@@ -23,12 +23,20 @@ export function LandingPage() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto justify-center">
-              <a href="#consumer-scanner">
-                <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-lg rounded-full text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/25">
-                  <QrCode className="mr-2 h-5 w-5" />
-                  Scan Product QR Code
-                </Button>
-              </a>
+              <Button
+                size="lg"
+                onClick={() => {
+                  const el = document.getElementById("consumer-scanner")
+                  if (el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "start" })
+                  }
+                  window.dispatchEvent(new CustomEvent("start-consumer-scanner"))
+                }}
+                className="w-full sm:w-auto h-14 px-8 text-lg rounded-full text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/25 cursor-pointer"
+              >
+                <QrCode className="mr-2 h-5 w-5" />
+                Scan Product QR Code
+              </Button>
               <Link to="/register">
                 <Button size="lg" variant="outline" className="w-full sm:w-auto h-14 px-8 text-lg rounded-full">
                   Get Started

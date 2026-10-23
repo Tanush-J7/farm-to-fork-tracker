@@ -29,6 +29,18 @@ export function PublicLayout() {
           <a 
             className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 transition-colors cursor-pointer flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20"
             href={getHomeHash("#consumer-scanner")}
+            onClick={(e) => {
+              if (location.pathname === "/") {
+                e.preventDefault()
+                const el = document.getElementById("consumer-scanner")
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+                window.dispatchEvent(new CustomEvent("start-consumer-scanner"))
+              } else {
+                window.sessionStorage.setItem("auto-start-scanner", "true")
+              }
+            }}
           >
             <QrCode className="w-3.5 h-3.5" />
             Scan Product QR
