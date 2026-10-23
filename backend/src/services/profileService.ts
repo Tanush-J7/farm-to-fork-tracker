@@ -21,6 +21,12 @@ export interface UserFacilityProfile {
   contact_email?: string;
   coordinates: UserCoordinates;
   storage_capacity?: string;
+  driver_name?: string;
+  driver_license_number?: string;
+  driver_phone?: string;
+  driver_license_class?: string;
+  driver_license_expiry?: string;
+  driver_license_authority?: string;
   is_verified: boolean;
   verified_at?: string;
   verified_by?: string;
@@ -115,6 +121,12 @@ export const getDefaultProfile = (user: { id: string; name: string; email?: stri
       contact_email: user.email || 'logistics@farmchain.io',
       coordinates: { lat: 12.8452, lng: 77.6602 },
       storage_capacity: 'Refrigerated Fleet 20+ Reefer Trucks',
+      driver_name: 'Ramesh Kumar (Assigned Fleet Driver)',
+      driver_license_number: 'DL-0420220194821',
+      driver_phone: '+91 98765 43210',
+      driver_license_class: 'Commercial Heavy Goods Vehicle (HGV / LMV-TR)',
+      driver_license_expiry: '2032-11-20',
+      driver_license_authority: 'KA-04 RTO Yeshwanthpur, Bengaluru',
       is_verified: true,
       verified_at: '2026-09-01T00:00:00.000Z',
       verified_by: 'FarmChain Admin'
@@ -187,6 +199,12 @@ export const getActiveProfile = async (userId: string): Promise<UserFacilityProf
         contact_email: meta.contact_email || user.email,
         coordinates: meta.coordinates || { lat: 13.0285, lng: 77.5456 },
         storage_capacity: meta.storage_capacity,
+        driver_name: meta.driver_name || (user.role === 'distributor' ? 'Ramesh Kumar (Assigned Fleet Driver)' : undefined),
+        driver_license_number: meta.driver_license_number || (user.role === 'distributor' ? 'DL-0420220194821' : undefined),
+        driver_phone: meta.driver_phone || (user.role === 'distributor' ? '+91 98765 43210' : undefined),
+        driver_license_class: meta.driver_license_class || (user.role === 'distributor' ? 'Commercial Heavy Goods Vehicle (HGV / LMV-TR)' : undefined),
+        driver_license_expiry: meta.driver_license_expiry || (user.role === 'distributor' ? '2032-11-20' : undefined),
+        driver_license_authority: meta.driver_license_authority || (user.role === 'distributor' ? 'KA-04 RTO Yeshwanthpur, Bengaluru' : undefined),
         is_verified: true,
         verified_at: meta.verified_at || evt.created_at,
         verified_by: meta.verified_by || 'FarmChain Admin',
@@ -428,6 +446,12 @@ export const reviewProfileRequest = async (
       contact_email: requestedChanges.contact_email || meta.user_email,
       coordinates: requestedChanges.coordinates || { lat: 13.0285, lng: 77.5456 },
       storage_capacity: requestedChanges.storage_capacity,
+      driver_name: requestedChanges.driver_name,
+      driver_license_number: requestedChanges.driver_license_number,
+      driver_phone: requestedChanges.driver_phone,
+      driver_license_class: requestedChanges.driver_license_class,
+      driver_license_expiry: requestedChanges.driver_license_expiry,
+      driver_license_authority: requestedChanges.driver_license_authority,
       is_verified: true,
       verified_at: nowISO,
       verified_by: adminUser.name || 'Admin',

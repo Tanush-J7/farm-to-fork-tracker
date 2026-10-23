@@ -19,7 +19,8 @@ import {
   Store,
   Truck,
   UserCheck,
-  Leaf
+  Leaf,
+  CalendarDays
 } from "lucide-react"
 import { Button } from "../ui/Button"
 import { LocationPickerMap } from "./LocationPickerMap"
@@ -47,6 +48,12 @@ export interface UserFacilityProfile {
   contact_email?: string
   coordinates: UserCoordinates
   storage_capacity?: string
+  driver_name?: string
+  driver_license_number?: string
+  driver_phone?: string
+  driver_license_class?: string
+  driver_license_expiry?: string
+  driver_license_authority?: string
   is_verified: boolean
   verified_at?: string
   verified_by?: string
@@ -96,6 +103,14 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
   const [lat, setLat] = useState<number>(13.0285)
   const [lng, setLng] = useState<number>(77.5456)
   const [storageCapacity, setStorageCapacity] = useState("")
+
+  // Driver Details (Distributor)
+  const [driverName, setDriverName] = useState("")
+  const [driverLicenseNumber, setDriverLicenseNumber] = useState("")
+  const [driverPhone, setDriverPhone] = useState("")
+  const [driverLicenseClass, setDriverLicenseClass] = useState("Commercial Heavy Goods Vehicle (HGV / LMV-TR)")
+  const [driverLicenseExpiry, setDriverLicenseExpiry] = useState("2032-11-20")
+  const [driverLicenseAuthority, setDriverLicenseAuthority] = useState("KA-04 RTO Yeshwanthpur, Bengaluru")
 
   const [submitting, setSubmitting] = useState(false)
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null)
@@ -162,6 +177,15 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
             setLng(active_profile.coordinates.lng || 77.5456)
           }
 
+          if (isDistributor) {
+            setDriverName(active_profile.driver_name || "Ramesh Kumar (Assigned Fleet Driver)")
+            setDriverLicenseNumber(active_profile.driver_license_number || "DL-0420220194821")
+            setDriverPhone(active_profile.driver_phone || "+91 98765 43210")
+            setDriverLicenseClass(active_profile.driver_license_class || "Commercial Heavy Goods Vehicle (HGV / LMV-TR)")
+            setDriverLicenseExpiry(active_profile.driver_license_expiry || "2032-11-20")
+            setDriverLicenseAuthority(active_profile.driver_license_authority || "KA-04 RTO Yeshwanthpur, Bengaluru")
+          }
+
           if (onProfileUpdated) {
             onProfileUpdated(active_profile)
           }
@@ -224,6 +248,14 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
         setLat(activeProfile.coordinates.lat)
         setLng(activeProfile.coordinates.lng)
       }
+      if (isDistributor) {
+        setDriverName(activeProfile.driver_name || "Ramesh Kumar (Assigned Fleet Driver)")
+        setDriverLicenseNumber(activeProfile.driver_license_number || "DL-0420220194821")
+        setDriverPhone(activeProfile.driver_phone || "+91 98765 43210")
+        setDriverLicenseClass(activeProfile.driver_license_class || "Commercial Heavy Goods Vehicle (HGV / LMV-TR)")
+        setDriverLicenseExpiry(activeProfile.driver_license_expiry || "2032-11-20")
+        setDriverLicenseAuthority(activeProfile.driver_license_authority || "KA-04 RTO Yeshwanthpur, Bengaluru")
+      }
       setFeedbackMsg({ type: "info", text: "Form reset to current active verified profile values." })
     }
   }
@@ -239,11 +271,19 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
       return
     }
 
+    if (isDistributor && !driverLicenseNumber.trim()) {
+      setFeedbackMsg({
+        type: "error",
+        text: "Driver's Driving License (DL) Number is required for transport fleet compliance."
+      })
+      return
+    }
+
     setSubmitting(true)
     setFeedbackMsg(null)
 
     try {
-      const payload = {
+      const payload: any = {
         business_name: businessName.trim(),
         phone: phone.trim(),
         license_number: licenseNumber.trim(),
@@ -257,6 +297,15 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
         contact_email: contactEmail.trim(),
         coordinates: { lat, lng },
         storage_capacity: storageCapacity.trim()
+      }
+
+      if (isDistributor) {
+        payload.driver_name = driverName.trim()
+        payload.driver_license_number = driverLicenseNumber.trim()
+        payload.driver_phone = driverPhone.trim()
+        payload.driver_license_class = driverLicenseClass.trim()
+        payload.driver_license_expiry = driverLicenseExpiry.trim()
+        payload.driver_license_authority = driverLicenseAuthority.trim()
       }
 
       const res = await axios.post(`${API}/profile/request-update`, payload, {
@@ -429,6 +478,22 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
                     {pendingRequest.requested_changes.operating_hours || "—"}
                   </span>
                 </div>
+                {isDistributor && pendingRequest.requested_changes.driver_license_number && (
+                  <div className="md:col-span-2 pt-2 border-t border-amber-200 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div>
+                      <span className="text-slate-500 block text-[11px] font-medium">Proposed Driver:</span>
+                      <span className="font-bold text-slate-900">{pendingRequest.requested_changes.driver_name || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[11px] font-medium">Proposed Driver DL No:</span>
+                      <span className="font-bold text-emerald-800 font-mono">{pendingRequest.requested_changes.driver_license_number}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[11px] font-medium">Proposed DL Class:</span>
+                      <span className="font-medium text-slate-800 truncate block">{pendingRequest.requested_changes.driver_license_class || "—"}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -519,6 +584,63 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
               </div>
             </div>
           </div>
+
+          {/* DRIVER DRIVING LICENSE DETAILS SUMMARY CARD (DISTRIBUTOR ONLY) */}
+          {isDistributor && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-white border-2 border-emerald-500/30 text-xs space-y-3 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-500/20 pb-2.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-emerald-600 text-white shadow-xs">
+                    <Truck className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block">
+                      Assigned Fleet Driver & Driving License (DL) Records
+                    </span>
+                    <span className="font-bold text-slate-900 text-sm">
+                      {activeProfile.driver_name || "Ramesh Kumar (Assigned Fleet Driver)"}
+                    </span>
+                  </div>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-900 font-bold text-[11px] self-start sm:self-auto shadow-2xs">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Verified Motor Vehicle Driving License</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="p-2.5 rounded-xl bg-white border border-emerald-200">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Driving License No.</span>
+                  <span className="font-mono font-bold text-emerald-800 text-xs block mt-0.5">
+                    {activeProfile.driver_license_number || "DL-0420220194821"}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white border border-emerald-200">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">DL Vehicle Class</span>
+                  <span className="font-semibold text-slate-800 text-xs block mt-0.5 truncate" title={activeProfile.driver_license_class || "Commercial Heavy Goods Vehicle (HGV/LMV-TR)"}>
+                    {activeProfile.driver_license_class || "Commercial Heavy Goods Vehicle (HGV/LMV-TR)"}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white border border-emerald-200">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">DL Expiry Date</span>
+                  <span className="font-bold text-slate-800 text-xs block mt-0.5 flex items-center gap-1">
+                    <CalendarDays className="h-3 w-3 text-emerald-600" />
+                    {activeProfile.driver_license_expiry || "2032-11-20"}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white border border-emerald-200">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Driver Mobile Line</span>
+                  <span className="font-mono font-semibold text-slate-800 text-xs block mt-0.5 flex items-center gap-1">
+                    <Phone className="h-3 w-3 text-emerald-600" />
+                    {activeProfile.driver_phone || "+91 98765 43210"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex items-start gap-2.5 text-xs">
             <MapPin className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
@@ -693,6 +815,176 @@ export function ProfileManagementSection({ role, onProfileUpdated }: ProfileMana
               </select>
             </div>
           </div>
+
+          {/* DEDICATED DRIVER DRIVING LICENSE SECTION (DISTRIBUTOR ONLY) */}
+          {isDistributor && (
+            <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-emerald-50/70 via-white to-emerald-50/40 border-2 border-emerald-500/30 space-y-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 rounded-2xl bg-emerald-600 text-white shadow-xs">
+                    <Truck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                      <span>Assigned Driver & Commercial Driving License (DL) Records</span>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        Motor Vehicles Act Compliance
+                      </span>
+                    </h4>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Enter the commercial driving license details of the certified driver operating this transit fleet.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {/* Driver Full Name */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <UserCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    Driver Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={driverName}
+                    onChange={(e) => setDriverName(e.target.value)}
+                    placeholder="e.g. Ramesh Kumar"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 font-semibold"
+                    required={isDistributor}
+                  />
+                  <span className="text-[11px] text-slate-500 block">
+                    Certified commercial driver operating the fleet vehicle.
+                  </span>
+                </div>
+
+                {/* Driver Driving License Number */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5 text-emerald-600" />
+                    Driver's Driving License (DL) Number *
+                  </label>
+                  <input
+                    type="text"
+                    value={driverLicenseNumber}
+                    onChange={(e) => setDriverLicenseNumber(e.target.value.toUpperCase())}
+                    placeholder="e.g. DL-0420220194821 or KA-04-2019-0084920"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 font-mono font-bold"
+                    required={isDistributor}
+                  />
+                  <span className="text-[11px] text-slate-500 block">
+                    Official RTO Driving License number from the smart card.
+                  </span>
+                </div>
+
+                {/* Driver Contact Phone */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5 text-emerald-600" />
+                    Driver Contact Mobile *
+                  </label>
+                  <input
+                    type="text"
+                    value={driverPhone}
+                    onChange={(e) => setDriverPhone(e.target.value)}
+                    placeholder="e.g. +91 98765 43210"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 font-mono font-semibold"
+                    required={isDistributor}
+                  />
+                  <span className="text-[11px] text-slate-500 block">
+                    Direct phone line for real-time pickup & gate coordination.
+                  </span>
+                </div>
+
+                {/* License Class */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Truck className="h-3.5 w-3.5 text-emerald-600" />
+                    Driving License Vehicle Class *
+                  </label>
+                  <select
+                    value={driverLicenseClass}
+                    onChange={(e) => setDriverLicenseClass(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 font-medium"
+                  >
+                    <option value="Commercial Heavy Goods Vehicle (HGV / LMV-TR)">Commercial Heavy Goods Vehicle (HGV / LMV-TR)</option>
+                    <option value="Medium Goods Vehicle (MGV / Multi-Axle Reefer)">Medium Goods Vehicle (MGV / Multi-Axle Reefer)</option>
+                    <option value="Light Motor Vehicle - Commercial Transport (LMV-TR)">Light Motor Vehicle - Commercial Transport (LMV-TR)</option>
+                    <option value="Hazardous / Chilled Agricultural Freight Carrier Class">Hazardous / Chilled Agricultural Freight Carrier Class</option>
+                  </select>
+                  <span className="text-[11px] text-slate-500 block">
+                    RTO transport category endorsement on the driver's license.
+                  </span>
+                </div>
+
+                {/* DL Expiry Date */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <CalendarDays className="h-3.5 w-3.5 text-emerald-600" />
+                    Driving License Expiry Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={driverLicenseExpiry}
+                    onChange={(e) => setDriverLicenseExpiry(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 font-medium"
+                    required={isDistributor}
+                  />
+                  <span className="text-[11px] text-slate-500 block">
+                    License must remain active and valid during logistics transit.
+                  </span>
+                </div>
+
+                {/* Issuing RTO / Transport Authority */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    Issuing RTO Authority
+                  </label>
+                  <input
+                    type="text"
+                    value={driverLicenseAuthority}
+                    onChange={(e) => setDriverLicenseAuthority(e.target.value)}
+                    placeholder="e.g. KA-04 RTO Yeshwanthpur, Bengaluru"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-emerald-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 font-medium"
+                  />
+                  <span className="text-[11px] text-slate-500 block">
+                    Regional Transport Office (RTO) jurisdiction.
+                  </span>
+                </div>
+              </div>
+
+              {/* RTO VERIFIED DRIVER BADGE PREVIEW */}
+              <div className="pt-2">
+                <div className="p-3.5 rounded-2xl bg-white border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
+                      DL
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-slate-900 text-sm">
+                          {driverName || "Driver Name Pending"}
+                        </span>
+                        <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-md">
+                          {driverLicenseNumber || "DL NUMBER REQUIRED"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {driverLicenseClass} &bull; Valid Thru: {driverLicenseExpiry || "N/A"} &bull; {driverLicenseAuthority || "RTO Registered"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="shrink-0 self-start sm:self-auto">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-300">
+                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                      Motor Vehicles Act Verified
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* INTERACTIVE HIGH-ACCURACY MAP & PIN PICKER */}
           <div className="space-y-3 pt-4 border-t border-emerald-100">
