@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from "react"
 import { useSearchParams, useNavigate } from "react-router-dom"
 import {
-  QrCode, Camera, Upload, Search, CheckCircle2, Leaf, Factory, Truck, Store,
-  Clock, ShieldCheck, AlertCircle, CalendarDays, Sparkles, RefreshCw, Printer,
-  ExternalLink, Brain, Loader2, X, Award
+  QrCode, Camera, Upload, Search, Leaf,
+  ShieldCheck, AlertCircle, CalendarDays, Sparkles, RefreshCw, Printer,
+  Brain, Loader2, X, Zap
 } from "lucide-react"
 import { Button } from "../ui/Button"
 import axios from "axios"
-import { Html5Qrcode } from "html5-qrcode"
 import jsQR from "jsqr"
+import { cn } from "../../utils"
 
 const API = import.meta.env.VITE_API_URL || "https://farm-to-fork-tracker.onrender.com/api"
 
@@ -36,7 +36,6 @@ export interface ConsumerTraceData {
   farmer_profile?: any
   events?: any[]
   onchain_history?: any[]
-  // Derived / enriched provenance details
   processor_info?: {
     name: string
     address: string
@@ -74,11 +73,18 @@ export const ConsumerScanner: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
 
-  // Live camera scanner state
+  // Native live camera scanner state
   const [cameraActive, setCameraActive] = useState(false)
+  const [cameraStarting, setCameraStarting] = useState(false)
   const [cameraError, setCameraError] = useState("")
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment")
-  const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
+  const [hasTorch, setHasTorch] = useState(false)
+  const [isTorchOn, setIsTorchOn] = useState(false)
+
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const scanAnimRef = useRef<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Auto-fetch if batch or id is in URL params
@@ -128,65 +134,254 @@ export const ConsumerScanner: React.FC = () => {
     return trimmed
   }
 
-  // Camera Management
+  // Play subtle sensory scan beep
+  const playScanBeep = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+      if (!AudioCtx) return
+      const audioCtx = new AudioCtx()
+      const osc = audioCtx.createOscillator()
+      const gain = audioCtx.createGain()
+      osc.type = "sine"
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime)
+      gain.gain.setValueAtTime(0.12, audioCtx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12)
+      osc.connect(gain)
+      gain.connect(audioCtx.destination)
+      osc.start()
+      osc.stop(audioCtx.currentTime + 0.12)
+    } catch {}
+  }
+
+  // Multi-tier robust camera management
   const startCamera = async (mode: "environment" | "user" = facingMode) => {
     setCameraError("")
-    setCameraActive(true)
+    setCameraStarting(true)
+
+    // Stop any existing stream
+    stopCameraStream()
+
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setCameraError(
+        "Camera access is not supported by your browser or requires a secure HTTPS connection. Please use 'Upload Photo' or 'Batch Code'."
+      )
+      setCameraStarting(false)
+      setCameraActive(false)
+      return
+    }
 
     try {
-      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        await html5QrCodeRef.current.stop()
-      }
-      const scanner = new Html5Qrcode("consumer-qr-scanner-viewport")
-      html5QrCodeRef.current = scanner
+      let stream: MediaStream | null = null
 
-      await scanner.start(
-        { facingMode: mode },
-        { fps: 12, qrbox: { width: 240, height: 240 } },
-        (decodedText) => {
-          handleScanSuccess(decodedText)
-        },
-        () => {}
-      )
+      // Tier 1: Try requested facing mode with ideal constraints
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: mode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        })
+      } catch (err1) {
+        // Tier 2: Try inverted facingMode (e.g. desktop webcam instead of environment camera)
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: mode === "environment" ? "user" : "environment"
+            },
+            audio: false
+          })
+        } catch (err2) {
+          // Tier 3: Universal fallback to ANY video device available
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          })
+        }
+      }
+
+      if (!stream) {
+        throw new Error("Could not acquire video feed.")
+      }
+
+      streamRef.current = stream
+
+      // Torch support
+      try {
+        const track = stream.getVideoTracks()[0]
+        const capabilities: any = track.getCapabilities ? track.getCapabilities() : {}
+        setHasTorch(Boolean(capabilities.torch))
+      } catch {
+        setHasTorch(false)
+      }
+
+
+      // Wait until video DOM element is mounted
+      let attempts = 0
+      while (!videoRef.current && attempts < 25) {
+        await new Promise((r) => setTimeout(r, 40))
+        attempts++
+      }
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        try {
+          await videoRef.current.play()
+        } catch (playErr) {
+          console.warn("Video play interrupted:", playErr)
+        }
+      }
+
+      setCameraActive(true)
+      setCameraStarting(false)
+
+      // Layer 1: Hardware BarcodeDetector (Chrome, Edge, Android)
+      let barcodeDetector: any = null
+      if ("BarcodeDetector" in window) {
+        try {
+          barcodeDetector = new (window as any).BarcodeDetector({ formats: ["qr_code"] })
+        } catch {}
+      }
+
+      // Layer 2: jsQR canvas decoder (Universal fallback across all browsers)
+      const offscreenCanvas = canvasRef.current || document.createElement("canvas")
+      const ctx = offscreenCanvas.getContext("2d", { willReadFrequently: true })
+
+      let lastScanTime = 0
+
+      const scanLoop = async (timestamp: number) => {
+        if (!streamRef.current || !videoRef.current) return
+
+        if (timestamp - lastScanTime > 120) {
+          lastScanTime = timestamp
+          const video = videoRef.current
+
+          if (video && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+            // Layer 1: Hardware BarcodeDetector
+            if (barcodeDetector) {
+              try {
+                const barcodes = await barcodeDetector.detect(video)
+                if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                  stopCameraStream()
+                  playScanBeep()
+                  handleScanSuccess(barcodes[0].rawValue)
+                  return
+                }
+              } catch {}
+            }
+
+            // Layer 2: jsQR canvas decoder
+            if (ctx) {
+              try {
+                if (offscreenCanvas.width !== video.videoWidth || offscreenCanvas.height !== video.videoHeight) {
+                  offscreenCanvas.width = video.videoWidth
+                  offscreenCanvas.height = video.videoHeight
+                }
+                ctx.drawImage(video, 0, 0, offscreenCanvas.width, offscreenCanvas.height)
+                const imgData = ctx.getImageData(0, 0, offscreenCanvas.width, offscreenCanvas.height)
+                const code =
+                  jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" }) ||
+                  jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "attemptBoth" })
+
+                if (code && code.data) {
+                  stopCameraStream()
+                  playScanBeep()
+                  handleScanSuccess(code.data)
+                  return
+                }
+              } catch {}
+            }
+          }
+        }
+
+        scanAnimRef.current = requestAnimationFrame(scanLoop)
+      }
+
+      scanAnimRef.current = requestAnimationFrame(scanLoop)
     } catch (err: any) {
-      console.warn("Camera start warning:", err)
-      setCameraError(
-        err?.message ||
-          "Could not access camera. Please allow camera permissions in your browser or use image upload below."
-      )
+      console.error("Camera access failed:", err)
+      setCameraStarting(false)
       setCameraActive(false)
+
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setCameraError(
+          "Camera permission was denied. Please click the camera/lock icon in your browser URL address bar, choose 'Allow', and tap 'Activate Camera' again."
+        )
+      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+        setCameraError(
+          "No physical camera or webcam was found on your device. Please use 'Upload Photo' or 'Batch Code'."
+        )
+      } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+        setCameraError(
+          "Your camera is currently in use by another app or browser tab. Please close other camera tabs and try again."
+        )
+      } else {
+        setCameraError(
+          err.message ||
+            "Could not connect to camera. Please allow camera permissions in your browser or switch to image upload."
+        )
+      }
     }
   }
 
-  const stopCamera = async () => {
-    if (html5QrCodeRef.current) {
-      try {
-        if (html5QrCodeRef.current.isScanning) {
-          await html5QrCodeRef.current.stop()
-        }
-        html5QrCodeRef.current.clear()
-      } catch (e) {}
+  const stopCameraStream = () => {
+    if (scanAnimRef.current) {
+      cancelAnimationFrame(scanAnimRef.current)
+      scanAnimRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
     }
     setCameraActive(false)
+    setIsTorchOn(false)
   }
 
   const toggleCameraFacing = async () => {
     const nextMode = facingMode === "environment" ? "user" : "environment"
     setFacingMode(nextMode)
-    await stopCamera()
+    stopCameraStream()
     await startCamera(nextMode)
+  }
+
+  const toggleTorch = async () => {
+    if (!streamRef.current) return
+    const track = streamRef.current.getVideoTracks()[0]
+    if (!track) return
+    try {
+      await (track as any).applyConstraints({
+        advanced: [{ torch: !isTorchOn }]
+      })
+      setIsTorchOn(!isTorchOn)
+    } catch (e) {
+      console.warn("Torch toggle failed:", e)
+    }
   }
 
   // Handle successful QR detection -> Open new dedicated traceability page!
   const handleScanSuccess = async (rawCode: string) => {
-    await stopCamera()
+    stopCameraStream()
     const cleanKey = extractIdOrBatch(rawCode)
     if (cleanKey) {
-      navigate(`/track?batch=${encodeURIComponent(cleanKey)}`)
+      playScanBeep()
+      const targetUrl = `/track?batch=${encodeURIComponent(cleanKey)}`
+      try {
+        const opened = window.open(targetUrl, "_blank")
+        if (!opened || opened.closed || typeof opened.closed === "undefined") {
+          navigate(targetUrl)
+        }
+      } catch {
+        navigate(targetUrl)
+      }
+      fetchFullProductDetails(cleanKey)
     }
   }
 
-  // File Upload Handler (Triple-layer decoding)
+  // File Upload Handler (Dual-layer decoding)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -206,6 +401,7 @@ export const ConsumerScanner: React.FC = () => {
           const barcodes = await detector.detect(img)
           if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
             setLoading(false)
+            playScanBeep()
             handleScanSuccess(barcodes[0].rawValue)
             return
           }
@@ -221,23 +417,15 @@ export const ConsumerScanner: React.FC = () => {
         if (ctx) {
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
           const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-          const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "attemptBoth" })
+          const code =
+            jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" }) ||
+            jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "attemptBoth" })
           if (code && code.data) {
             setLoading(false)
+            playScanBeep()
             handleScanSuccess(code.data)
             return
           }
-        }
-      } catch {}
-
-      // Layer 3: Html5Qrcode buffer scan
-      try {
-        const scanner = new Html5Qrcode("consumer-qr-scanner-viewport")
-        const result = await scanner.scanFile(file, false)
-        if (result) {
-          setLoading(false)
-          handleScanSuccess(result)
-          return
         }
       } catch {}
 
@@ -260,9 +448,9 @@ export const ConsumerScanner: React.FC = () => {
     setErrorMsg("")
 
     try {
-      // 1. Try public blockchain verification endpoint
       let productData: any = null
 
+      // 1. Try public blockchain verification endpoint
       try {
         const res = await axios.get(`${API}/products/blockchain/${encodeURIComponent(query)}`)
         if (res.data?.success && res.data?.data) {
@@ -285,28 +473,7 @@ export const ConsumerScanner: React.FC = () => {
         } catch {}
       }
 
-      // 3. Fallback: Check local storage data if running locally / demo
-      if (!productData) {
-        try {
-          // Check local batches
-          const localBatches = JSON.parse(localStorage.getItem("processor_batches") || "{}")
-          const matchBatch = Object.values(localBatches).find((b: any) =>
-            b.batchId === query ||
-            b.originalProduct?.batch_number === query ||
-            String(b.productId) === query
-          ) as any
-
-          if (matchBatch) {
-            productData = {
-              ...matchBatch.originalProduct,
-              status: matchBatch.stage || "At Retailer",
-              batch_number: matchBatch.batchId || query
-            }
-          }
-        } catch {}
-      }
-
-      // If still not found, synthesize a realistic verified demo preview for sample batches
+      // 3. Fallback demo presets or standard format
       if (!productData) {
         const matchedPreset = SAMPLE_BATCHES.find(b => b.batch.toLowerCase() === query.toLowerCase() || b.name.toLowerCase().includes(query.toLowerCase()))
         if (matchedPreset || query.startsWith("BCH-") || !isNaN(Number(query))) {
@@ -340,7 +507,6 @@ export const ConsumerScanner: React.FC = () => {
         return
       }
 
-      // Extract from real backend events and shipments if available
       const events: any[] = productData.events || []
       
       const processorEvent = events.find(e => 
@@ -358,7 +524,7 @@ export const ConsumerScanner: React.FC = () => {
       
       const retailerEvent = events.find(e => 
         e.event_type === 'RETAILER_ACCEPTED' || 
-        e.event_type === 'DELIVERY_COMPLETED' || 
+        e.event_type === 'DELIVERY_COMPLETED' ||
         e.actor?.role === 'retailer'
       )
 
@@ -367,56 +533,38 @@ export const ConsumerScanner: React.FC = () => {
       const dispatchDateObj = distributorEvent?.created_at ? new Date(distributorEvent.created_at) : new Date(intakeDateObj.getTime() + 18 * 3600000)
       const retailDateObj = retailerEvent?.created_at ? new Date(retailerEvent.created_at) : new Date(dispatchDateObj.getTime() + 10 * 3600000)
 
-      const farmerName = productData.farmer?.name || productData.farmer_profile?.business_name || "Green Valley Organic Farms"
-      const farmerLoc = productData.farmer_profile?.address || productData.farmer?.address || "Doddaballapur Farmlands, Bengaluru North, Karnataka"
-
-      const processorName = processorEvent?.actor?.name || processorEvent?.metadata?.processor_name || "Agro-Processing & Packing Depot"
-      const processorLoc = processorEvent?.location || processorEvent?.metadata?.pickup_location || "Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru"
-
-      const carrierName = distributorEvent?.actor?.name || distributorEvent?.metadata?.driver_name || "Karnataka Freight Logistics Fleet"
-      const carrierVehicle = distributorEvent?.metadata?.vehicle_number 
-        ? `${distributorEvent.metadata.vehicle_number} (${distributorEvent.metadata.vehicle_type || 'Reefer Van'})`
-        : "KA-04-E-2941 (Refrigerated Reefer Van)"
-      const tempLog = distributorEvent?.metadata?.departure_temperature 
-        ? `${distributorEvent.metadata.departure_temperature} Monitored Transit Logistics` 
-        : "3.8°C Monitored Transit Logistics"
-
-      const retailerName = retailerEvent?.actor?.name || productData.retailer_inventory?.retailer?.name || "John's Metro Fresh Supermarket"
-      const retailerLoc = retailerEvent?.location || "Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru"
-      const shelfStatus = productData.retailer_inventory?.status 
-        ? `In Store • ${productData.retailer_inventory.status} • Dock Temp ${retailerEvent?.metadata?.dock_temperature || '4.1°C'}`
-        : "Aisle 3 • Refrigerated Fresh Produce Display"
-
       const enriched: ConsumerTraceData = {
         ...productData,
-        batch_number: productData.batch_number || productData.batchNumber || query,
-        farmer: {
-          name: farmerName,
-          address: farmerLoc
+        events,
+        farmer_profile: {
+          name: productData.farmer?.name || productData.farmer_profile?.business_name || "Green Valley Organic Farms",
+          address: productData.farmer_profile?.address || productData.farmer?.address || "Doddaballapur Farmlands, Bengaluru North, Karnataka",
+          harvest_date: harvestDateObj.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          soil_type: "Rich Red Loam (Organic Certified)",
+          batch_id: productData.batch_number
         },
         processor_info: {
-          name: processorName,
-          address: processorLoc,
-          date: intakeDateObj.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+          name: processorEvent?.actor?.name || processorEvent?.metadata?.processor_name || "Processor Agro-Processing Depot",
+          address: processorEvent?.location || processorEvent?.metadata?.pickup_location || "Agro-Processing Unit #4, Yeshwanthpur Industrial Suburb, APMC Yard, Bengaluru",
+          date: intakeDateObj.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
           grade: productData.ai_quality_label || "Grade A Export Quality"
         },
         distributor_info: {
-          carrier: carrierName,
-          vehicle: carrierVehicle,
-          date: dispatchDateObj.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-          temp: tempLog
+          carrier: distributorEvent?.actor?.name || distributorEvent?.metadata?.driver_name || "GreenWay Logistics & Freight",
+          vehicle: distributorEvent?.metadata?.vehicle_number || "KA-04-E-2941 (Certified Freight Van)",
+          date: dispatchDateObj.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          temp: distributorEvent?.metadata?.departure_temperature || "3.8°C Monitored Fresh Temp"
         },
         retailer_info: {
-          store: retailerName,
-          address: retailerLoc,
-          date: retailDateObj.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-          shelf_status: shelfStatus
+          store: retailerEvent?.actor?.name || "John's Metro Fresh Supermarket",
+          address: retailerEvent?.location || "Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru",
+          date: retailDateObj.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          shelf_status: productData.status || "In Store • Verified Fresh Stock"
         }
       }
 
       setScannedProduct(enriched)
 
-      // Smooth scroll to results
       setTimeout(() => {
         const el = document.getElementById("consumer-product-result")
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
@@ -429,15 +577,13 @@ export const ConsumerScanner: React.FC = () => {
     }
   }
 
-  // Tab switch cleanup
+  // Cleanup camera stream when switching away from camera tab or unmounting
   useEffect(() => {
-    if (activeTab === "camera") {
-      startCamera()
-    } else {
-      stopCamera()
+    if (activeTab !== "camera") {
+      stopCameraStream()
     }
     return () => {
-      stopCamera()
+      stopCameraStream()
     }
   }, [activeTab])
 
@@ -449,56 +595,60 @@ export const ConsumerScanner: React.FC = () => {
         daysRemaining: 14,
         isExpired: false,
         isUrgent: false,
-        label: "Fresh & High Quality"
+        label: "Guaranteed Fresh Shelf-Life"
       }
     }
 
-    const expDate = new Date(expDateStr)
+    const exp = new Date(expDateStr)
     const now = new Date()
-    const diffTime = expDate.getTime() - now.getTime()
+    const diffTime = exp.getTime() - now.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
-    const isExpired = diffDays < 0
-    const isUrgent = diffDays >= 0 && diffDays <= 3
+    const isExpired = diffDays <= 0
+    const isUrgent = diffDays > 0 && diffDays <= 3
 
     return {
-      formattedDate: expDate.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+      formattedDate: exp.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
       daysRemaining: diffDays,
       isExpired,
       isUrgent,
       label: isExpired
-        ? `Expired ${Math.abs(diffDays)} days ago`
+        ? `Expired ${Math.abs(diffDays)} day${Math.abs(diffDays) === 1 ? "" : "s"} ago`
         : isUrgent
-        ? `Expires soon (${diffDays} days remaining)`
-        : `${diffDays} days remaining • Fresh & Safe`
+        ? `Expires in ${diffDays} day${diffDays === 1 ? "" : "s"} (Consume Soon)`
+        : `Fresh for ${diffDays} more days`
     }
   }
 
   const expInfo = scannedProduct ? getExpiryDetails(scannedProduct.expiry_date) : null
 
   return (
-    <div className="w-full space-y-8">
-      {/* SCANNER CONTAINER */}
-      <div className="rounded-3xl border border-emerald-200 bg-white p-6 sm:p-8 shadow-sm">
-        {/* Top Header */}
-        <div className="text-center max-w-2xl mx-auto space-y-2 mb-6">
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1 text-xs font-bold text-emerald-800 shadow-2xs">
+    <div className="w-full max-w-4xl mx-auto space-y-8">
+      {/* SCANNER CONTROLLER CARD */}
+      <div className="bg-white rounded-3xl border border-emerald-100 shadow-md p-6 sm:p-8 space-y-6">
+        {/* Header Title */}
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200 shadow-2xs">
             <QrCode className="h-3.5 w-3.5 text-emerald-600" />
             <span>Consumer Provenance Desk</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
             Scan Retail Product QR Code
           </h2>
-          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-            Scan the QR code on your grocery packaging or enter the batch code to trace the complete product journey from the farmer's soil to the retail supermarket shelf with verified dates and expiry.
+          <p className="text-xs sm:text-sm text-slate-600 max-w-xl mx-auto">
+            Scan the QR code on your grocery packaging or enter the batch code to trace the complete product journey from the farmer&apos;s soil to the retail supermarket shelf with verified dates and expiry.
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <div className="flex items-center p-1.5 rounded-2xl bg-emerald-50/70 border border-emerald-100 max-w-md w-full justify-between">
+        {/* TAB BUTTONS (Camera / Upload / Manual) */}
+        <div className="flex justify-center">
+          <div className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200 w-full max-w-md">
             <button
-              onClick={() => setActiveTab("camera")}
+              type="button"
+              onClick={() => {
+                setActiveTab("camera")
+                startCamera(facingMode)
+              }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "camera"
                   ? "bg-emerald-600 text-white shadow-xs"
@@ -510,7 +660,11 @@ export const ConsumerScanner: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setActiveTab("upload")}
+              type="button"
+              onClick={() => {
+                setActiveTab("upload")
+                stopCameraStream()
+              }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "upload"
                   ? "bg-emerald-600 text-white shadow-xs"
@@ -522,7 +676,11 @@ export const ConsumerScanner: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setActiveTab("manual")}
+              type="button"
+              onClick={() => {
+                setActiveTab("manual")
+                stopCameraStream()
+              }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "manual"
                   ? "bg-emerald-600 text-white shadow-xs"
@@ -537,53 +695,142 @@ export const ConsumerScanner: React.FC = () => {
 
         {/* TAB 1: LIVE CAMERA VIEWPORT */}
         {activeTab === "camera" && (
-          <div className="max-w-md mx-auto space-y-3">
-            <div className="relative aspect-square max-w-[320px] mx-auto rounded-3xl border-2 border-emerald-500/40 bg-slate-950 overflow-hidden shadow-inner flex items-center justify-center">
-              <div id="consumer-qr-scanner-viewport" className="w-full h-full object-cover" />
+          <div className="max-w-md mx-auto space-y-4">
+            <div className="relative aspect-square max-w-[340px] mx-auto rounded-3xl border-2 border-emerald-500/40 bg-slate-950 overflow-hidden shadow-2xl flex items-center justify-center">
+              {/* Native Video Feed */}
+              <video
+                ref={videoRef}
+                playsInline
+                autoPlay
+                muted
+                className={cn(
+                  "w-full h-full object-cover transition-opacity duration-300",
+                  cameraActive ? "opacity-100" : "opacity-0"
+                )}
+              />
 
-              {/* Viewfinder Target Graphic */}
-              <div className="absolute inset-8 border-2 border-dashed border-emerald-400/70 rounded-2xl pointer-events-none flex flex-col justify-between p-2">
-                <div className="flex justify-between">
-                  <div className="w-4 h-4 border-t-2 border-l-2 border-emerald-400" />
-                  <div className="w-4 h-4 border-t-2 border-r-2 border-emerald-400" />
-                </div>
-                <div className="flex justify-between">
-                  <div className="w-4 h-4 border-b-2 border-l-2 border-emerald-400" />
-                  <div className="w-4 h-4 border-b-2 border-r-2 border-emerald-400" />
-                </div>
-              </div>
+              {/* Hidden Canvas for jsQR Frame Decoding */}
+              <canvas ref={canvasRef} className="hidden" />
 
-              {/* Animated laser line */}
+              {/* Viewfinder Corner Target Graphic */}
+              {cameraActive && (
+                <div className="absolute inset-8 border-2 border-dashed border-emerald-400/70 rounded-2xl pointer-events-none flex flex-col justify-between p-2">
+                  <div className="flex justify-between">
+                    <div className="w-5 h-5 border-t-2 border-l-2 border-emerald-400" />
+                    <div className="w-5 h-5 border-t-2 border-r-2 border-emerald-400" />
+                  </div>
+                  <div className="flex justify-between">
+                    <div className="w-5 h-5 border-b-2 border-l-2 border-emerald-400" />
+                    <div className="w-5 h-5 border-b-2 border-r-2 border-emerald-400" />
+                  </div>
+                </div>
+              )}
+
+              {/* Animated Laser Scanning Line */}
               {cameraActive && (
                 <div className="absolute inset-x-8 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-pulse top-1/2 -translate-y-1/2 pointer-events-none shadow-[0_0_12px_#34d399]" />
               )}
+
+              {/* Standby / Initial State when camera is not running or requested */}
+              {!cameraActive && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-white bg-slate-950/95 space-y-3 z-20">
+                  <div className="h-16 w-16 rounded-3xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                    <Camera className="h-8 w-8" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-white">Live Camera QR Scanner</h4>
+                    <p className="text-xs text-slate-400 mt-1 max-w-[220px]">
+                      Tap below to activate your camera and scan any retail produce QR tag.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => startCamera(facingMode)}
+                    disabled={cameraStarting}
+                    className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30 transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center gap-2"
+                  >
+                    {cameraStarting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Connecting Camera...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="h-4 w-4" />
+                        <span>Activate Camera</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Camera Controls */}
-            <div className="flex items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={toggleCameraFacing}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 bg-white text-xs font-semibold text-emerald-800 hover:bg-emerald-50 shadow-2xs cursor-pointer"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                <span>Switch Camera</span>
-              </button>
+            {/* Camera Controls (When Active) */}
+            {cameraActive && (
+              <div className="flex flex-wrap items-center justify-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={toggleCameraFacing}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 bg-white text-xs font-semibold text-emerald-800 hover:bg-emerald-50 shadow-2xs cursor-pointer"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span>Switch Camera</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => startCamera()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 bg-white text-xs font-semibold text-emerald-800 hover:bg-emerald-50 shadow-2xs cursor-pointer"
-              >
-                <Camera className="h-3.5 w-3.5" />
-                <span>Restart Viewfinder</span>
-              </button>
-            </div>
+                {hasTorch && (
+                  <button
+                    type="button"
+                    onClick={toggleTorch}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold shadow-2xs cursor-pointer transition-colors",
+                      isTorchOn
+                        ? "bg-amber-400 text-slate-950 border-amber-500 font-bold"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    )}
+                  >
+                    <Zap className="h-3.5 w-3.5" />
+                    <span>{isTorchOn ? "Flash On" : "Flashlight"}</span>
+                  </button>
+                )}
 
+                <button
+                  type="button"
+                  onClick={stopCameraStream}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 shadow-2xs cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span>Stop Camera</span>
+                </button>
+              </div>
+            )}
+
+            {/* Helpful Camera Permission / Troubleshooting Box */}
             {cameraError && (
-              <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <span>{cameraError}</span>
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="font-bold">{cameraError}</div>
+                </div>
+                <div className="pl-6 text-[11px] text-amber-800 space-y-1">
+                  <p>• <strong>To enable camera:</strong> Look at your browser address bar (top), click the camera 🎥 or lock 🔒 icon, and select <strong>Allow</strong>.</p>
+                  <p>• Or click <strong>Upload Photo</strong> above to select a screenshot/photo of the QR code.</p>
+                </div>
+                <div className="pt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => startCamera(facingMode)}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs cursor-pointer"
+                  >
+                    Try Again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("upload")}
+                    className="px-3 py-1.5 rounded-xl bg-white border border-amber-300 text-amber-900 font-bold text-xs hover:bg-amber-100 cursor-pointer"
+                  >
+                    Upload Photo Instead
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -622,7 +869,16 @@ export const ConsumerScanner: React.FC = () => {
                 e.preventDefault()
                 if (manualInput.trim()) {
                   const clean = extractIdOrBatch(manualInput)
-                  navigate(`/track?batch=${encodeURIComponent(clean)}`)
+                  const targetUrl = `/track?batch=${encodeURIComponent(clean)}`
+                  try {
+                    const opened = window.open(targetUrl, "_blank")
+                    if (!opened || opened.closed || typeof opened.closed === "undefined") {
+                      navigate(targetUrl)
+                    }
+                  } catch {
+                    navigate(targetUrl)
+                  }
+                  fetchFullProductDetails(clean)
                 }
               }}
               className="flex items-center gap-2"
@@ -658,7 +914,16 @@ export const ConsumerScanner: React.FC = () => {
               key={b.batch}
               type="button"
               onClick={() => {
-                navigate(`/track?batch=${encodeURIComponent(b.batch)}`)
+                const targetUrl = `/track?batch=${encodeURIComponent(b.batch)}`
+                try {
+                  const opened = window.open(targetUrl, "_blank")
+                  if (!opened || opened.closed || typeof opened.closed === "undefined") {
+                    navigate(targetUrl)
+                  }
+                } catch {
+                  navigate(targetUrl)
+                }
+                fetchFullProductDetails(b.batch)
               }}
               className="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-semibold transition-colors cursor-pointer shadow-2xs"
             >
@@ -801,173 +1066,6 @@ export const ConsumerScanner: React.FC = () => {
                 </div>
               </div>
             )}
-
-            {/* BLOCKCHAIN AUDIT BANNER */}
-            <div className="mt-4 p-3.5 rounded-2xl bg-slate-900 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2.5">
-                <div className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-                <span className="font-semibold text-emerald-300">Ethereum Sepolia Ledger Record:</span>
-                <span className="font-mono text-[11px] text-slate-300 truncate max-w-xs sm:max-w-md">
-                  {scannedProduct.blockchain_hash || "0x7f9a2b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a"}
-                </span>
-              </div>
-              {scannedProduct.blockchain_hash && (
-                <a
-                  href={`https://sepolia.etherscan.io/tx/${scannedProduct.blockchain_hash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 font-bold text-emerald-400 hover:text-emerald-300 underline shrink-0"
-                >
-                  <span>Verify On Etherscan</span>
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              )}
-            </div>
-          </div>
-
-          {/* COMPLETE 4-STAGE FARM-TO-RETAILER PROVENANCE JOURNEY */}
-          <div className="rounded-3xl border border-emerald-200 bg-white p-6 sm:p-8 shadow-md space-y-6">
-            <div className="border-b border-emerald-100 pb-4">
-              <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-emerald-600" />
-                <h3 className="text-lg font-bold text-slate-900">
-                  Complete Supply Chain Audit Trail (Farmer to Retailer)
-                </h3>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Verified timestamps, physical facility addresses, and quality compliance certificates for Batch #{scannedProduct.batch_number}.
-              </p>
-            </div>
-
-            {/* Timeline Steps */}
-            <div className="relative pl-6 sm:pl-8 space-y-8 before:absolute before:inset-0 before:left-3 sm:before:left-4 before:w-0.5 before:bg-gradient-to-b before:from-emerald-500 before:via-blue-500 before:to-purple-500">
-              {/* STAGE 1: FARMER ORIGIN */}
-              <div className="relative flex items-start gap-4">
-                <div className="absolute -left-6 sm:-left-8 top-1 p-2 rounded-full bg-emerald-600 text-white shadow-md ring-4 ring-white">
-                  <Leaf className="h-4 w-4" />
-                </div>
-                <div className="w-full rounded-2xl border border-emerald-200 bg-emerald-50/30 p-4 space-y-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900 text-sm">1. Agricultural Farm Origin & Harvest</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                        Harvest Verified
-                      </span>
-                    </div>
-                    <span className="text-[11px] font-mono text-slate-500 font-semibold">
-                      📅 {new Date(scannedProduct.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-700 leading-relaxed">
-                    Harvested and authenticated by <strong>{scannedProduct.farmer?.name || scannedProduct.farmer_profile?.business_name || "Green Valley Organic Farms"}</strong>.
-                  </p>
-                  <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                    📍 Farm Location: {scannedProduct.farmer_profile?.address || scannedProduct.farmer?.address || "Doddaballapur Farmlands, Bengaluru North, Karnataka"}
-                  </p>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-emerald-100 text-[11px] font-bold text-emerald-800 shadow-2xs">
-                    <Award className="h-3 w-3 text-emerald-600" />
-                    Computer-Vision Quality Grade: {scannedProduct.ai_quality_label} ({scannedProduct.ai_quality_score}%)
-                  </div>
-                </div>
-              </div>
-
-              {/* STAGE 2: PROCESSOR INTAKE & PACKAGING */}
-              <div className="relative flex items-start gap-4">
-                <div className="absolute -left-6 sm:-left-8 top-1 p-2 rounded-full bg-blue-600 text-white shadow-md ring-4 ring-white">
-                  <Factory className="h-4 w-4" />
-                </div>
-                <div className="w-full rounded-2xl border border-blue-200 bg-blue-50/30 p-4 space-y-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900 text-sm">2. Facility Intake & Quality Inspection</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
-                        Intake Inspected
-                      </span>
-                    </div>
-                    <span className="text-[11px] font-mono text-slate-500 font-semibold">
-                      📅 {scannedProduct.processor_info?.date}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-700 leading-relaxed">
-                    Verified and processed at <strong>{scannedProduct.processor_info?.name}</strong>. Scale weight checked, sanitized, and sealed under certified packing conditions.
-                  </p>
-                  <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                    📍 Processing Depot: {scannedProduct.processor_info?.address}
-                  </p>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-blue-100 text-[11px] font-bold text-blue-800 shadow-2xs">
-                    <CheckCircle2 className="h-3 w-3 text-blue-600" />
-                    Packaging Batch Code Preserved: {scannedProduct.batch_number}
-                  </div>
-                </div>
-              </div>
-
-              {/* STAGE 3: DISTRIBUTOR TRANSIT */}
-              <div className="relative flex items-start gap-4">
-                <div className="absolute -left-6 sm:-left-8 top-1 p-2 rounded-full bg-amber-600 text-white shadow-md ring-4 ring-white">
-                  <Truck className="h-4 w-4" />
-                </div>
-                <div className="w-full rounded-2xl border border-amber-200 bg-amber-50/30 p-4 space-y-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900 text-sm">3. Distribution Logistics & Safe Transit</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900">
-                        Reefer Transit
-                      </span>
-                    </div>
-                    <span className="text-[11px] font-mono text-slate-500 font-semibold">
-                      📅 {scannedProduct.distributor_info?.date}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-700 leading-relaxed">
-                    Dispatched via <strong>{scannedProduct.distributor_info?.carrier}</strong> in vehicle <strong>{scannedProduct.distributor_info?.vehicle}</strong>.
-                  </p>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-amber-200 text-[11px] font-bold text-amber-900 shadow-2xs">
-                    <span>❄️ Temperature SLA: {scannedProduct.distributor_info?.temp}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* STAGE 4: RETAILER STORE AVAILABILITY */}
-              <div className="relative flex items-start gap-4">
-                <div className="absolute -left-6 sm:-left-8 top-1 p-2 rounded-full bg-purple-600 text-white shadow-md ring-4 ring-white">
-                  <Store className="h-4 w-4" />
-                </div>
-                <div className="w-full rounded-2xl border border-purple-200 bg-purple-50/30 p-4 space-y-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900 text-sm">4. Retail Store Intake & Shelf Display</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900">
-                        Available in Store
-                      </span>
-                    </div>
-                    <span className="text-[11px] font-mono text-slate-500 font-semibold">
-                      📅 {scannedProduct.retailer_info?.date}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-700 leading-relaxed">
-                    Received by <strong>{scannedProduct.retailer_info?.store}</strong>. QR code authenticated at store intake and made available for customer purchase.
-                  </p>
-                  <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                    📍 Retail Store Address: {scannedProduct.retailer_info?.address}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-purple-200 text-[11px] font-bold text-purple-900 shadow-2xs">
-                      <span>🏪 Store Location: {scannedProduct.retailer_info?.shelf_status}</span>
-                    </div>
-                    {expInfo && (
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100/80 border border-emerald-300 text-[11px] font-bold text-emerald-900 shadow-2xs">
-                        <CalendarDays className="h-3 w-3 text-emerald-700" />
-                        <span>Fresh Until: {expInfo.formattedDate}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       )}

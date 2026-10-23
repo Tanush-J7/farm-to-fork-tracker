@@ -3,11 +3,10 @@ import { useSearchParams } from "react-router-dom"
 import { ethers } from "ethers"
 import { Card } from "../components/ui/Card"
 import {
-  Search, AlertCircle, Loader2, ShieldCheck, QrCode, Upload, Sparkles, X
+  Search, AlertCircle, Loader2, ShieldCheck, QrCode, Upload, Sparkles, X, RefreshCw, Zap
 } from "lucide-react"
 import { Button } from "../components/ui/Button"
 import axios from "axios"
-import { Html5Qrcode } from "html5-qrcode"
 import jsQR from "jsqr"
 import { ProductProvenanceReport, type ProvenanceReportData } from "../components/consumer/ProductProvenanceReport"
 
@@ -42,8 +41,16 @@ export function Tracker() {
   // Camera QR Scanner Modal
   const [showScanner, setShowScanner] = useState(false)
   const [cameraActive, setCameraActive] = useState(false)
+  const [cameraStarting, setCameraStarting] = useState(false)
   const [scannerError, setScannerError] = useState("")
-  const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment")
+  const [hasTorch, setHasTorch] = useState(false)
+  const [isTorchOn, setIsTorchOn] = useState(false)
+
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const scanAnimRef = useRef<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const extractKey = (raw: string): string => {
@@ -317,45 +324,209 @@ export function Tracker() {
   }
 
   // Camera QR Scanner
-  const startLiveCamera = async () => {
-    setScannerError("")
-    setShowScanner(true)
-    setCameraActive(true)
-
-    setTimeout(async () => {
-      try {
-        const scanner = new Html5Qrcode("tracker-camera-viewport")
-        html5QrCodeRef.current = scanner
-        await scanner.start(
-          { facingMode: "environment" },
-          { fps: 12, qrbox: { width: 240, height: 240 } },
-          (decodedText) => {
-            handleScanSuccess(decodedText)
-          },
-          () => {}
-        )
-      } catch (err: any) {
-        setScannerError(err?.message || "Camera access denied or unavailable.")
-        setCameraActive(false)
-      }
-    }, 200)
+  const playScanBeep = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+      if (!AudioCtx) return
+      const audioCtx = new AudioCtx()
+      const osc = audioCtx.createOscillator()
+      const gain = audioCtx.createGain()
+      osc.type = "sine"
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime)
+      gain.gain.setValueAtTime(0.12, audioCtx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12)
+      osc.connect(gain)
+      gain.connect(audioCtx.destination)
+      osc.start()
+      osc.stop(audioCtx.currentTime + 0.12)
+    } catch {}
   }
 
-  const stopLiveCamera = async () => {
-    if (html5QrCodeRef.current) {
-      try {
-        if (html5QrCodeRef.current.isScanning) {
-          await html5QrCodeRef.current.stop()
-        }
-        html5QrCodeRef.current.clear()
-      } catch {}
+  const stopCameraStream = () => {
+    if (scanAnimRef.current) {
+      cancelAnimationFrame(scanAnimRef.current)
+      scanAnimRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
     }
     setCameraActive(false)
+    setIsTorchOn(false)
+  }
+
+  const stopLiveCamera = () => {
+    stopCameraStream()
     setShowScanner(false)
   }
 
+  useEffect(() => {
+    return () => {
+      stopCameraStream()
+    }
+  }, [])
+
+  const startLiveCamera = async (mode: "environment" | "user" = facingMode) => {
+    setScannerError("")
+    setShowScanner(true)
+    setCameraStarting(true)
+    stopCameraStream()
+
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setScannerError("Camera is not supported by your browser or requires a secure HTTPS connection.")
+      setCameraStarting(false)
+      return
+    }
+
+    try {
+      let stream: MediaStream | null = null
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: mode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        })
+      } catch {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: mode === "environment" ? "user" : "environment"
+            },
+            audio: false
+          })
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          })
+        }
+      }
+
+      if (!stream) throw new Error("Could not acquire video feed.")
+
+      streamRef.current = stream
+
+      try {
+        const track = stream.getVideoTracks()[0]
+        const capabilities: any = track.getCapabilities ? track.getCapabilities() : {}
+        setHasTorch(Boolean(capabilities.torch))
+      } catch {
+        setHasTorch(false)
+      }
+
+      let attempts = 0
+      while (!videoRef.current && attempts < 25) {
+        await new Promise((r) => setTimeout(r, 40))
+        attempts++
+      }
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        try {
+          await videoRef.current.play()
+        } catch (playErr) {
+          console.warn("Video play interrupted:", playErr)
+        }
+      }
+
+      setCameraActive(true)
+      setCameraStarting(false)
+
+      let barcodeDetector: any = null
+      if ("BarcodeDetector" in window) {
+        try {
+          barcodeDetector = new (window as any).BarcodeDetector({ formats: ["qr_code"] })
+        } catch {}
+      }
+
+      const offscreenCanvas = canvasRef.current || document.createElement("canvas")
+      const ctx = offscreenCanvas.getContext("2d", { willReadFrequently: true })
+
+      let lastScanTime = 0
+
+      const scanLoop = async (timestamp: number) => {
+        if (!streamRef.current || !videoRef.current) return
+
+        if (timestamp - lastScanTime > 120) {
+          lastScanTime = timestamp
+          const video = videoRef.current
+
+          if (video && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+            if (barcodeDetector) {
+              try {
+                const barcodes = await barcodeDetector.detect(video)
+                if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                  playScanBeep()
+                  handleScanSuccess(barcodes[0].rawValue)
+                  return
+                }
+              } catch {}
+            }
+
+            if (ctx) {
+              try {
+                if (offscreenCanvas.width !== video.videoWidth || offscreenCanvas.height !== video.videoHeight) {
+                  offscreenCanvas.width = video.videoWidth
+                  offscreenCanvas.height = video.videoHeight
+                }
+                ctx.drawImage(video, 0, 0, offscreenCanvas.width, offscreenCanvas.height)
+                const imgData = ctx.getImageData(0, 0, offscreenCanvas.width, offscreenCanvas.height)
+                const code =
+                  jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" }) ||
+                  jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "attemptBoth" })
+
+                if (code && code.data) {
+                  playScanBeep()
+                  handleScanSuccess(code.data)
+                  return
+                }
+              } catch {}
+            }
+          }
+        }
+
+        scanAnimRef.current = requestAnimationFrame(scanLoop)
+      }
+
+      scanAnimRef.current = requestAnimationFrame(scanLoop)
+    } catch (err: any) {
+      setCameraStarting(false)
+      setCameraActive(false)
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setScannerError("Camera permission denied. Please click the lock/camera icon in your address bar and allow camera access.")
+      } else {
+        setScannerError(err?.message || "Camera access failed or unavailable.")
+      }
+    }
+  }
+
+  const toggleCameraFacing = async () => {
+    const nextMode = facingMode === "environment" ? "user" : "environment"
+    setFacingMode(nextMode)
+    stopCameraStream()
+    await startLiveCamera(nextMode)
+  }
+
+  const toggleTorch = async () => {
+    if (!streamRef.current) return
+    const track = streamRef.current.getVideoTracks()[0]
+    if (!track) return
+    try {
+      await (track as any).applyConstraints({
+        advanced: [{ torch: !isTorchOn }]
+      })
+      setIsTorchOn(!isTorchOn)
+    } catch {}
+  }
+
   const handleScanSuccess = async (rawCode: string) => {
-    await stopLiveCamera()
+    stopLiveCamera()
     const clean = extractKey(rawCode)
     if (clean) {
       setQueryInput(clean)
@@ -447,7 +618,7 @@ export function Tracker() {
             <Button
               type="button"
               variant="outline"
-              onClick={startLiveCamera}
+              onClick={() => startLiveCamera()}
               className="flex-1 rounded-xl text-xs gap-1.5 border-dashed border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
             >
               <QrCode className="h-3.5 w-3.5" />
@@ -517,7 +688,7 @@ export function Tracker() {
       {!loading && provenanceData && (
         <ProductProvenanceReport
           product={provenanceData}
-          onScanAnother={startLiveCamera}
+          onScanAnother={() => startLiveCamera()}
         />
       )}
 
@@ -590,14 +761,73 @@ export function Tracker() {
             </p>
 
             <div className="relative w-full aspect-square rounded-2xl border-2 border-dashed border-emerald-500/60 bg-black overflow-hidden flex items-center justify-center">
-              <div id="tracker-camera-viewport" className="w-full h-full" />
+              <video
+                ref={videoRef}
+                playsInline
+                autoPlay
+                muted
+                className="w-full h-full object-cover"
+              />
+              <canvas ref={canvasRef} className="hidden" />
+
+              {/* Viewfinder Target */}
+              <div className="absolute inset-8 border-2 border-dashed border-emerald-400/60 rounded-2xl pointer-events-none flex flex-col justify-between p-2">
+                <div className="flex justify-between">
+                  <div className="w-5 h-5 border-t-2 border-l-2 border-emerald-400" />
+                  <div className="w-5 h-5 border-t-2 border-r-2 border-emerald-400" />
+                </div>
+                <div className="flex justify-between">
+                  <div className="w-5 h-5 border-b-2 border-l-2 border-emerald-400" />
+                  <div className="w-5 h-5 border-b-2 border-r-2 border-emerald-400" />
+                </div>
+              </div>
+
+              {cameraStarting && (
+                <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-2 z-20">
+                  <Loader2 className="h-8 w-8 text-emerald-400 animate-spin" />
+                  <p className="text-xs text-zinc-300">Connecting camera...</p>
+                </div>
+              )}
+
               {cameraActive && (
-                <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-pulse top-1/2 z-20" />
+                <div className="absolute inset-x-8 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-pulse top-1/2 -translate-y-1/2 pointer-events-none shadow-[0_0_12px_#34d399]" />
               )}
             </div>
 
+            {/* Camera Controls */}
+            {cameraActive && (
+              <div className="flex justify-center items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={toggleCameraFacing}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-zinc-700 bg-zinc-800 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 transition-colors cursor-pointer"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span>Switch Camera</span>
+                </button>
+
+                {hasTorch && (
+                  <button
+                    type="button"
+                    onClick={toggleTorch}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
+                      isTorchOn ? "bg-amber-400 text-black border-amber-500 font-bold" : "bg-zinc-800 border-zinc-700 text-zinc-200 hover:bg-zinc-700"
+                    }`}
+                  >
+                    <Zap className="h-3.5 w-3.5" />
+                    <span>{isTorchOn ? "Flash On" : "Flashlight"}</span>
+                  </button>
+                )}
+              </div>
+            )}
+
             {scannerError && (
-              <p className="text-xs text-rose-400 font-medium">{scannerError}</p>
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-rose-400">
+                <p className="font-semibold">{scannerError}</p>
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  Ensure camera permissions are allowed, or close other apps using the webcam.
+                </p>
+              </div>
             )}
 
             <Button
