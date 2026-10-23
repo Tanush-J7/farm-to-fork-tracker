@@ -128,32 +128,38 @@ def predict_price_real(data: PricePredictionRequest):
     except Exception as e:
         return {"error": "DATABASE_ERROR", "message": f"Failed to retrieve history: {e}"}
 
-    result = price_service.predict(
-        commodity=data.commodity,
-        market=data.market,
-        recent_history_df=df_history,
-        forecast_days=data.forecast_days
-    )
+    try:
+        result = price_service.predict(
+            commodity=data.commodity,
+            market=data.market,
+            recent_history_df=df_history,
+            forecast_days=data.forecast_days
+        )
+    except Exception as e:
+        return {"error": "PREDICTION_ERROR", "message": f"Prediction computation failed: {e}"}
     
-    # Optionally publish to Kafka if successful
-    if "error" not in result:
-        event = {
-            "event_id": str(uuid.uuid4()),
-            "event_type": "PRICE_PREDICTION_CREATED",
-            "event_version": "1.0",
-            "event_timestamp": datetime.utcnow().isoformat() + "Z",
-            "source": "price-prediction-service",
-            "payload": {
-                "commodity": result["commodity"],
-                "market": result["market"],
-                "predicted_price": result["predictions"][-1]["predicted_price"],
-                "forecast_days": data.forecast_days,
-                "data_source": result.get("data_source"),
-                "model_version": result.get("model_version")
+    # Optionally publish to Kafka if successful (non-blocking)
+    if isinstance(result, dict) and "error" not in result:
+        try:
+            event = {
+                "event_id": str(uuid.uuid4()),
+                "event_type": "PRICE_PREDICTION_CREATED",
+                "event_version": "1.0",
+                "event_timestamp": datetime.utcnow().isoformat() + "Z",
+                "source": "price-prediction-service",
+                "payload": {
+                    "commodity": result["commodity"],
+                    "market": result["market"],
+                    "predicted_price": result["predictions"][-1]["predicted_price"],
+                    "forecast_days": data.forecast_days,
+                    "data_source": result.get("data_source"),
+                    "model_version": result.get("model_version")
+                }
             }
-        }
-        topic = os.getenv("KAFKA_PRICE_PREDICTION_TOPIC", "price-predictions")
-        kafka_producer.publish_event(topic, event)
+            topic = os.getenv("KAFKA_PRICE_PREDICTION_TOPIC", "price-predictions")
+            kafka_producer.publish_event(topic, event)
+        except Exception:
+            pass
     
     return result
 

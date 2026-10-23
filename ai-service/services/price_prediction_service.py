@@ -17,6 +17,14 @@ class PricePredictionService:
         self._load_artifacts()
 
     def _load_artifacts(self):
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        alt_model_dir = os.path.join(base_dir, "models", "price_model")
+        target_dir = self.model_dir
+        if not os.path.exists(os.path.join(target_dir, "model.pkl")):
+            if os.path.exists(os.path.join(alt_model_dir, "model.pkl")):
+                target_dir = alt_model_dir
+
+        self.model_dir = target_dir
         model_path = os.path.join(self.model_dir, "model.pkl")
         fe_path = os.path.join(self.model_dir, "preprocessor.pkl")
         meta_path = os.path.join(self.model_dir, "metadata.json")
@@ -143,6 +151,10 @@ class PricePredictionService:
                 "price": w_price,
                 "retail_price": r_price
             })
+
+        data_source = "Agmarknet Live Mandi Data"
+        if "source" in df.columns and pd.notna(df.iloc[-1].get("source")):
+            data_source = str(df.iloc[-1]["source"])
 
         return {
             "commodity": commodity,
