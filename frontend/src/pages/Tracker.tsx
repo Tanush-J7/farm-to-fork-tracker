@@ -83,6 +83,8 @@ export function Tracker() {
     const processorEvent = events.find((e: any) =>
       e.event_type === "DISPATCHED_TO_RETAILER" ||
       e.event_type === "PICKUP_QR_GENERATED" ||
+      e.event_type === "ORDER_ACCEPTED" ||
+      e.event_type === "PROCESSOR_ACCEPTED" ||
       e.actor?.role === "processor"
     )
 
@@ -99,16 +101,51 @@ export function Tracker() {
       e.actor?.role === "retailer"
     )
 
-    const harvestDateObj = new Date(productData.created_at || Date.now() - 3 * 86400000)
-    const intakeDateObj = processorEvent?.created_at
-      ? new Date(processorEvent.created_at)
-      : new Date(harvestDateObj.getTime() + 14 * 3600000)
-    const dispatchDateObj = distributorEvent?.created_at
-      ? new Date(distributorEvent.created_at)
-      : new Date(intakeDateObj.getTime() + 18 * 3600000)
-    const retailDateObj = retailerEvent?.created_at
-      ? new Date(retailerEvent.created_at)
-      : new Date(dispatchDateObj.getTime() + 10 * 3600000)
+    const rawStatus = (productData.status || "Harvested").toLowerCase().trim()
+
+    // Determine current supply chain stage (1: Farmer, 2: Processor, 3: Distributor, 4: Retailer)
+    const isRetail =
+      rawStatus === "at retailer" ||
+      rawStatus === "delivered" ||
+      rawStatus === "in store" ||
+      rawStatus === "in retail" ||
+      rawStatus === "available in store" ||
+      rawStatus === "sold" ||
+      Boolean(retailerEvent) ||
+      Boolean(productData.retailer_inventory) ||
+      Boolean(productData.shipments?.some((s: any) => s.status === "DELIVERED"))
+
+    const isDistributor =
+      !isRetail &&
+      (rawStatus === "in transit" ||
+        rawStatus === "dispatched" ||
+        rawStatus === "transferred" ||
+        rawStatus === "picked_up" ||
+        rawStatus === "in fleet transit" ||
+        rawStatus === "out for delivery" ||
+        Boolean(distributorEvent) ||
+        Boolean(productData.shipments?.some((s: any) => s.status === "IN_TRANSIT" || s.status === "PICKED_UP")))
+
+    const isProcessor =
+      !isRetail &&
+      !isDistributor &&
+      (rawStatus.includes("process") ||
+        rawStatus.includes("inspect") ||
+        rawStatus.includes("pack") ||
+        rawStatus.includes("ready") ||
+        Boolean(processorEvent) ||
+        productData.current_owner?.role === "processor")
+
+    let currentStage = 1
+    if (isRetail) currentStage = 4
+    else if (isDistributor) currentStage = 3
+    else if (isProcessor) currentStage = 2
+    else currentStage = 1
+
+    const isProcDone =
+      currentStage > 2 ||
+      (currentStage === 2 &&
+        (rawStatus.includes("processed") || rawStatus.includes("packaged") || rawStatus.includes("ready")))
 
     const farmerName =
       productData.farmer?.name ||
@@ -122,7 +159,7 @@ export function Tracker() {
     const processorName =
       processorEvent?.actor?.name ||
       processorEvent?.metadata?.processor_name ||
-      "Processor Agro-Processing Depot"
+      (productData.current_owner?.role === "processor" ? productData.current_owner.name : "Agro-Processing Unit Depot")
     const processorLoc =
       processorEvent?.location ||
       processorEvent?.metadata?.pickup_location ||
@@ -133,30 +170,182 @@ export function Tracker() {
     const carrierName =
       distributorEvent?.actor?.name ||
       distributorEvent?.metadata?.driver_name ||
-      "distributor1 (Assigned Logistics Carrier)"
+      (productData.current_owner?.role === "distributor" ? productData.current_owner.name : "SwiftLogistics Fleet Carrier")
     const carrierVehicle = distributorEvent?.metadata?.vehicle_number
-      ? `${distributorEvent.metadata.vehicle_number} (${distributorEvent.metadata.vehicle_type || "Reefer Van"})`
-      : "KA-04-E-2941 (Refrigerated Reefer Van)"
+      ? `${distributorEvent.metadata.vehicle_number} (${distributorEvent.metadata.vehicle_type || "Transit Logistics Van"})`
+      : "KA-04-E-2941 (Transit Logistics Van)"
     const tempLog = distributorEvent?.metadata?.departure_temperature
-      ? `${distributorEvent.metadata.departure_temperature} Monitored Transit Logistics`
-      : "3.8°C Monitored Transit Logistics"
+      ? `${distributorEvent.metadata.departure_temperature} Monitored Transit`
+      : "Monitored Safe Transit Logistics"
 
     const retailerName =
       retailerEvent?.actor?.name ||
       productData.retailer_inventory?.retailer?.name ||
-      "John's Metro Fresh Supermarket"
+      (productData.current_owner?.role === "retailer" ? productData.current_owner.name : "Metro Fresh Supermarket")
     const retailerLoc =
       retailerEvent?.location ||
       "Metro Fresh Supermarket, 80 Feet Main Road, 4th Block, Koramangala, Bengaluru"
     const dockTemp = retailerEvent?.metadata?.dock_temperature || "4.1°C"
-    const shelfStatus = productData.retailer_inventory?.status
-      ? `In Store • ${productData.retailer_inventory.status} • Dock Temp ${dockTemp}`
-      : "Aisle 3 • Refrigerated Fresh Produce Display"
+    const shelfStatus =
+      rawStatus === "sold"
+        ? "Sold to Consumer"
+        : productData.retailer_inventory?.status
+        ? `In Store • ${productData.retailer_inventory.status}`
+        : "Produce Section • Fresh Display"
 
     const score = (productData.ai_quality_score && productData.ai_quality_score > 0) ? productData.ai_quality_score : 95
     const label = (productData.ai_quality_label && productData.ai_quality_label !== "Unknown")
       ? productData.ai_quality_label
       : "Grade A Export Quality"
+
+    // Construct Custody Summary
+    let currentActorRole: "farmer" | "processor" | "distributor" | "retailer" = "farmer"
+    let currentActorName = farmerName
+    let currentFacilityOrVehicle = "Farm Origin & Cultivation Farmland"
+    let currentLocation = farmerLoc
+    let statusTitle = "At Farm Origin"
+    let statusBadge = "Stage 1 • Harvest Origin"
+    let progressPercent = 25
+    let completedStagesCount = 1
+
+    if (currentStage === 2) {
+      currentActorRole = "processor"
+      currentActorName = processorName
+      currentFacilityOrVehicle = "Agro-Processing & Packaging Depot"
+      currentLocation = processorLoc
+      statusTitle = isProcDone ? "Processing Completed • Ready for Logistics" : "In Processing Facility"
+      statusBadge = isProcDone ? "Stage 2 Completed • Ready for Pickup" : "Stage 2 In Progress • In Facility"
+      progressPercent = isProcDone ? 50 : 40
+      completedStagesCount = isProcDone ? 2 : 1
+    } else if (currentStage === 3) {
+      currentActorRole = "distributor"
+      currentActorName = carrierName
+      currentFacilityOrVehicle = carrierVehicle
+      currentLocation = "Active Transit Route (En Route to Retailer)"
+      statusTitle = "In Transit with Logistics Carrier"
+      statusBadge = "Stage 3 In Progress • In Transit"
+      progressPercent = 75
+      completedStagesCount = 2
+    } else if (currentStage === 4) {
+      currentActorRole = "retailer"
+      currentActorName = retailerName
+      currentFacilityOrVehicle = "Fresh Produce Retail Floor & Display"
+      currentLocation = retailerLoc
+      const isSold = rawStatus === "sold"
+      statusTitle = isSold ? "Sold to Consumer" : "In Retail Store (Available for Purchase)"
+      statusBadge = isSold ? "Supply Chain Complete • Sold" : "Stage 4 • In Store Inventory"
+      progressPercent = 100
+      completedStagesCount = 4
+    }
+
+    const custodySummary = {
+      currentStage,
+      currentActorRole,
+      currentActorName,
+      currentFacilityOrVehicle,
+      currentLocation,
+      statusTitle,
+      statusBadge,
+      progressPercent,
+      completedStagesCount,
+      isFinalSold: rawStatus === "sold"
+    }
+
+    // Build timeline stages
+    const stagesTimeline = [
+      {
+        stageNumber: 1,
+        key: "farmer" as const,
+        title: "1. Agricultural Farm Origin & Harvest",
+        status: "completed" as const,
+        badgeText: "Harvest Verified",
+        date: new Date(productData.created_at || Date.now()).toLocaleString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        }),
+        actorName: farmerName,
+        facilityOrVehicle: "Cultivation Polyhouse & Farmland",
+        location: farmerLoc,
+        details: `Harvested and authenticated at origin farm. Computer-vision quality analysis confirmed Grade: ${label} (${score}%).`,
+        extraTag: `AI Grade: ${label} (${score}%)`
+      },
+      {
+        stageNumber: 2,
+        key: "processor" as const,
+        title: "2. Facility Intake & Quality Inspection",
+        status: isProcDone ? ("completed" as const) : currentStage === 2 ? ("in_progress" as const) : ("pending" as const),
+        badgeText: isProcDone ? "Intake Inspected" : currentStage === 2 ? "Processing In Progress" : "Awaiting Facility Intake",
+        date: processorEvent?.created_at
+          ? new Date(processorEvent.created_at).toLocaleString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit"
+            })
+          : currentStage >= 2
+          ? "Verified In Facility"
+          : undefined,
+        actorName: currentStage >= 2 ? processorName : "Awaiting Processor Assignment",
+        facilityOrVehicle: "Agro-Processing Facility",
+        location: currentStage >= 2 ? processorLoc : undefined,
+        licenseOrId: currentStage >= 2 ? processorLicense : undefined,
+        details: currentStage >= 2
+          ? "Facility intake verified, scale weight checked, sanitized, and sealed under food safety compliance standards."
+          : "Product is currently at farm origin. Facility intake, scale inspection, and packaging will be recorded when the product arrives at the processing facility."
+      },
+      {
+        stageNumber: 3,
+        key: "distributor" as const,
+        title: "3. Distribution Logistics & Safe Transit",
+        status: currentStage > 3 ? ("completed" as const) : currentStage === 3 ? ("in_progress" as const) : ("pending" as const),
+        badgeText: currentStage > 3 ? "Fleet Transit Delivered" : currentStage === 3 ? "In Fleet Transit" : "Awaiting Logistics Dispatch",
+        date: distributorEvent?.created_at
+          ? new Date(distributorEvent.created_at).toLocaleString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit"
+            })
+          : currentStage >= 3
+          ? "Dispatched"
+          : undefined,
+        actorName: currentStage >= 3 ? carrierName : "Awaiting Logistics Assignment",
+        facilityOrVehicle: currentStage >= 3 ? carrierVehicle : "Awaiting Vehicle Assignment",
+        location: currentStage === 3 ? "Active Transit Route (En Route)" : undefined,
+        details: currentStage >= 3
+          ? `Dispatched via ${carrierName} with verified telematics tracking.`
+          : "Product has not yet been dispatched for transit. Fleet logistics pickup will be scheduled after processing completion."
+      },
+      {
+        stageNumber: 4,
+        key: "retailer" as const,
+        title: "4. Retail Store Intake & Shelf Display",
+        status: currentStage === 4 ? ("completed" as const) : ("pending" as const),
+        badgeText: currentStage === 4 ? (rawStatus === "sold" ? "Sold to Consumer" : "Available in Store") : "Awaiting Store Arrival",
+        date: retailerEvent?.created_at
+          ? new Date(retailerEvent.created_at).toLocaleString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit"
+            })
+          : currentStage === 4
+          ? "Available in Store"
+          : undefined,
+        actorName: currentStage === 4 ? retailerName : "Awaiting Store Intake",
+        facilityOrVehicle: "Retail Storefront",
+        location: currentStage === 4 ? retailerLoc : undefined,
+        details: currentStage === 4
+          ? `Received by ${retailerName}. QR code authenticated at store intake and made available for customer purchase.`
+          : "Product is progressing through the supply chain and has not yet arrived at the retail storefront."
+      }
+    ]
 
     return {
       id: productData.id || `prod-${query}`,
@@ -173,6 +362,8 @@ export function Tracker() {
       expiry_date: productData.expiry_date || "2026-10-24",
       blockchain_hash: productData.blockchain_hash || "0xd4d1e64f42a82940c56a796ed4ce16ea0731351c4a0fd3b756b143bb7a09809b",
       created_at: productData.created_at || new Date(Date.now() - 3 * 86400000).toISOString(),
+      custodySummary,
+      stagesTimeline,
       farmer: {
         name: farmerName,
         address: farmerLoc
@@ -181,25 +372,13 @@ export function Tracker() {
         name: processorName,
         address: processorLoc,
         license: processorLicense,
-        date: intakeDateObj.toLocaleString("en-GB", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit"
-        }),
+        date: stagesTimeline[1].date || "Pending Facility Intake",
         grade: label
       },
       distributor_info: {
         carrier: carrierName,
         vehicle: carrierVehicle,
-        date: dispatchDateObj.toLocaleString("en-GB", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit"
-        }),
+        date: stagesTimeline[2].date || "Pending Logistics Dispatch",
         temp: tempLog,
         hash: distributorEvent?.blockchain_hash
       },
@@ -207,13 +386,7 @@ export function Tracker() {
         store: retailerName,
         address: retailerLoc,
         dock_temp: dockTemp,
-        date: retailDateObj.toLocaleString("en-GB", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit"
-        }),
+        date: stagesTimeline[3].date || "Pending Retail Delivery",
         shelf_status: shelfStatus,
         hash: retailerEvent?.blockchain_hash || productData.blockchain_hash
       }
@@ -229,10 +402,12 @@ export function Tracker() {
     setOnChainEvents([])
 
     let foundDb: any = null
+    const token = localStorage.getItem("farmchain_token")
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
 
     // 1. Direct blockchain endpoint
     try {
-      const res = await axios.get(`${API}/products/blockchain/${encodeURIComponent(clean)}`)
+      const res = await axios.get(`${API}/products/blockchain/${encodeURIComponent(clean)}`, { headers })
       if (res.data?.success && res.data?.data) {
         foundDb = res.data.data
       }
@@ -241,14 +416,27 @@ export function Tracker() {
     // 2. Fallback all products list
     if (!foundDb) {
       try {
-        const listRes = await axios.get(`${API}/products`)
+        const listRes = await axios.get(`${API}/products`, { headers })
         const allList = listRes.data?.data || []
-        foundDb = allList.find((p: any) =>
+        const matched = allList.find((p: any) =>
           p.batch_number === clean ||
           p.batchNumber === clean ||
           String(p.product_id) === clean ||
           String(p.id) === clean
         )
+        if (matched) {
+          // Attempt to get full event provenance for this product
+          try {
+            const fullRes = await axios.get(`${API}/products/blockchain/${encodeURIComponent(matched.batch_number || matched.id)}`, { headers })
+            if (fullRes.data?.success && fullRes.data?.data) {
+              foundDb = fullRes.data.data
+            } else {
+              foundDb = matched
+            }
+          } catch {
+            foundDb = matched
+          }
+        }
       } catch {}
     }
 

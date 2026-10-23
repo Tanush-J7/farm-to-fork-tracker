@@ -40,7 +40,6 @@ const roleNavMap: Record<string, { name: string; path: string; icon: React.Eleme
     { name: "Active Fleet & Routes", path: "/distributor?tab=fleet", icon: Truck },
     { name: "Cargo Manifest", path: "/distributor?tab=inventory", icon: Package },
     { name: "Smart Handoff (QR)", path: "/distributor?tab=blockchain", icon: QrCode },
-    { name: "Track Product", path: "/track", icon: PackageSearch },
   ],
   retailer: [
     { name: "Dashboard", path: "/retailer", icon: LayoutDashboard },
@@ -55,6 +54,7 @@ const roleNavMap: Record<string, { name: string; path: string; icon: React.Eleme
     { name: "Returns", path: "/retailer/returns", icon: RefreshCw },
     { name: "Alerts", path: "/retailer/alerts", icon: AlertTriangle },
     { name: "Traceability", path: "/retailer/traceability", icon: LinkIcon },
+    { name: "Track Product", path: "/track", icon: PackageSearch },
   ],
   consumer: [
     { name: "Track Product", path: "/track", icon: PackageSearch },
