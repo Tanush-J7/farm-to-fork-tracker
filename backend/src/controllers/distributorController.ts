@@ -390,20 +390,23 @@ export const verifyPickupQR = async (req: Request, res: Response): Promise<void>
     let parsedShipmentId: string | null = null;
     let parsedBatchNumber: string | null = null;
     let parsedTrackingId: string | null = null;
+    let parsedProductId: string | null = null;
 
     try {
       if (rawQrInput.startsWith('{') && rawQrInput.endsWith('}')) {
         const parsed = JSON.parse(rawQrInput);
         token = parsed.pickup_token || parsed.token || rawQrInput;
         parsedShipmentId = parsed.shipment_id || parsed.order_id || null;
-        parsedBatchNumber = parsed.batch_number || null;
+        parsedBatchNumber = parsed.batch_number || parsed.batchId || null;
         parsedTrackingId = parsed.tracking_id || parsed.shipment_tracking_id || null;
+        parsedProductId = parsed.product_id || parsed.id || null;
       } else if (rawQrInput.includes('?')) {
         const urlObj = new URL(rawQrInput, 'https://localhost');
         token = urlObj.searchParams.get('pickup_token') || urlObj.searchParams.get('token') || rawQrInput;
-        parsedShipmentId = urlObj.searchParams.get('shipment_id') || urlObj.searchParams.get('id') || null;
+        parsedShipmentId = urlObj.searchParams.get('shipment_id') || urlObj.searchParams.get('order_id') || null;
         parsedBatchNumber = urlObj.searchParams.get('batch_number') || urlObj.searchParams.get('batch') || null;
         parsedTrackingId = urlObj.searchParams.get('tracking_id') || null;
+        parsedProductId = urlObj.searchParams.get('id') || urlObj.searchParams.get('product_id') || null;
       }
     } catch {
       // plain text token
@@ -415,6 +418,12 @@ export const verifyPickupQR = async (req: Request, res: Response): Promise<void>
       query = query.eq('id', targetShipmentId);
     } else if (parsedShipmentId) {
       query = query.eq('id', parsedShipmentId);
+    } else if (parsedBatchNumber) {
+      query = query.eq('batch_number', parsedBatchNumber);
+    } else if (parsedProductId) {
+      query = query.eq('product_id', parsedProductId);
+    } else if (parsedTrackingId) {
+      query = query.eq('shipment_tracking_id', parsedTrackingId);
     } else {
       // Find by checking traceability_events matching the pickup_token
       const { data: eventMatch } = await supabase
@@ -456,6 +465,18 @@ export const verifyPickupQR = async (req: Request, res: Response): Promise<void>
       if (bShipment) shipment = bShipment;
     }
 
+    if (!shipment && parsedProductId) {
+      const { data: pShipment } = await supabase
+        .from('shipments')
+        .select('*')
+        .eq('product_id', parsedProductId)
+        .eq('distributor_id', distributorId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (pShipment) shipment = pShipment;
+    }
+
     if (!shipment) {
       res.status(404).json({ success: false, message: 'Dispatch shipment order not found' });
       return;
@@ -494,23 +515,41 @@ export const verifyPickupQR = async (req: Request, res: Response): Promise<void>
     }
     if (shipment.shipment_tracking_id) validTokens.add(String(shipment.shipment_tracking_id).trim());
     if (shipment.batch_number) validTokens.add(String(shipment.batch_number).trim());
+    if (shipment.product_id) {
+      validTokens.add(String(shipment.product_id));
+    }
     validTokens.add('PKP_CONFIRMED');
 
     // 4. Strict QR Match Validation: If user scanned a QR, verify it matches THIS shipment or batch
     if (rawQrInput) {
       const cleanToken = token.trim();
       const cleanRaw = rawQrInput.trim();
+      const lowerRaw = cleanRaw.toLowerCase();
+      const lowerToken = cleanToken.toLowerCase();
+      const lowerBatch = (shipment.batch_number || '').toLowerCase();
+      const lowerProdId = (shipment.product_id || '').toLowerCase();
+      const lowerShipId = (shipment.id || '').toLowerCase();
 
       let isMatched = false;
       if (validTokens.has(cleanToken) || validTokens.has(cleanRaw)) {
         isMatched = true;
-      } else if (parsedBatchNumber && parsedBatchNumber.toLowerCase() === shipment.batch_number.toLowerCase()) {
+      } else if (parsedBatchNumber && lowerBatch && parsedBatchNumber.toLowerCase() === lowerBatch) {
         isMatched = true;
-      } else if (cleanToken.toLowerCase() === shipment.batch_number.toLowerCase() || cleanRaw.toLowerCase() === shipment.batch_number.toLowerCase()) {
+      } else if (lowerBatch && (lowerRaw.includes(lowerBatch) || lowerToken.includes(lowerBatch))) {
+        isMatched = true;
+      } else if (lowerProdId && (lowerRaw.includes(lowerProdId) || lowerToken.includes(lowerProdId))) {
+        isMatched = true;
+      } else if (lowerShipId && (lowerRaw.includes(lowerShipId) || lowerToken.includes(lowerShipId))) {
+        isMatched = true;
+      } else if (parsedProductId && shipment.product_id && String(parsedProductId).toLowerCase() === lowerProdId) {
+        isMatched = true;
+      } else if (cleanRaw === '[object Object]' && targetShipmentId) {
+        // Fallback for stale/legacy [object Object] QR renders if distributor selected this shipment
         isMatched = true;
       } else {
         for (const vt of validTokens) {
-          if (vt.length >= 8 && (cleanToken.includes(vt) || vt.includes(cleanToken) || cleanRaw.includes(vt))) {
+          const lowerVt = vt.toLowerCase();
+          if (vt.length >= 6 && (lowerToken.includes(lowerVt) || lowerVt.includes(lowerToken) || lowerRaw.includes(lowerVt))) {
             isMatched = true;
             break;
           }

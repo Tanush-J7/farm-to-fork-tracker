@@ -102,6 +102,7 @@ interface ProcessingBatch {
   destinationStore?: string
   blockchainTx?: string
   trackingId?: string
+  deliveryRequestId?: string
   deliveryRequestStatus?: "REQUESTED" | "ACCEPTED" | "PICKUP_QR_GENERATED" | "IN_TRANSIT" | "ARRIVED_AT_RETAILER" | "COMPLETED" | "DECLINED" | "DISPUTED"
   declineReason?: string
   driverName?: string
@@ -1641,8 +1642,24 @@ export function ProcessorDashboard() {
 
       if (genRes.data?.success) {
         const qrPayload = genRes.data.data
-        const tokenStr = qrPayload.pickup_token || qrPayload.pickup_qr_token || qrPayload.qr_payload;
-        const dataStr = qrPayload.qr_payload || qrPayload.pickup_qr_data || tokenStr;
+        const tokenStr = String(qrPayload.pickup_token || qrPayload.pickup_qr_token || `PKP_${batch.trackingId || batch.batchId}`);
+        let dataStr = tokenStr;
+        if (typeof qrPayload.qr_payload === "string" && qrPayload.qr_payload.trim() !== "" && qrPayload.qr_payload !== "[object Object]") {
+          dataStr = qrPayload.qr_payload;
+        } else if (typeof qrPayload.pickup_qr_data === "string" && qrPayload.pickup_qr_data.trim() !== "" && qrPayload.pickup_qr_data !== "[object Object]") {
+          dataStr = qrPayload.pickup_qr_data;
+        } else if (typeof qrPayload.pickup_qr_data === "object" && qrPayload.pickup_qr_data !== null) {
+          dataStr = JSON.stringify(qrPayload.pickup_qr_data);
+        } else {
+          dataStr = JSON.stringify({
+            qr_type: "PROCESSOR_PICKUP",
+            pickup_token: tokenStr,
+            shipment_id: targetId,
+            tracking_id: batch.trackingId,
+            batch_number: batch.batchId,
+            product_id: batch.originalProduct?.id
+          });
+        }
         setPickupModalData({
           isOpen: true,
           loading: false,
@@ -2890,12 +2907,28 @@ export function ProcessorDashboard() {
                                   <Button
                                     size="sm"
                                     onClick={() => {
+                                      const tokenVal = String(b.pickupQrToken || `PKP_${b.trackingId || b.batchId}`);
+                                      let dataVal = tokenVal;
+                                      if (typeof b.pickupQrData === "string" && b.pickupQrData.trim() !== "" && b.pickupQrData !== "[object Object]") {
+                                        dataVal = b.pickupQrData;
+                                      } else if (typeof b.pickupQrData === "object" && b.pickupQrData !== null && Object.keys(b.pickupQrData).length > 0) {
+                                        dataVal = JSON.stringify(b.pickupQrData);
+                                      } else {
+                                        dataVal = JSON.stringify({
+                                          qr_type: "PROCESSOR_PICKUP",
+                                          pickup_token: tokenVal,
+                                          shipment_id: b.deliveryRequestId || b.trackingId,
+                                          tracking_id: b.trackingId,
+                                          batch_number: b.batchId,
+                                          product_id: b.originalProduct?.id
+                                        });
+                                      }
                                       setPickupModalData({
                                         isOpen: true,
                                         loading: false,
                                         batch: b,
-                                        qrToken: b.pickupQrToken || `PKP_${b.trackingId}`,
-                                        qrData: b.pickupQrData || {},
+                                        qrToken: tokenVal,
+                                        qrData: dataVal,
                                         txHash: b.blockchainTx
                                       })
                                     }}
@@ -3982,7 +4015,7 @@ export function ProcessorDashboard() {
             <div style={{ position: "fixed", left: "-9999px", top: "-9999px", pointerEvents: "none" }}>
               <QRCodeCanvas
                 id="processor-batch-qr-canvas"
-                value={`${window.location.origin}/tracker?id=${qrViewBatch.originalProduct.id}`}
+                value={`${window.location.origin}/tracker?id=${qrViewBatch.originalProduct.id}&batch=${encodeURIComponent(qrViewBatch.batchId || qrViewBatch.originalProduct.batch_number || "")}`}
                 size={400}
                 level="M"
                 bgColor="#ffffff"
@@ -3994,7 +4027,7 @@ export function ProcessorDashboard() {
 
             <div className="p-4 bg-emerald-50/50 rounded-2xl flex flex-col items-center justify-center shadow-inner mx-auto w-fit border border-emerald-200">
               <QRCodeSVG
-                value={`${window.location.origin}/tracker?id=${qrViewBatch.originalProduct.id}`}
+                value={`${window.location.origin}/tracker?id=${qrViewBatch.originalProduct.id}&batch=${encodeURIComponent(qrViewBatch.batchId || qrViewBatch.originalProduct.batch_number || "")}`}
                 size={180}
                 level="H"
                 includeMargin={true}
@@ -4542,7 +4575,15 @@ export function ProcessorDashboard() {
                 <div className="flex flex-col items-center justify-center p-6 bg-emerald-50/40 rounded-2xl shadow-inner border-2 border-emerald-300">
                   <QRCodeCanvas
                     id="processor-pickup-qr-canvas"
-                    value={pickupModalData.qrData || pickupModalData.qrToken || ""}
+                    value={
+                      (typeof pickupModalData.qrData === "string" && pickupModalData.qrData.trim() !== "" && pickupModalData.qrData !== "[object Object]")
+                        ? pickupModalData.qrData
+                        : (typeof pickupModalData.qrData === "object" && pickupModalData.qrData !== null && Object.keys(pickupModalData.qrData).length > 0)
+                        ? JSON.stringify(pickupModalData.qrData)
+                        : (pickupModalData.qrToken && pickupModalData.qrToken !== "[object Object]")
+                        ? pickupModalData.qrToken
+                        : pickupModalData.batch?.batchId || "PROCESSOR_PICKUP_PASS"
+                    }
                     size={220}
                     level="H"
                     includeMargin={true}

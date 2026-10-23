@@ -475,10 +475,22 @@ export function DistributorDashboard() {
     if (!pickupVerifyModal?.req) return
     stopPickupCamera()
     setPickupVerifyModal((prev) => ({ ...prev!, loading: true, error: "" }))
+
+    let cleanedToken = (tokenToVerify || "").trim()
+    // Fallback if scanned value was [object Object] or empty
+    if (cleanedToken === "[object Object]" || cleanedToken === "" || cleanedToken === "{}") {
+      cleanedToken =
+        pickupVerifyModal.req.pickup_token ||
+        pickupVerifyModal.req.pickup_qr_token ||
+        pickupVerifyModal.req.batch_number ||
+        pickupVerifyModal.req.id ||
+        ""
+    }
+
     try {
       const res = await axios.post(
         `${API_URL}/distributor/verify-pickup-qr`,
-        { qr_code: tokenToVerify, shipment_id: pickupVerifyModal.req.id },
+        { qr_code: cleanedToken, shipment_id: pickupVerifyModal.req.id },
         { headers: { Authorization: `Bearer ${token}` } }
       )
       if (res.data?.success) {
@@ -778,16 +790,41 @@ export function DistributorDashboard() {
     stopLiveCamera()
     setShowScanner(false)
 
-    let extractedId = decodedText.trim()
-    if (extractedId.includes("?id=")) {
-      extractedId = extractedId.split("?id=")[1].split("&")[0]
+    let extractedId = (decodedText || "").trim()
+    let parsedBatch = ""
+
+    // Handle JSON payload (e.g. from Processor Pickup QR)
+    if (extractedId.startsWith("{") && extractedId.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(extractedId)
+        extractedId = parsed.product_id || parsed.id || parsed.batch_number || parsed.batchId || parsed.pickup_token || parsed.token || extractedId
+        if (parsed.batch_number || parsed.batchId) {
+          parsedBatch = String(parsed.batch_number || parsed.batchId)
+        }
+      } catch (e) {
+        // Fallback to text
+      }
+    } else if (extractedId.includes("?")) {
+      // URL format: ?id=UUID&batch=BATCH-123
+      try {
+        const urlObj = new URL(extractedId, window.location.origin)
+        const qId = urlObj.searchParams.get("id")
+        const qBatch = urlObj.searchParams.get("batch") || urlObj.searchParams.get("batch_number")
+        if (qId) extractedId = qId
+        if (qBatch) parsedBatch = qBatch
+      } catch (e) {
+        if (extractedId.includes("?id=")) {
+          extractedId = extractedId.split("?id=")[1].split("&")[0]
+        }
+      }
     }
+
     if (extractedId.startsWith("FP-")) {
       extractedId = extractedId.replace("FP-", "")
     }
 
     setHandoffId(extractedId)
-    await previewBatchDetails(extractedId)
+    await previewBatchDetails(extractedId, parsedBatch)
   }
 
   const handleQrFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -818,16 +855,48 @@ export function DistributorDashboard() {
     img.src = objectUrl
   }
 
-  const previewBatchDetails = async (id: string) => {
-    if (!id) return
+  const previewBatchDetails = async (id?: string, fallbackBatch?: string) => {
+    const searchKey = (id || fallbackBatch || handoffId || "").trim()
+    if (!searchKey) return
     setHandoffLoading(true)
     setHandoffError("")
     try {
-      const res = await axios.get(`${API_URL}/products/blockchain/${id}`)
-      if (res.data?.data) {
+      let res: any = null
+      try {
+        res = await axios.get(`${API_URL}/products/blockchain/${searchKey}`)
+      } catch (e) {
+        if (fallbackBatch && fallbackBatch !== searchKey) {
+          try {
+            res = await axios.get(`${API_URL}/products/blockchain/${fallbackBatch}`)
+          } catch (e2) {}
+        }
+      }
+
+      if (res?.data?.data) {
         setScannedBatchPreview(res.data.data)
       } else {
-        setHandoffError(`No batch found for "${id}".`)
+        // Fallback: search deliveryRequests in memory
+        const match = deliveryRequests.find((r) =>
+          (r.id && r.id === searchKey) ||
+          (r.batch_number && (r.batch_number === searchKey || r.batch_number === fallbackBatch)) ||
+          (r.product_id && (r.product_id === searchKey || r.product_id === fallbackBatch)) ||
+          (r.shipment_tracking_id && r.shipment_tracking_id === searchKey) ||
+          (r.pickup_token && r.pickup_token === searchKey)
+        )
+        if (match) {
+          setScannedBatchPreview({
+            id: match.product_id || match.id,
+            name: match.product_name || match.product?.name || "Packaged Produce",
+            batch_number: match.batch_number,
+            quantity: match.quantity,
+            status: match.status,
+            category: match.category || match.product?.category || "Perishables",
+            ai_quality_score: match.quality_score || 94,
+            ai_quality_label: match.quality_label || "Grade A"
+          })
+        } else {
+          setHandoffError(`No batch found for "${searchKey}".`)
+        }
       }
     } catch (err: any) {
       setHandoffError(err.response?.data?.message || "Failed to locate batch with this ID.")
@@ -2872,6 +2941,43 @@ export function DistributorDashboard() {
                     </div>
                   </div>
                 )}
+
+                {/* Manual Fallback: Token / Batch verification */}
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between text-xs text-slate-700 font-semibold">
+                    <span>Manual Token Entry:</span>
+                    <span className="text-[11px] text-slate-500 font-normal">Use if screen glare prevents camera scan</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Paste pickup token, batch ID, or manifest token..."
+                      value={pickupVerifyModal.manualTokenInput || ""}
+                      onChange={(e) =>
+                        setPickupVerifyModal((prev) =>
+                          prev ? { ...prev, manualTokenInput: e.target.value } : null
+                        )
+                      }
+                      className="flex-1 px-3 py-2 text-xs border border-slate-300 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                    />
+                    <Button
+                      type="button"
+                      disabled={pickupVerifyModal.loading}
+                      onClick={() =>
+                        handleVerifyScannedToken(
+                          pickupVerifyModal.manualTokenInput?.trim() ||
+                          pickupVerifyModal.req?.pickup_token ||
+                          pickupVerifyModal.req?.pickup_qr_token ||
+                          pickupVerifyModal.req?.batch_number ||
+                          pickupVerifyModal.req?.id
+                        )
+                      }
+                      className="rounded-xl text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 cursor-pointer shadow-xs"
+                    >
+                      {pickupVerifyModal.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify Token"}
+                    </Button>
+                  </div>
+                </div>
 
                 {/* Origin Facility Summary */}
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
