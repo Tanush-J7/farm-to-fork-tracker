@@ -71,13 +71,13 @@
 }
 
 /* Keep legacy screens in the same crisp light visual language */
-[class*="bg-slate-900"],
-[class*="bg-slate-800"],
-[class*="bg-zinc-950"],
-[class*="bg-zinc-900"],
-[class*="bg-zinc-800"],
-[class*="bg-zinc-700"],
-[class*="bg-black/"],
+[class*="bg-slate-900"]:not(button):not(span):not(a):not(input):not(label),
+[class*="bg-slate-800"]:not(button):not(span):not(a):not(input):not(label),
+[class*="bg-zinc-950"]:not(button):not(span):not(a):not(input):not(label),
+[class*="bg-zinc-900"]:not(button):not(span):not(a):not(input):not(label),
+[class*="bg-zinc-800"]:not(button):not(span):not(a):not(input):not(label),
+[class*="bg-zinc-700"]:not(button):not(span):not(a):not(input):not(label),
+[class*="bg-black/"]:not(button):not(span):not(a):not(input):not(label),
 [class*="bg-white/5"] {
   background-color: rgb(255 255 255) !important;
 }

@@ -219,24 +219,26 @@ export function Shipments() {
         <button
           onClick={() => setActiveFilter("ALL")}
           className={cn(
-            "p-4 rounded-2xl border text-left transition-all cursor-pointer shadow-sm",
+            "p-4 rounded-2xl border text-left transition-all cursor-pointer shadow-xs",
             activeFilter === "ALL"
-              ? "bg-slate-900 text-white border-slate-900 shadow-md"
-              : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+              ? "bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-500/20"
+              : "bg-white text-slate-700 border-slate-200 hover:border-emerald-300"
           )}
         >
-          <span className={cn("text-[10px] uppercase font-bold tracking-wider block", activeFilter === "ALL" ? "text-slate-300" : "text-slate-400")}>
+          <span className={cn("text-[10px] uppercase font-bold tracking-wider block", activeFilter === "ALL" ? "text-emerald-100" : "text-slate-400")}>
             Total Dispatches
           </span>
-          <span className="text-2xl font-black mt-1 block font-mono">{shipments.length}</span>
+          <span className={cn("text-2xl font-black mt-1 block font-mono", activeFilter === "ALL" ? "text-white" : "text-slate-900")}>
+            {shipments.length}
+          </span>
         </button>
 
         <button
           onClick={() => setActiveFilter("ARRIVED")}
           className={cn(
-            "p-4 rounded-2xl border text-left transition-all cursor-pointer shadow-sm relative overflow-hidden",
+            "p-4 rounded-2xl border text-left transition-all cursor-pointer shadow-xs relative overflow-hidden",
             activeFilter === "ARRIVED"
-              ? "bg-emerald-600 text-white border-emerald-600 shadow-md"
+              ? "bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-500/20"
               : "bg-white text-slate-700 border-slate-200 hover:border-emerald-300"
           )}
         >
@@ -257,9 +259,9 @@ export function Shipments() {
         <button
           onClick={() => setActiveFilter("IN_TRANSIT")}
           className={cn(
-            "p-4 rounded-2xl border text-left transition-all cursor-pointer shadow-sm",
+            "p-4 rounded-2xl border text-left transition-all cursor-pointer shadow-xs",
             activeFilter === "IN_TRANSIT"
-              ? "bg-cyan-600 text-white border-cyan-600 shadow-md"
+              ? "bg-cyan-600 text-white border-cyan-600 shadow-md ring-2 ring-cyan-500/20"
               : "bg-white text-slate-700 border-slate-200 hover:border-cyan-300"
           )}
         >
@@ -274,21 +276,23 @@ export function Shipments() {
         <button
           onClick={() => setActiveFilter("COMPLETED")}
           className={cn(
-            "p-4 rounded-2xl border text-left transition-all cursor-pointer shadow-sm",
+            "p-4 rounded-2xl border text-left transition-all cursor-pointer shadow-xs",
             activeFilter === "COMPLETED"
-              ? "bg-slate-800 text-white border-slate-800 shadow-md"
-              : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+              ? "bg-emerald-800 text-white border-emerald-800 shadow-md ring-2 ring-emerald-700/20"
+              : "bg-white text-slate-700 border-slate-200 hover:border-emerald-300"
           )}
         >
-          <span className={cn("text-[10px] uppercase font-bold tracking-wider block", activeFilter === "COMPLETED" ? "text-slate-300" : "text-slate-400")}>
+          <span className={cn("text-[10px] uppercase font-bold tracking-wider block", activeFilter === "COMPLETED" ? "text-emerald-200" : "text-slate-400")}>
             Handover Certified
           </span>
-          <span className="text-2xl font-black mt-1 block font-mono">{completedCount}</span>
+          <span className={cn("text-2xl font-black mt-1 block font-mono", activeFilter === "COMPLETED" ? "text-white" : "text-slate-900")}>
+            {completedCount}
+          </span>
         </button>
       </div>
 
       {/* SEARCH AND FILTER BAR */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="relative flex-1 max-w-md">
           <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -308,7 +312,7 @@ export function Shipments() {
             onClick={() => setActiveFilter("ALL")}
             className={cn(
               "px-3 py-1.5 rounded-lg font-bold text-xs transition-colors cursor-pointer",
-              activeFilter === "ALL" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+              activeFilter === "ALL" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
             )}
           >
             All ({shipments.length})
@@ -317,7 +321,7 @@ export function Shipments() {
             onClick={() => setActiveFilter("ARRIVED")}
             className={cn(
               "px-3 py-1.5 rounded-lg font-bold text-xs transition-colors cursor-pointer",
-              activeFilter === "ARRIVED" ? "bg-emerald-600 text-white" : "text-slate-600 hover:bg-slate-100"
+              activeFilter === "ARRIVED" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
             )}
           >
             Dock Ready ({arrivedCount})
@@ -326,7 +330,7 @@ export function Shipments() {
             onClick={() => setActiveFilter("IN_TRANSIT")}
             className={cn(
               "px-3 py-1.5 rounded-lg font-bold text-xs transition-colors cursor-pointer",
-              activeFilter === "IN_TRANSIT" ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-100"
+              activeFilter === "IN_TRANSIT" ? "bg-cyan-600 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
             )}
           >
             In Transit ({inTransitCount})
@@ -335,7 +339,7 @@ export function Shipments() {
             onClick={() => setActiveFilter("COMPLETED")}
             className={cn(
               "px-3 py-1.5 rounded-lg font-bold text-xs transition-colors cursor-pointer",
-              activeFilter === "COMPLETED" ? "bg-slate-800 text-white" : "text-slate-600 hover:bg-slate-100"
+              activeFilter === "COMPLETED" ? "bg-emerald-800 text-white shadow-xs" : "text-slate-600 hover:bg-slate-100"
             )}
           >
             Stocked ({completedCount})
@@ -345,7 +349,7 @@ export function Shipments() {
               onClick={() => setActiveFilter("DISPUTED")}
               className={cn(
                 "px-3 py-1.5 rounded-lg font-bold text-xs transition-colors cursor-pointer",
-                activeFilter === "DISPUTED" ? "bg-rose-600 text-white" : "text-rose-600 hover:bg-rose-50"
+                activeFilter === "DISPUTED" ? "bg-rose-600 text-white shadow-xs" : "text-rose-600 hover:bg-rose-50"
               )}
             >
               Disputed ({disputedCount})
@@ -472,46 +476,49 @@ export function Shipments() {
                 <div className="p-6 lg:w-2/3 flex flex-col justify-between space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     {/* Origin Processor Details */}
-                    <div className="p-4 bg-slate-50/70 border border-slate-200/70 rounded-2xl space-y-2">
+                    <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-2.5">
                       <div className="flex items-center gap-2 text-indigo-700 font-bold text-xs uppercase tracking-wider">
                         <Factory className="h-4 w-4" />
                         <span>Origin Facility (Processor)</span>
                       </div>
                       <div>
                         <h5 className="font-bold text-slate-900 text-sm">
-                          {shipment.processor?.name || "Agro-Processing Facility"}
+                          {shipment.processor?.name || shipment.processor_name || "Agro-Processing Facility"}
                         </h5>
-                        <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                          <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
-                          <span className="truncate">{shipment.processor?.address || "APMC Industrial Suburb, Bengaluru"}</span>
+                        <p className="text-xs text-slate-600 mt-0.5 flex items-center gap-1.5">
+                          <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{shipment.processor?.address || shipment.processor_address || "APMC Industrial Suburb, Bengaluru"}</span>
                         </p>
-                        <span className="inline-block mt-2 font-mono text-[10px] font-bold bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded border border-indigo-200">
-                          {shipment.processor?.license_number || "FSSAI-VERIFIED"}
-                        </span>
+                        <div className="mt-2.5">
+                          <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold bg-indigo-50 text-indigo-900 px-2.5 py-0.5 rounded-md border border-indigo-200">
+                            Lic: {shipment.processor?.license_number || "FSSAI-VERIFIED"}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
                     {/* Authorized Transporter Card */}
-                    <div className="p-4 bg-slate-50/70 border border-slate-200/70 rounded-2xl space-y-2">
+                    <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-2.5">
                       <div className="flex items-center gap-2 text-emerald-700 font-bold text-xs uppercase tracking-wider">
                         <Truck className="h-4 w-4" />
                         <span>Authorized Carrier Vehicle</span>
                       </div>
                       <div>
-                        <div className="flex items-center justify-between">
-                          <h5 className="font-bold text-slate-900 text-sm">
-                            {shipment.distributor?.name || "Logistics Carrier"}
+                        <div className="flex items-center justify-between gap-2">
+                          <h5 className="font-bold text-slate-900 text-sm truncate">
+                            {shipment.distributor?.name || shipment.distributor_name || "GreenWay Logistics & Freight Transport"}
                           </h5>
-                          <span className="font-mono text-xs font-extrabold bg-slate-900 text-white px-2 py-0.5 rounded-lg border border-slate-700 shadow-inner">
-                            {shipment.vehicle_number || shipment.distributor?.vehicle_number || "KA-04-E-2941"}
+                          <span className="font-mono text-xs font-bold bg-white text-slate-900 px-2.5 py-1 rounded-lg border border-slate-300 shadow-xs flex items-center gap-1.5 shrink-0">
+                            <Truck className="h-3 w-3 text-emerald-600" />
+                            <span>{shipment.vehicle_number || shipment.distributor?.vehicle_number || shipment.distributor_vehicle || "KA-04-E-2941"}</span>
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 mt-1">
-                          Driver Phone: {shipment.distributor?.phone || "+91 98111 87654"}
+                        <p className="text-xs text-slate-600 mt-1">
+                          Driver Phone: <span className="font-semibold text-slate-800">{shipment.distributor?.phone || shipment.distributor_phone || "+91 98111 87654"}</span>
                         </p>
-                        <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 w-fit">
-                          <Thermometer className="h-3.5 w-3.5 text-blue-600" />
-                          <span>3.8°C Precision Chilled</span>
+                        <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 w-fit">
+                          <Thermometer className="h-3.5 w-3.5 text-emerald-600" />
+                          <span>{shipment.departure_temperature || "3.8°C"} Fresh Monitored</span>
                         </div>
                       </div>
                     </div>
@@ -519,13 +526,13 @@ export function Shipments() {
 
                   {/* Actions Bar */}
                   <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <Calendar className="h-4 w-4 text-slate-400" />
+                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                      <Calendar className="h-4 w-4 text-emerald-600" />
                       <span>
                         Delivery Window:{" "}
-                        <strong className="text-slate-800">
+                        <strong className="text-slate-900 font-bold">
                           {shipment.expected_delivery
-                            ? new Date(shipment.expected_delivery).toLocaleDateString()
+                            ? new Date(shipment.expected_delivery).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                             : "Direct Transit Window"}
                         </strong>
                       </span>
