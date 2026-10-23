@@ -55,8 +55,9 @@ MARKET_MODIFIER = {
     "Chennai": 1.02,
 }
 
-# Current date is September 11, 2026
-END_DATE = datetime(2026, 9, 11)
+# Current date dynamically uses today
+now = datetime.now()
+END_DATE = datetime(now.year, now.month, now.day)
 DAYS = 60
 START_DATE = END_DATE - timedelta(days=DAYS - 1) # 60 days including today
 

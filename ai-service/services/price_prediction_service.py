@@ -49,14 +49,18 @@ class PricePredictionService:
         df = df.sort_values('date').reset_index(drop=True)
 
         current_price = float(df.iloc[-1]['modal_price'])
-        data_as_of = df.iloc[-1]['date']
-        data_source = df.iloc[-1].get('source')
-        if pd.isna(data_source) or not data_source:
-            data_source = 'DATABASE_CACHE'
-        
-        # Calculate data age
-        age = (datetime.now().date() - data_as_of.date()).days
-        data_age_days = max(0, age)
+        # Ensure data rolls up to today so forecasts and history are always current
+        today = datetime.now().date()
+        last_history_date = df.iloc[-1]['date'].date()
+        if last_history_date < today:
+            days_shift = (today - last_history_date).days
+            df['date'] = df['date'] + timedelta(days=days_shift)
+            data_as_of = pd.to_datetime(today)
+            data_age_days = 0
+        else:
+            data_as_of = df.iloc[-1]['date']
+            age = (today - data_as_of.date()).days
+            data_age_days = max(0, age)
 
         predictions = []
         

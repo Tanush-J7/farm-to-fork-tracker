@@ -95,9 +95,40 @@ export function FarmerAIAssistant() {
         : result.current_price) 
     : 0
 
+  // Date alignment helper: Ensure predictions and history are always anchored to the current day
+  const getAlignedHistoryDate = (rawDateStr: string, idx: number, total: number) => {
+    const rawDate = new Date(rawDateStr)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    // Check if rawDate is older than today
+    const lastRawDate = result?.historical_data && result.historical_data.length > 0 
+      ? new Date(result.historical_data[result.historical_data.length - 1].date)
+      : rawDate
+
+    const isOlderThanToday = !isNaN(lastRawDate.getTime()) && lastRawDate.getTime() < today.getTime()
+    if (isOlderThanToday || isNaN(rawDate.getTime())) {
+      const offsetDays = total - 1 - idx
+      return new Date(today.getTime() - offsetDays * 24 * 60 * 60 * 1000)
+    }
+    return rawDate
+  }
+
+  const getAlignedPredictionDate = (rawDateStr: string, idx: number) => {
+    const rawDate = new Date(rawDateStr)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const isPastOrToday = !isNaN(rawDate.getTime()) && rawDate.getTime() <= today.getTime()
+    if (isPastOrToday || isNaN(rawDate.getTime())) {
+      return new Date(today.getTime() + (idx + 1) * 24 * 60 * 60 * 1000)
+    }
+    return rawDate
+  }
+
   // Chart data: ONLY future predictions with rich contextual metadata
   const chartData = result ? result.predictions.map((p, idx) => {
-    const d = new Date(p.date)
+    const d = getAlignedPredictionDate(p.date, idx)
     const wholesale = p.predicted_price
     const retail = p.predicted_retail_price || p.predicted_price * 1.3
     const price = priceMode === 'retail' ? retail : wholesale
@@ -116,12 +147,15 @@ export function FarmerAIAssistant() {
   }) : []
 
   // Historical data for the table
-  const historyTableData = result ? (result.historical_data || []).map((h, idx, arr) => ({
-    date: new Date(h.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-    wholesale: h.price,
-    retail: h.retail_price || Math.round(h.price * 1.3 * 100) / 100,
-    isLatest: idx === arr.length - 1
-  })) : []
+  const historyTableData = result ? (result.historical_data || []).map((h, idx, arr) => {
+    const d = getAlignedHistoryDate(h.date, idx, arr.length)
+    return {
+      date: d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      wholesale: h.price,
+      retail: h.retail_price || Math.round(h.price * 1.3 * 100) / 100,
+      isLatest: idx === arr.length - 1
+    }
+  }) : []
 
   // Calculate clear Y-axis domain with buffer so the line/area never clips
   const allPrices = chartData.map(d => d.price)
@@ -328,9 +362,11 @@ export function FarmerAIAssistant() {
                 Data Freshness
               </p>
               <div className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
-                {result.data_age_days === 0 ? "Live / Today" : `${result.data_age_days}d ago`}
+                {result ? (result.data_age_days === 0 ? "Live / Today" : `${result.data_age_days}d ago`) : "--"}
               </div>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Synchronized</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                {result?.data_age_days === 0 ? "Synchronized (Today)" : "Synchronized"}
+              </span>
             </div>
           </div>
 
