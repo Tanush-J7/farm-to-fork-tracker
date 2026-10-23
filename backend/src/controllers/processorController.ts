@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { supabase } from '../config/supabase';
 import { blockchainRelayer } from '../services/blockchainRelayer';
 import { getActiveProfile } from '../services/profileService';
+import { getGlobalDeals, updateGlobalDeals, mergeDealObjects } from '../services/dealService';
 
 /**
  * GET /api/processor/requests
@@ -1234,21 +1235,26 @@ export const getProcessorState = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    const { data: record, error } = await supabase
-      .from('traceability_events')
-      .select('*')
-      .eq('actor_id', processorId)
-      .eq('event_type', 'PROCESSOR_STATE')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const [recordRes, globalDeals] = await Promise.all([
+      supabase
+        .from('traceability_events')
+        .select('*')
+        .eq('actor_id', processorId)
+        .eq('event_type', 'PROCESSOR_STATE')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      getGlobalDeals()
+    ]);
 
-    if (error) {
-      res.status(500).json({ success: false, message: 'Failed to fetch state', error: error.message });
+    if (recordRes.error) {
+      res.status(500).json({ success: false, message: 'Failed to fetch state', error: recordRes.error.message });
       return;
     }
 
-    const state = record?.metadata || {};
+    const state = recordRes.data?.metadata || {};
+    state.deals = mergeDealObjects(state.deals || {}, globalDeals);
+
     res.status(200).json({ success: true, data: state });
   } catch (error: any) {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -1268,6 +1274,10 @@ export const saveProcessorState = async (req: Request, res: Response): Promise<v
     }
 
     const incomingState = req.body || {};
+
+    if (incomingState.deals && Object.keys(incomingState.deals).length > 0) {
+      await updateGlobalDeals(incomingState.deals, processorId);
+    }
 
     const { data: existing } = await supabase
       .from('traceability_events')

@@ -4,6 +4,7 @@ import { supabase } from '../config/supabase';
 import { ethers } from 'ethers';
 import { blockchainRelayer } from '../services/blockchainRelayer';
 import { getActiveProfile } from '../services/profileService';
+import { getGlobalDeals, updateGlobalDeals, mergeDealObjects } from '../services/dealService';
 
 // Render Blueprints provide service host/port values separately from a full URL.
 // Prefer an explicitly configured URL for local development and other hosts.
@@ -131,17 +132,29 @@ export const registerProduct = async (req: Request, res: Response) => {
 
 export const getProducts = async (req: Request, res: Response) => {
   try {
-    const { data: products, error } = await supabase
-      .from('products')
-      .select('*, farmer:farmer_id(id, name, email, role, availability_status, wallet_address)')
-      .order('created_at', { ascending: false });
+    const [prodsRes, globalDeals] = await Promise.all([
+      supabase
+        .from('products')
+        .select('*, farmer:farmer_id(id, name, email, role, availability_status, wallet_address)')
+        .order('created_at', { ascending: false }),
+      getGlobalDeals()
+    ]);
 
-    if (error) {
-      res.status(500).json({ success: false, message: 'Server Error', error });
+    if (prodsRes.error) {
+      res.status(500).json({ success: false, message: 'Server Error', error: prodsRes.error });
       return;
     }
 
-    res.status(200).json({ success: true, data: products });
+    const augmented = (prodsRes.data || []).map(p => {
+      const dealStatus = globalDeals[p.id] || globalDeals[p.batch_number] || null;
+      return {
+        ...p,
+        deal_status: dealStatus,
+        dealStatus: dealStatus
+      };
+    });
+
+    res.status(200).json({ success: true, data: augmented });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
@@ -152,18 +165,30 @@ export const getMyProducts = async (req: Request, res: Response) => {
   try {
     const farmerId = (req as any).user?.id;
 
-    const { data: products, error } = await supabase
-      .from('products')
-      .select('id, product_id, blockchain_hash, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, expiry_date, product_image_url, created_at, updated_at, farmer_id, current_owner_id')
-      .or(`farmer_id.eq.${farmerId},current_owner_id.eq.${farmerId}`)
-      .order('created_at', { ascending: false });
+    const [prodsRes, globalDeals] = await Promise.all([
+      supabase
+        .from('products')
+        .select('id, product_id, blockchain_hash, name, category, batch_number, quantity, status, organic_status, ai_quality_score, ai_quality_label, ai_shelf_life, expiry_date, product_image_url, created_at, updated_at, farmer_id, current_owner_id')
+        .or(`farmer_id.eq.${farmerId},current_owner_id.eq.${farmerId}`)
+        .order('created_at', { ascending: false }),
+      getGlobalDeals()
+    ]);
 
-    if (error) {
-      res.status(500).json({ success: false, message: 'Server Error', error });
+    if (prodsRes.error) {
+      res.status(500).json({ success: false, message: 'Server Error', error: prodsRes.error });
       return;
     }
 
-    res.status(200).json({ success: true, data: products });
+    const augmented = (prodsRes.data || []).map(p => {
+      const dealStatus = globalDeals[p.id] || globalDeals[p.batch_number] || null;
+      return {
+        ...p,
+        deal_status: dealStatus,
+        dealStatus: dealStatus
+      };
+    });
+
+    res.status(200).json({ success: true, data: augmented });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
@@ -480,21 +505,26 @@ export const getFarmerState = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const { data: record, error } = await supabase
-      .from('traceability_events')
-      .select('*')
-      .eq('actor_id', farmerId)
-      .eq('event_type', 'FARMER_STATE')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const [recordRes, globalDeals] = await Promise.all([
+      supabase
+        .from('traceability_events')
+        .select('*')
+        .eq('actor_id', farmerId)
+        .eq('event_type', 'FARMER_STATE')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      getGlobalDeals()
+    ]);
 
-    if (error) {
-      res.status(500).json({ success: false, message: 'Failed to fetch farmer state', error: error.message });
+    if (recordRes.error) {
+      res.status(500).json({ success: false, message: 'Failed to fetch farmer state', error: recordRes.error.message });
       return;
     }
 
-    const state = record?.metadata || {};
+    const state = recordRes.data?.metadata || {};
+    state.deals = mergeDealObjects(state.deals || {}, globalDeals);
+
     res.status(200).json({ success: true, data: state });
   } catch (error: any) {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -514,6 +544,10 @@ export const saveFarmerState = async (req: Request, res: Response): Promise<void
     }
 
     const incomingState = req.body || {};
+
+    if (incomingState.deals && Object.keys(incomingState.deals).length > 0) {
+      await updateGlobalDeals(incomingState.deals, farmerId);
+    }
 
     const { data: existing } = await supabase
       .from('traceability_events')
@@ -553,6 +587,39 @@ export const saveFarmerState = async (req: Request, res: Response): Promise<void
     }
 
     res.status(200).json({ success: true, message: 'Farmer state synchronized' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+/**
+ * GET /api/products/deals
+ * Authoritative global deal state across all participants
+ */
+export const getProductDeals = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const globalDeals = await getGlobalDeals();
+    res.status(200).json({ success: true, data: globalDeals });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
+
+/**
+ * PUT /api/products/deal-status
+ * Update product deal status globally and synchronize database status
+ */
+export const updateProductDeal = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const actorId = (req as any).user?.id || 'anonymous';
+    const { productId, batchNumber, dealStatus, deals } = req.body || {};
+
+    const dealsPatch: Record<string, string> = deals ? { ...deals } : {};
+    if (productId && dealStatus) dealsPatch[String(productId)] = String(dealStatus);
+    if (batchNumber && dealStatus) dealsPatch[String(batchNumber)] = String(dealStatus);
+
+    const updated = await updateGlobalDeals(dealsPatch, actorId);
+    res.status(200).json({ success: true, data: updated, message: 'Deal status synchronized globally' });
   } catch (error: any) {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }

@@ -94,6 +94,7 @@ interface Product {
   expiryDate?: string
   productImageUrl?: string
   createdAt: string
+  dealStatus?: string
 }
 
 const normaliseProduct = (product: any): Product => ({
@@ -109,6 +110,7 @@ const normaliseProduct = (product: any): Product => ({
   expiryDate: product.expiryDate || product.expiry_date || undefined,
   productImageUrl: product.productImageUrl || product.product_image_url || undefined,
   createdAt: product.createdAt || product.created_at,
+  dealStatus: product.deal_status || product.dealStatus || undefined,
 })
 
 export function FarmerDashboard() {
@@ -361,7 +363,10 @@ export function FarmerDashboard() {
     persistFarmerState({ deals: updated as any })
     
     try {
-      await axios.put(`${API}/products/${productId}/status`, { status: "Accepted" }, { headers })
+      await Promise.allSettled([
+        axios.put(`${API}/products/${productId}/status`, { status: "Accepted" }, { headers }),
+        axios.put(`${API}/products/deal-status`, { productId, batchNumber, dealStatus: "accepted" }, { headers })
+      ])
       setProducts(prev => prev.map(p => (p._id === productId || p.batchNumber === batchNumber) ? { ...p, status: "Accepted" } : p))
     } catch (e) {
       console.warn("Could not sync accepted status", e)
@@ -376,7 +381,10 @@ export function FarmerDashboard() {
     persistFarmerState({ deals: updated as any })
     
     try {
-      await axios.put(`${API}/products/${productId}/status`, { status: "In Transit" }, { headers })
+      await Promise.allSettled([
+        axios.put(`${API}/products/${productId}/status`, { status: "In Transit" }, { headers }),
+        axios.put(`${API}/products/deal-status`, { productId, batchNumber, dealStatus: "dispatched" }, { headers })
+      ])
       setProducts(prev => prev.map(p => (p._id === productId || p.batchNumber === batchNumber) ? { ...p, status: "In Transit" } : p))
     } catch (e) {
       console.warn("Could not sync in-transit status", e)
@@ -403,7 +411,10 @@ export function FarmerDashboard() {
     }
 
     try {
-      await axios.put(`${API}/products/${productId}/status`, { status: "Harvested" }, { headers })
+      await Promise.allSettled([
+        axios.put(`${API}/products/${productId}/status`, { status: "Harvested" }, { headers }),
+        axios.put(`${API}/products/deal-status`, { productId, batchNumber, dealStatus: "declined" }, { headers })
+      ])
       setProducts(prev => prev.map(p => (p._id === productId || p.batchNumber === batchNumber) ? { ...p, status: "Harvested" } : p))
     } catch (e) {
       console.warn("Could not reset status to Harvested", e)
@@ -463,6 +474,36 @@ export function FarmerDashboard() {
         !isUnclaimedAndExpired(p)
       )
       setProducts(activeProducts)
+
+      // Sync backend deal_status into local deals
+      const incomingDealsFromProducts: Record<string, string> = {}
+      activeProducts.forEach(p => {
+        const ds = (p as any).dealStatus || (p as any).deal_status
+        if (ds) {
+          incomingDealsFromProducts[String(p._id)] = ds
+          if (p.batchNumber) incomingDealsFromProducts[p.batchNumber] = ds
+        }
+      })
+      if (Object.keys(incomingDealsFromProducts).length > 0) {
+        setDeals(prev => {
+          const dealPriority: Record<string, number> = { requested: 1, accepted: 2, dispatched: 3, declined: 4 }
+          let changed = false
+          const next = { ...prev }
+          Object.entries(incomingDealsFromProducts).forEach(([k, v]) => {
+            const curP = dealPriority[next[k]] || 0
+            const inP = dealPriority[v] || 0
+            if (inP >= curP && next[k] !== v) {
+              next[k] = v as any
+              changed = true
+            }
+          })
+          if (changed) {
+            try { localStorage.setItem("farmer_deals", JSON.stringify(next)) } catch {}
+            return next
+          }
+          return prev
+        })
+      }
     } catch {
       setProductError("Could not load products. Make sure the backend is running.")
     } finally {
@@ -966,8 +1007,9 @@ export function FarmerDashboard() {
                           )
                         }
 
-                        const isInterested = p.status === "Processing" || p.status === "In Transit" || Boolean(notif)
-                        const currentDealState = deals[p._id] || deals[p.batchNumber] || (isInterested ? "requested" : null)
+                        const backendDeal = (p as any).deal_status || (p as any).dealStatus
+                        const isInterested = p.status === "Processing" || p.status === "In Transit" || p.status === "Interested" || p.status === "Accepted" || Boolean(notif) || Boolean(backendDeal)
+                        const currentDealState = deals[p._id] || deals[p.batchNumber] || backendDeal || (isInterested ? "requested" : null)
 
                         if (!isInterested || currentDealState === "declined" || !currentDealState) return null
 

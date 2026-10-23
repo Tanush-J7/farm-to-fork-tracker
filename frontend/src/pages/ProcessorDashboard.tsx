@@ -376,6 +376,36 @@ export function ProcessorDashboard() {
         !isUnclaimedAndExpired(p)
       )
       setProducts(active)
+
+      // Sync backend deal_status into local deals
+      const incomingDealsFromProducts: Record<string, string> = {}
+      active.forEach(p => {
+        const ds = (p as any).deal_status || (p as any).dealStatus
+        if (ds) {
+          incomingDealsFromProducts[String(p.id)] = ds
+          if (p.batch_number) incomingDealsFromProducts[p.batch_number] = ds
+        }
+      })
+      if (Object.keys(incomingDealsFromProducts).length > 0) {
+        setDeals(prev => {
+          const dealPriority: Record<string, number> = { requested: 1, accepted: 2, dispatched: 3, declined: 4 }
+          let changed = false
+          const next = { ...prev }
+          Object.entries(incomingDealsFromProducts).forEach(([k, v]) => {
+            const curP = dealPriority[next[k]] || 0
+            const inP = dealPriority[v] || 0
+            if (inP >= curP && next[k] !== v) {
+              next[k] = v as any
+              changed = true
+            }
+          })
+          if (changed) {
+            try { localStorage.setItem("farmer_deals", JSON.stringify(next)) } catch {}
+            return next
+          }
+          return prev
+        })
+      }
       // Auto-reconstruct active batches across devices (e.g. laptop) from database products
       let deletedBatchesList: string[] = []
       try {
@@ -656,7 +686,15 @@ export function ProcessorDashboard() {
         const mergedLogs = [...localLogs, ...newCloudLogs]
 
         const mergedInterests = Array.from(new Set([...localInterests, ...(cloud.interests || [])]))
-        const mergedDeals = { ...localDeals, ...(cloud.deals || {}) }
+        const dealPriority: Record<string, number> = { requested: 1, accepted: 2, dispatched: 3, declined: 4 }
+        const mergedDeals = { ...localDeals }
+        Object.entries(cloud.deals || {}).forEach(([k, v]) => {
+          const currentP = dealPriority[mergedDeals[k]] || 0
+          const incomingP = dealPriority[v as string] || 0
+          if (incomingP >= currentP) {
+            mergedDeals[k] = v as any
+          }
+        })
         const mergedDeclined = { ...localDeclined, ...(cloud.declinedProducts || {}) }
 
         // Only commit state changes when there is an actual difference to avoid fluctuating re-renders
@@ -803,7 +841,7 @@ export function ProcessorDashboard() {
       syncDeliveryRequests()
       fetchDistributors(true)
       fetchProcessorCloudState()
-    }, 15000)
+    }, 7000)
 
     const handleFocus = () => {
       if (document.visibilityState === "visible") {
@@ -912,10 +950,50 @@ export function ProcessorDashboard() {
       console.warn("Could not save farmer notification/deal", e)
     }
 
-    await updateDbStatus(product.id, "Processing")
-    if (prodId !== product.id) {
-      await updateDbStatus(prodId, "Processing")
+    try {
+      await axios.put(`${API}/products/deal-status`, {
+        productId: prodId,
+        batchNumber: product.batch_number,
+        dealStatus: "requested"
+      }, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    } catch (e) {
+      console.warn("Could not sync interest deal to cloud", e)
     }
+
+    await updateDbStatus(product.id, "Interested")
+    if (prodId !== product.id) {
+      await updateDbStatus(prodId, "Interested")
+    }
+  }
+
+  // Action: Confirm Farmer Dispatch & Receive at Gate
+  const handleConfirmDispatched = async (product: Product) => {
+    const prodId = String(product.id)
+    const bNum = String(product.batch_number || "")
+    const updatedDeals = {
+      ...deals,
+      [prodId]: "dispatched" as const,
+      ...(bNum ? { [bNum]: "dispatched" as const } : {})
+    }
+    setDeals(updatedDeals)
+    try { localStorage.setItem("farmer_deals", JSON.stringify(updatedDeals)) } catch {}
+
+    try {
+      await Promise.allSettled([
+        axios.put(`${API}/products/deal-status`, {
+          productId: prodId,
+          batchNumber: bNum,
+          dealStatus: "dispatched"
+        }, { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+        updateDbStatus(product.id, "In Transit")
+      ])
+    } catch (e) {
+      console.warn("Could not sync dispatched status to cloud", e)
+    }
+
+    addLog(`Confirmed dispatch for ${product.name} (${bNum || prodId}). Produce arrived at gate facility.`, "Dispatched", prodId)
+    setPipelineStep("received")
+    window.dispatchEvent(new Event("farmer_deals_updated"))
   }
 
   // Action: Dismiss Declined Product from Pipeline
@@ -2108,24 +2186,31 @@ export function ProcessorDashboard() {
 
       {activeTab === "pipeline" && (() => {
         const isProductDispatched = (p: Product) => {
+          const pId = String(p.id)
+          const bNum = String(p.batch_number || "")
           const isDeclined = Boolean(
-            deals[String(p.id)] === "declined" ||
-            deals[p.batch_number || ""] === "declined" ||
+            deals[pId] === "declined" ||
+            (bNum && deals[bNum] === "declined") ||
             deals[p.id] === "declined" ||
             declinedProducts[p.id] ||
-            declinedProducts[String(p.id)] ||
-            (p.batch_number && declinedProducts[p.batch_number]) ||
+            declinedProducts[pId] ||
+            (bNum && declinedProducts[bNum]) ||
             ((p as any).batchNumber && declinedProducts[(p as any).batchNumber])
           )
           if (isDeclined) return false
 
+          const st = (p.status || "").trim().toLowerCase()
+          const dealSt = deals[pId] || (bNum && deals[bNum]) || deals[p.id] || (p as any).deal_status || (p as any).dealStatus
+
           return (
-            p.status === "In Transit" ||
-            p.status === "Processing" ||
-            p.status === "Delivered" ||
-            deals[String(p.id)] === "dispatched" ||
-            deals[p.batch_number || ""] === "dispatched" ||
-            deals[p.id] === "dispatched"
+            dealSt === "dispatched" ||
+            st === "in transit" ||
+            st === "in_transit" ||
+            st === "dispatched" ||
+            st === "ready for dispatch" ||
+            st === "ready_for_dispatch" ||
+            st === "processing" ||
+            st === "delivered"
           )
         }
 
@@ -2140,13 +2225,13 @@ export function ProcessorDashboard() {
         }
 
         const interestedProductsList = products.filter(p => 
-          (interests.includes(String(p.id)) || interests.includes(p.id)) &&
+          (interests.includes(String(p.id)) || interests.includes(p.id) || deals[String(p.id)] === "requested" || deals[String(p.id)] === "accepted") &&
           !isProductDispatched(p) &&
           !isProductDecidedOrBatched(p)
         )
 
         const receivedProductsList = products.filter(p => 
-          (interests.includes(String(p.id)) || interests.includes(p.id) || p.status === "In Transit" || p.status === "Processing") &&
+          (interests.includes(String(p.id)) || interests.includes(p.id) || isProductDispatched(p) || p.status === "In Transit" || p.status === "Processing") &&
           isProductDispatched(p) &&
           !isProductDecidedOrBatched(p)
         )
@@ -2236,7 +2321,7 @@ export function ProcessorDashboard() {
                         (p.batch_number && declinedProducts[p.batch_number]) ||
                         ((p as any).batchNumber && declinedProducts[(p as any).batchNumber])
                       )
-                      const isAccepted = deals[String(p.id)] === "accepted" || deals[p.batch_number || ""] === "accepted" || deals[p.id] === "accepted" || p.status === "Accepted"
+                      const isAccepted = deals[String(p.id)] === "accepted" || deals[p.batch_number || ""] === "accepted" || deals[p.id] === "accepted" || p.status === "Accepted" || (p as any).deal_status === "accepted" || (p as any).dealStatus === "accepted"
                       const dealStatus = isDeclined ? "declined" : isAccepted ? "accepted" : "requested"
 
                       if (isDeclined || dealStatus === "declined") {
@@ -2312,15 +2397,27 @@ export function ProcessorDashboard() {
                             >
                               Details
                             </Button>
-                            <Button
-                              size="sm"
-                              disabled
-                              title={dealStatus === "requested" ? "Waiting for farmer to accept your interest request." : "Waiting for farmer to mark batch ready for dispatch."}
-                              className="rounded-xl text-slate-400 bg-slate-100 border border-slate-200 flex-1 md:flex-initial gap-1.5 font-medium cursor-not-allowed"
-                            >
-                              <Lock className="h-3.5 w-3.5" />
-                              {dealStatus === "requested" ? "Awaiting Acceptance" : "Awaiting Dispatch"}
-                            </Button>
+                            {dealStatus === "accepted" ? (
+                              <Button
+                                size="sm"
+                                onClick={() => handleConfirmDispatched(p)}
+                                className="rounded-xl text-white bg-blue-600 hover:bg-blue-700 font-bold shadow-xs flex-1 md:flex-initial gap-1.5 cursor-pointer"
+                                title="Farmer has packed produce. Click to confirm gate intake and scan QR."
+                              >
+                                <Truck className="h-3.5 w-3.5" />
+                                Receive at Gate / Verify QR
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                disabled
+                                title="Waiting for farmer to accept your interest request."
+                                className="rounded-xl text-slate-400 bg-slate-100 border border-slate-200 flex-1 md:flex-initial gap-1.5 font-medium cursor-not-allowed"
+                              >
+                                <Lock className="h-3.5 w-3.5" />
+                                Awaiting Acceptance
+                              </Button>
+                            )}
                           </div>
                         </div>
                       )
