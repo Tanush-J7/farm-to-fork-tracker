@@ -45,12 +45,6 @@ export function PublicLayout() {
             <QrCode className="w-3.5 h-3.5" />
             Scan Product QR
           </a>
-          <Link 
-            className="text-sm font-medium hover:text-primary transition-colors cursor-pointer" 
-            to="/track"
-          >
-            Track & Verify
-          </Link>
           <a className="text-sm font-medium hover:text-primary transition-colors cursor-pointer" href={getHomeHash("#features")}>Features</a>
           <a className="text-sm font-medium hover:text-primary transition-colors cursor-pointer" href={getHomeHash("#how-it-works")}>How it Works</a>
           <a className="text-sm font-medium hover:text-primary transition-colors cursor-pointer" href={getHomeHash("#about-us")}>About Us</a>
